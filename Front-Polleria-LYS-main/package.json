@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:security": "node tests/integration/security.mjs"
   },
   "dependencies": {
     "@insforge/sdk": "^1.5.2",
