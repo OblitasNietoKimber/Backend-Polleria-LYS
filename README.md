@@ -51,7 +51,7 @@ Cada usuario nuevo recibe `cliente` en el servidor. No se confía en roles de lo
 UPDATE public.perfiles SET rol = 'caja' WHERE id = 'UUID_DEL_USUARIO';
 ```
 
-RLS oculta perfiles/pedidos/detalles/pagos ajenos. El catálogo disponible es público. El personal puede consultar pedidos; la edición del catálogo queda limitada al administrador. Las operaciones de negocio sobre pagos y estados requieren RPCs validados en sus siguientes épicas y están bloqueadas por escritura directa.
+RLS oculta perfiles/pedidos/detalles/pagos ajenos. Con la migración 007, el catálogo también muestra productos agotados e informa su disponibilidad. El personal puede consultar pedidos; la edición del catálogo queda limitada al administrador. Las operaciones de negocio sobre pagos y estados requieren RPCs validados en sus siguientes épicas y están bloqueadas por escritura directa.
 
 Para conectar registro/login con la consulta de pedidos, el cliente crea pedidos con `crear_pedido_cliente`: el servidor determina propietario, estado inicial, precios y envío (S/ 6 para delivery). El UUID de solicitud evita duplicados al reintentar. No registra cobros. La pasarela de pago, las vistas operativas de mesas/cocina/caja/dashboard y su almacenamiento siguen siendo las simulaciones preexistentes; su migración completa corresponde a las siguientes épicas. El historial y detalle del cliente ya consultan InsForge.
 
@@ -65,6 +65,7 @@ Dentro del frontend:
 
 ```bash
 npm run build
+npm test
 npx playwright install chromium
 npm run test:e2e
 npm run lint
@@ -77,3 +78,5 @@ La suite E2E cubre registro/verificación, errores de login, restauración/logou
 Para usar un Chromium ya instalado, define `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Los cambios de esta rama pasan lint por archivos; el lint global conserva errores previos en módulos ajenos a Auth (ver `docs/VALIDACION.md`).
 
 Nada se publica automáticamente. Esta rama se prepara localmente para revisión antes de push o PR.
+
+Consulta [la revisión del catálogo](docs/catalogo-productos.md) para sus trece commits, servicios, migraciones pendientes de aplicar y resultados de las pruebas.
