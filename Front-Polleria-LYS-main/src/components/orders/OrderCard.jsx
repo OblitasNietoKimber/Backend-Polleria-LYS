@@ -13,7 +13,7 @@ export default function OrderCard({ order }) {
   })
 
   const [firstItem, ...restItems] = order.items
-  const firstProduct = PRODUCTS.find((p) => p.id === firstItem.id)
+  const firstProduct = PRODUCTS.find((p) => p.id === firstItem?.id)
   const otherNames = restItems.map((item) => item.name).join(', ')
 
   return (
@@ -36,7 +36,7 @@ export default function OrderCard({ order }) {
           <img src={firstProduct.image} alt={firstItem.name} className="order-card-thumb" />
         )}
         <div className="order-card-product-text">
-          <span className="order-card-product-name">{firstItem.qty}× {firstItem.name}</span>
+          <span className="order-card-product-name">{firstItem ? `${firstItem.qty}× ${firstItem.name}` : 'Pedido sin artículos'}</span>
           {otherNames && <span className="order-card-product-extra">+ {otherNames}</span>}
           <span className="order-card-count-tag">{order.items.length} producto{order.items.length > 1 ? 's' : ''}</span>
         </div>

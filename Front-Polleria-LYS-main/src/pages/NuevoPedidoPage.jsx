@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { PRODUCTS } from '../data/products';
 import mesaService from '../services/mesaService';
-import authService from '../services/authService';
+import * as authService from '../services/authService';
 import '../styles/nuevoPedido.css';
 
 const CATEGORIAS_MENU = [

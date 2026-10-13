@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import CheckoutSteps from '../../components/CheckoutSteps'
@@ -20,9 +20,14 @@ export default function ResumenPage() {
     }
   }, [payment, cardReceipt, navigate])
 
-  function handleConfirm() {
-    confirmOrder()
-    navigate('/confirmacion')
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  async function handleConfirm() {
+    if (saving) return;
+    setSaving(true); setError('');
+    try { await confirmOrder(); navigate('/confirmacion'); }
+    catch (err) { setError(err.message); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -36,6 +41,8 @@ export default function ResumenPage() {
 
       <CheckoutSteps step={3} />
 
+      {error && <p role="alert">{error}</p>}
+      {saving && <p role="status">Guardando pedido...</p>}
       <OrderSummary
         items={cartItems}
         subtotal={subtotal}
@@ -48,6 +55,7 @@ export default function ResumenPage() {
         money={money}
         onBack={() => navigate('/checkout/pago')}
         onConfirm={handleConfirm}
+        saving={saving}
       />
     </section>
   )

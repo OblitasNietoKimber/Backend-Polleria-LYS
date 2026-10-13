@@ -1,6 +1,5 @@
-import cocinaService from './cocinaService'
-
-const STORAGE_KEY = 'lys-client-orders'
+import { requireInsforge } from '../lib/insforge'
+import { getCurrentUser } from './authService'
 
 export const ORDER_STATUS_STEPS = [
   { key: 'recibido', label: 'Recibido' },
@@ -10,82 +9,36 @@ export const ORDER_STATUS_STEPS = [
   { key: 'entregado', label: 'Entregado' },
 ]
 
-function readOrders() {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
+function mapOrder(row) {
+  const items = (row.detalles_pedido || []).map(item => ({ id: item.producto_id, name: item.productos?.nombre || 'Producto', price: Number(item.precio_unitario), qty: item.cantidad }));
+  return { id: row.id, items, subtotal: Number(row.total)-Number(row.envio), shipping: Number(row.envio), total: Number(row.total), deliveryType: row.tipo,
+    form: row.destinatario || {}, payment: row.metodo_solicitado || 'Pendiente', createdAt: row.creado_en, backendStatus: row.estado };
+}
+const selection = '*, detalles_pedido(producto_id,cantidad,precio_unitario,productos(nombre))';
+async function getOrders() {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Debes iniciar sesión.');
+  const { data, error } = await requireInsforge().database.from('pedidos').select(selection).eq('cliente_id', user.id).order('creado_en', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data.map(mapOrder);
+}
+async function getOrderById(id) {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Debes iniciar sesión.');
+  const { data, error } = await requireInsforge().database.from('pedidos').select(selection).eq('id',id).eq('cliente_id', user.id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapOrder(data) : null;
+}
+async function createOrder({ id, items, deliveryType, form, payment }) {
+  const { data, error } = await requireInsforge().database.rpc('crear_pedido_cliente', {
+    solicitud_id: id, tipo_entrega: deliveryType, articulos: items.map(({ product, qty }) => ({ id: product.id, qty })), datos_entrega: form, metodo: payment,
+  });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
-function writeOrders(orders) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(orders))
-  } catch {
-    // localStorage no disponible (modo privado, cuotas, etc.)
-  }
-}
-
-function getOrders() {
-  return readOrders().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-}
-
-function getOrderById(id) {
-  return readOrders().find((order) => order.id === id) || null
-}
-
-function createOrder({ id, items, subtotal, shipping, total, deliveryType, form, payment }) {
-  const order = {
-    id,
-    items: items.map(({ product, qty }) => ({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      qty,
-    })),
-    subtotal,
-    shipping,
-    total,
-    deliveryType,
-    form,
-    payment,
-    createdAt: new Date().toISOString(),
-  }
-
-  const orders = readOrders()
-  orders.push(order)
-  writeOrders(orders)
-  return order
-}
-
-// Traduce el estado real de cocina (fuente compartida "lys_pedidos") al
-// vocabulario que usa el cliente en su stepper.
-function mapKitchenStatus(pedidoCocina, deliveryType) {
-  if (!pedidoCocina) return 'recibido'
-
-  switch (pedidoCocina.estadoCocina) {
-    case 'nuevo':
-      return 'recibido'
-    case 'en_preparacion':
-      return 'preparacion'
-    case 'listo':
-      // Si es delivery, "listo" en cocina significa que ya salió a reparto.
-      // Si es recojo en tienda, se queda en "listo" hasta que lo retiren.
-      return deliveryType === 'delivery' ? 'camino' : 'listo'
-    case 'entregado':
-      return 'entregado'
-    default:
-      return 'recibido'
-  }
-}
-
-// Estado en tiempo real: ya no se simula con un cronómetro, se lee
-// directamente de lo que cocina/caja van actualizando.
 function getOrderStatus(order) {
-  const pedidoCocina = cocinaService.getPedidos().find((p) => p.id === order.id)
-  return mapKitchenStatus(pedidoCocina, order.deliveryType)
+  return ({ pendiente: 'recibido', en_preparacion: 'preparacion', listo: 'listo', entregado: 'entregado', cancelado: 'cancelado' })[order.backendStatus] || 'recibido'
 }
 
 export default {

@@ -1,8 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { DELIVERY_COST, PRODUCTS } from '../data/products'
-import { generateOrderNumber } from '../utils/orderNumber'
 import orderService from '../services/orderService'
-import cocinaService from '../services/cocinaService'
 
 const CartContext = createContext(null)
 const CART_STORAGE_KEY = 'lys-cart'
@@ -149,43 +147,18 @@ export function CartProvider({ children }) {
     setCard(EMPTY_CARD)
   }
 
+  const requestId = useRef(null);
+  const confirmation = useRef(null);
   function confirmOrder() {
-  const number = generateOrderNumber()
-
-  orderService.createOrder({
-    id: number,
-    items: cartItems,
-    subtotal,
-    shipping,
-    total,
-    deliveryType,
-    form,
-    payment,
-    paymentReceipt: cardReceipt,
-  })
-
-  // Sincroniza el pedido con Caja y Cocina (comparten la misma fuente: "lys_pedidos")
-  cocinaService.crearPedido({
-    id: number,
-    mesa: null,
-    cliente: form.name?.trim() || 'Cliente web',
-    tipo: deliveryType, // 'delivery' | 'recojo'
-    observaciones: form.reference || '',
-    items: cartItems.map(({ product, qty }) => ({
-      nombre: product.name,
-      cantidad: qty,
-      precio: product.price,
-      observacion: '',
-    })),
-    total,
-  })
-
-  setOrderNumber(number)
-  setCart({})
-  clearCard()
-  setCardReceipt(null)
-  return number
-}
+    if (confirmation.current) return confirmation.current;
+    requestId.current ||= crypto.randomUUID();
+    confirmation.current = orderService.createOrder({ id: requestId.current, items: cartItems, deliveryType, form, payment })
+      .then(number => {
+        setOrderNumber(number); setCart({}); clearCard(); setCardReceipt(null); requestId.current = null;
+        return number;
+      }).finally(() => { confirmation.current = null; });
+    return confirmation.current;
+  }
 
   function resetAll() {
     setCart({})

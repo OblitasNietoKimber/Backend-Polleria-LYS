@@ -1,11 +1,8 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import Logo from '../components/common/Logo';
+import { useAuth } from '../hooks/useAuth';
 import * as authService from '../services/authService';
-import {
-  validatePersonalDataForm,
-  validateChangePasswordForm,
-} from '../services/validators';
+import { validatePersonalDataForm } from '../services/validators';
 import '../styles/profile.css';
 
 function Field({
@@ -49,7 +46,7 @@ function Field({
 }
 
 /* Datos personales */
-function DatosTab({ user, onUpdated }) {
+function DatosTab({ user }) {
   const [form, setForm] = useState({
     nombre: user.nombre || '',
     apellido: user.apellido || '',
@@ -79,7 +76,7 @@ function DatosTab({ user, onUpdated }) {
     setSaved(false);
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
 
@@ -91,8 +88,7 @@ function DatosTab({ user, onUpdated }) {
     setLoading(true);
 
     try {
-      const updatedUser = authService.updateProfile(form);
-      onUpdated(updatedUser);
+      await authService.updateProfile(form);
       setSaved(true);
     } catch (err) {
       setFormError(err.message);
@@ -184,127 +180,28 @@ function DatosTab({ user, onUpdated }) {
 
 /* Privacidad y seguridad */
 function PrivacidadTab() {
-  const initialForm = {
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  };
-
-  const [form, setForm] = useState(initialForm);
-  const [errors, setErrors] = useState({});
-  const [formError, setFormError] = useState('');
-  const [saved, setSaved] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  function handleChange(e) {
-    const { name, value } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: null,
-      }));
-    }
-
-    setSaved(false);
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    setFormError('');
-
-    const fieldErrors = validateChangePasswordForm(form);
-    setErrors(fieldErrors);
-
-    if (Object.keys(fieldErrors).length > 0) return;
-
-    setLoading(true);
-
+  async function sendCode() {
+    if (loading) return;
+    setLoading(true); setError('');
     try {
-      authService.changePassword(form);
-      setForm(initialForm);
-      setSaved(true);
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      await authService.changePassword();
+      navigate('/reset-password', { state: { email: user.email } });
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   }
-
-  return (
-    <div className="profile-panel">
-      <h2>Privacidad y seguridad</h2>
-
-      <p className="profile-panel-subtitle">
-        Administra la contraseña de tu cuenta.
-      </p>
-
-      {saved && (
-        <div className="profile-success-banner" role="status">
-          Tu contraseña se actualizó correctamente.
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        noValidate
-        className="profile-form"
-      >
-        <Field
-          label="Contraseña actual"
-          name="currentPassword"
-          type="password"
-          value={form.currentPassword}
-          onChange={handleChange}
-          error={errors.currentPassword}
-          autoComplete="current-password"
-        />
-
-        <Field
-          label="Nueva contraseña"
-          name="newPassword"
-          type="password"
-          value={form.newPassword}
-          onChange={handleChange}
-          error={errors.newPassword}
-          autoComplete="new-password"
-        />
-
-        <Field
-          label="Confirmar nueva contraseña"
-          name="confirmPassword"
-          type="password"
-          value={form.confirmPassword}
-          onChange={handleChange}
-          error={errors.confirmPassword}
-          autoComplete="new-password"
-        />
-
-        {formError && (
-          <p className="profile-form-error" role="alert">
-            {formError}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          className="btn-ember"
-          disabled={loading}
-        >
-          {loading ? 'Actualizando...' : 'Actualizar contraseña'}
-        </button>
-      </form>
-    </div>
-  );
+  return <div className="profile-panel"><h2>Privacidad y seguridad</h2>
+    <p>Para cambiar tu contraseña, enviaremos un código a tu correo. Ingresa ese código y la nueva contraseña en el siguiente paso.</p>
+    {error && <p role="alert">{error}</p>}
+    <button className="btn-ember" disabled={loading} onClick={sendCode}>{loading ? 'Enviando...' : 'Cambiar contraseña por correo'}</button>
+  </div>;
 }
 
 /* Preferencias */
-function PreferenciasTab({ user, onUpdated }) {
+function PreferenciasTab({ user }) {
   const [preferencias, setPreferencias] = useState(
     user.preferencias || {
       notificacionesEmail: true,
@@ -312,16 +209,16 @@ function PreferenciasTab({ user, onUpdated }) {
     }
   );
 
-  function toggle(key) {
-    const updated = {
-      ...preferencias,
-      [key]: !preferencias[key],
-    };
-
-    setPreferencias(updated);
-
-    const updatedUser = authService.updatePreferences(updated);
-    onUpdated(updatedUser);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  async function toggle(key) {
+    if (loading) return;
+    setLoading(true); setError('');
+    try {
+      const updated = await authService.updatePreferences({ ...preferencias, [key]: !preferencias[key] });
+      setPreferencias(updated.preferencias);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   }
 
   return (
@@ -332,6 +229,7 @@ function PreferenciasTab({ user, onUpdated }) {
         Elige qué notificaciones quieres recibir de Leñas y Sabores.
       </p>
 
+      {error && <p role="alert">{error}</p>}
       <div className="profile-preferences">
         <div className="profile-toggle-row">
           <div className="profile-toggle-label">
@@ -341,6 +239,7 @@ function PreferenciasTab({ user, onUpdated }) {
 
           <button
             type="button"
+            disabled={loading}
             className={`profile-switch${
               preferencias.notificacionesEmail ? ' on' : ''
             }`}
@@ -358,6 +257,7 @@ function PreferenciasTab({ user, onUpdated }) {
 
           <button
             type="button"
+            disabled={loading}
             className={`profile-switch${
               preferencias.notificacionesPromos ? ' on' : ''
             }`}
@@ -379,18 +279,11 @@ const TABS = [
 ];
 
 function ProfilePage() {
-  const navigate = useNavigate();
-
-  const [user, setUser] = useState(() => authService.getCurrentUser());
+  const { user } = useAuth();
   const [tab, setTab] = useState('datos');
 
   if (!user) {
     return <Navigate to="/login" replace />;
-  }
-
-  function handleLogout() {
-    authService.logout();
-    navigate('/login', { replace: true });
   }
 
   const initials = (
@@ -433,13 +326,13 @@ function ProfilePage() {
         </nav>
 
         {tab === 'datos' && (
-          <DatosTab user={user} onUpdated={setUser} />
+          <DatosTab user={user} />
         )}
 
         {tab === 'privacidad' && <PrivacidadTab />}
 
         {tab === 'preferencias' && (
-          <PreferenciasTab user={user} onUpdated={setUser} />
+          <PreferenciasTab user={user} />
         )}
       </div>
     </div>
