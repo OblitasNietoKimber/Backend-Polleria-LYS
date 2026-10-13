@@ -3,7 +3,7 @@ import { useLiveOrderStatus } from '../../hooks/useLiveOrderStatus'
 
 export default function OrderStatusBadge({ order }) {
   const status = useLiveOrderStatus(order)
-  const label = ORDER_STATUS_STEPS.find((s) => s.key === status)?.label
+  const label = ORDER_STATUS_STEPS.find((s) => s.key === status)?.label || (status === 'cancelado' ? 'Cancelado' : 'Pendiente')
 
   return (
     <span className={`status-badge status-${status}`}>
