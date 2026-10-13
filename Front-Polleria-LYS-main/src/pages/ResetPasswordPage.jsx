@@ -48,6 +48,9 @@ function Field({
 function ResetPasswordPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const [token] = useState(() => params.get('insforge_status') === 'ready' ? params.get('token') : null);
+  const linkError = params.get('insforge_status') === 'error';
 
   const [form, setForm] = useState({
     email: location.state?.email || '',
@@ -94,9 +97,9 @@ function ResetPasswordPage() {
 
     setFormError('');
 
-    const fieldErrors = validateResetPasswordForm(form);
+    const fieldErrors = validateResetPasswordForm({ ...form, token });
 
-    if (!form.email.trim()) {
+    if (!token && !form.email.trim()) {
       fieldErrors.email = 'Ingresa tu correo electrónico.';
     }
 
@@ -107,7 +110,7 @@ function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      await authService.resetPassword(form);
+      await authService.resetPassword({ ...form, token });
       setSuccess(true);
     } catch (err) {
       setFormError(
@@ -133,6 +136,7 @@ function ResetPasswordPage() {
           Ingresa el código que te enviamos y tu nueva contraseña.
         </p>
 
+        {linkError && <p role="alert">El enlace es inválido o ha expirado. Solicita uno nuevo.</p>}
         {success ? (
           <div className="login-page__success" role="status">
             <p>
@@ -146,6 +150,7 @@ function ResetPasswordPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
+            {!token && <>
             <Field
               label="Correo electrónico"
               name="email"
@@ -167,6 +172,7 @@ function ResetPasswordPage() {
               autoComplete="one-time-code"
             />
 
+            </>}
             <Field
               label="Nueva contraseña"
               name="password"
