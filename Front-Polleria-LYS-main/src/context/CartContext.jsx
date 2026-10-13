@@ -59,6 +59,7 @@ export function CartProvider({ children }) {
   const cartIds = Object.keys(cart).sort().join(',')
   const cartLoading = Boolean(cartIds) && catalogState.ids !== cartIds
   const cartError = catalogState.ids === cartIds ? catalogState.error : ''
+  const missingCartIds = !cartLoading && cartError ? Object.keys(cart).filter(id => !products[id]) : []
   const [cartOpen, setCartOpen] = useState(false)
   const [deliveryType, setDeliveryType] = useState(() => readStoredDelivery().deliveryType)
   const [form, setForm] = useState(() => readStoredDelivery().form)
@@ -173,8 +174,11 @@ export function CartProvider({ children }) {
 
   const requestId = useRef(null);
   const confirmation = useRef(null);
-  function confirmOrder() {
+  async function confirmOrder() {
     if (confirmation.current) return confirmation.current;
+    if (cartLoading || cartError || !cartItems.length || cartItems.some(item => !item.product.available)) {
+      throw new Error('Revisa los productos y su disponibilidad en el carrito antes de continuar.')
+    }
     requestId.current ||= crypto.randomUUID();
     confirmation.current = orderService.createOrder({ id: requestId.current, items: cartItems, deliveryType, form, payment })
       .then(number => {
@@ -195,6 +199,7 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    missingCartIds,
     cartLoading,
     cartError,
     cartItems,
