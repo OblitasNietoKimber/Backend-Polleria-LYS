@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -7,14 +6,12 @@ import {
   Building2,
   Grid2X2,
   Clock,
-  ChefHat,
-  ReceiptText,
   ChevronLeft,
   ChevronRight,
   User,
 } from 'lucide-react';
 import { ZONAS_SALON } from '../../data/mesasData';
-import authService from '../../services/authService';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function MesasNavLateral({
   zonaSeleccionada,
@@ -28,18 +25,16 @@ export default function MesasNavLateral({
   colapsado = false,
   onToggleColapsado,
 }) {
-  const navigate = useNavigate();
-
-  const usuarioActual = authService.getCurrentUser();
+  const { user: usuarioActual } = useAuth();
   const nombreUsuario = usuarioActual?.nombre
     ? `${usuarioActual.nombre} ${usuarioActual.apellido || ''}`.trim()
-    : 'Ana Rodríguez';
+    : 'Usuario';
 
   function getRolLabel(rol) {
     if (rol === 'admin') return 'Administrador';
     if (rol === 'mesera') return 'Mesera en turno';
     if (rol === 'cocina') return 'Personal de cocina';
-    if (rol === 'cajero') return 'Cajero';
+    if (rol === 'caja') return 'Cajero';
     return 'Mesera en turno';
   }
 

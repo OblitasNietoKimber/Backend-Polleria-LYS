@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import * as authService from '../services/authService';
 import { validateLoginForm } from '../services/validators';
 import Logo from '../components/common/Logo';
@@ -7,6 +7,7 @@ import '../styles/login.css';
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [form, setForm] = useState({
     email: '',
@@ -55,6 +56,7 @@ function LoginPage() {
     cliente: '/',
     mesera: '/mesas',
     cocina: '/cocina',
+    caja: '/caja',
     admin: '/dashboard',
   };
 
@@ -83,6 +85,7 @@ function LoginPage() {
           Inicia sesión para continuar en Leñas y Sabores.
         </p>
 
+        {location.search.includes('insforge_status=success') && <p role="status">Correo verificado. Ya puedes iniciar sesión.</p>}
         <form onSubmit={handleSubmit} noValidate>
           <label
             htmlFor="login-email"
@@ -160,6 +163,7 @@ function LoginPage() {
           </button>
         </form>
 
+        <Link to="/verify-email" className="login-page__link">Verificar mi correo</Link>
         <p className="login-page__register">
           ¿Aún no tienes cuenta?{' '}
           <Link to="/register" className="login-page__link">

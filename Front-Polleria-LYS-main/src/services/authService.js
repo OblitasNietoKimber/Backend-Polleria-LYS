@@ -1,279 +1,144 @@
-/**
- * authService.js
- *
- * Servicio de autenticación. Por ahora simula un backend usando localStorage,
- * para poder maquetar y validar todo el flujo de Login/Registro/Perfil sin
- * depender de que el API REST ya esté disponible.
- *
- * Cuando exista el backend real, solo hay que reemplazar el cuerpo de estas
- * funciones por llamadas fetch/axios; la firma (parámetros y lo que retornan)
- * se mantiene igual para no romper los componentes que ya las consumen.
- */
+import { insforge, requireInsforge } from '../lib/insforge';
 
-const USERS_KEY = 'lys_users';
-const SESSION_KEY = 'lys_session';
-const RESET_KEY = 'lys_reset_requests';
+let snapshot = { user: null, loading: true, error: '' };
+let initialization;
+let revision = 0;
+const listeners = new Set();
+const PENDING_PROFILE = 'lys_pending_profile';
+const normalizeEmail = value => (value || '').trim().toLowerCase();
 
-
-function getUsers() {
-  const raw = localStorage.getItem(USERS_KEY);
-  return raw ? JSON.parse(raw) : [];
+export function getAuthSnapshot() { return snapshot; }
+export function subscribeAuth(listener) { listeners.add(listener); return () => listeners.delete(listener); }
+function publish(values) {
+  snapshot = { ...snapshot, ...values };
+  listeners.forEach(listener => listener());
 }
-
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-function normalizeEmail(email) {
-  return (email || '').trim().toLowerCase();
-}
-
-
-export function register(data) {
-  const email = normalizeEmail(data.email);
-  const users = getUsers();
-
-  if (users.some((u) => u.email === email)) {
-    throw new Error('Ya existe una cuenta registrada con ese correo.');
+function unwrap({ data, error }) {
+  if (error) {
+    const messages = {
+      INVALID_CREDENTIALS: 'Correo o contraseña incorrectos.',
+      EMAIL_NOT_VERIFIED: 'Verifica tu correo antes de iniciar sesión.',
+      USER_ALREADY_EXISTS: 'Ya existe una cuenta con ese correo.',
+    };
+    throw new Error(messages[error.error] || error.message || 'No se pudo completar la operación.');
   }
-
-  const newUser = {
-    id: Date.now().toString(36),
-    nombre: data.nombre.trim(),
-    apellido: data.apellido.trim(),
-    email,
-    telefono: data.telefono.trim(),
-    password: data.password, 
-    rol: 'cliente',
-    preferencias: {
-      notificacionesEmail: true,
-      notificacionesPromos: true,
-    },
-    creadoEn: new Date().toISOString(),
-  };
-
-  users.push(newUser);
-  saveUsers(users);
-
-  return sanitizeUser(newUser);
+  return data;
 }
-
-export function login({ email, password }) {
-  const users = getUsers();
-  const user = users.find((u) => u.email === normalizeEmail(email));
-
-  if (!user || user.password !== password) {
-    throw new Error('Correo o contraseña incorrectos.');
+function pendingProfile(email) {
+  try {
+    const data = JSON.parse(sessionStorage.getItem(PENDING_PROFILE) || 'null');
+    return data?.email === email ? data : null;
+  } catch { return null; }
+}
+async function loadProfile(authUser) {
+  const client = requireInsforge();
+  const pending = pendingProfile(authUser.email);
+  if (pending) {
+    unwrap(await client.database.from('perfiles').update({
+      nombre: pending.nombre, apellido: pending.apellido, telefono: pending.telefono,
+    }).eq('id', authUser.id).select().single());
+    sessionStorage.removeItem(PENDING_PROFILE);
   }
-
-  const session = sanitizeUser(user);
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  return session;
+  const profile = unwrap(await client.database.from('perfiles').select('*').eq('id', authUser.id).single());
+  return { ...profile, email: authUser.email, creadoEn: profile.creado_en };
 }
-
-export function logout() {
-  localStorage.removeItem(SESSION_KEY);
+async function syncSession() {
+  const version = ++revision;
+  const { data, error } = await requireInsforge().auth.getCurrentUser();
+  if (error && error.statusCode !== 401) unwrap({ data, error });
+  const user = data?.user ? await loadProfile(data.user) : null;
+  if (version === revision) publish({ user, loading: false, error: '' });
+  return user;
 }
-
-export function getCurrentUser() {
-  const raw = localStorage.getItem(SESSION_KEY);
-  return raw ? JSON.parse(raw) : null;
-}
-
-export function isAuthenticated() {
-  return getCurrentUser() !== null;
-}
-
-function sanitizeUser(user) {
-  const { password, ...safeUser } = user;
-  return safeUser;
-}
-
-// --- Recuperación de contraseña ----------------------------------------
-
-function getResetRequests() {
-  const raw = localStorage.getItem(RESET_KEY);
-  return raw ? JSON.parse(raw) : {};
-}
-
-function saveResetRequests(requests) {
-  localStorage.setItem(RESET_KEY, JSON.stringify(requests));
-}
-
-export function requestPasswordReset(email) {
-  const normalizedEmail = normalizeEmail(email);
-  const users = getUsers();
-  const user = users.find((u) => u.email === normalizedEmail);
-
-  if (!user) {
-    throw new Error('No encontramos una cuenta con ese correo.');
+export function initializeAuth() {
+  if (!initialization) {
+    // Remove the former mock database, plaintext passwords and forged sessions.
+    ['lys_users','lys_session','lys_reset_requests'].forEach(key => localStorage.removeItem(key));
+    initialization = syncSession().catch(error => {
+      publish({ user: null, loading: false, error: error.message });
+    });
   }
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const requests = getResetRequests();
-  requests[normalizedEmail] = {
-    code,
-    expiresAt: Date.now() + 15 * 60 * 1000, // 15 minutos
-  };
-  saveResetRequests(requests);
-
-  return { email: normalizedEmail, code };
+  return initialization;
 }
-
-export function resetPassword({ email, code, password }) {
-  const normalizedEmail = normalizeEmail(email);
-  const requests = getResetRequests();
-  const request = requests[normalizedEmail];
-
-  if (!request || request.code !== code) {
-    throw new Error('El código de verificación es inválido.');
+export function retryAuth() {
+  initialization = null;
+  publish({ loading: true, error: '' });
+  return initializeAuth();
+}
+if (insforge) insforge.auth.onAuthStateChange(event => {
+  if (event === 'signedOut') {
+    revision++;
+    publish({ user: null, loading: false, error: '' });
+  } else if (event === 'tokenRefreshed') {
+    // Run after the SDK finishes saving the refreshed session.
+    queueMicrotask(() => syncSession().catch(error => publish({ user: null, error: error.message, loading: false })));
   }
-  if (Date.now() > request.expiresAt) {
-    throw new Error('El código de verificación expiró. Solicita uno nuevo.');
-  }
+});
+export function getCurrentUser() { return snapshot.user; }
+export function isAuthenticated() { return Boolean(snapshot.user); }
 
-  const users = getUsers();
-  const userIndex = users.findIndex((u) => u.email === normalizedEmail);
-  if (userIndex === -1) {
-    throw new Error('No encontramos una cuenta con ese correo.');
-  }
-
-  users[userIndex].password = password;
-  saveUsers(users);
-
-  delete requests[normalizedEmail];
-  saveResetRequests(requests);
+export async function register(form) {
+  const email = normalizeEmail(form.email);
+  const data = unwrap(await requireInsforge().auth.signUp({
+    email, password: form.password, name: `${form.nombre.trim()} ${form.apellido.trim()}`,
+    redirectTo: `${window.location.origin}/login`,
+  }));
+  sessionStorage.setItem(PENDING_PROFILE, JSON.stringify({
+    email, nombre: form.nombre.trim(), apellido: form.apellido.trim(), telefono: form.telefono.trim(),
+  }));
+  if (data?.requireEmailVerification) return { requireEmailVerification: true, email };
+  return { user: await syncSession(), requireEmailVerification: false };
+}
+export async function login({ email, password }) {
+  unwrap(await requireInsforge().auth.signInWithPassword({ email: normalizeEmail(email), password }));
+  return syncSession();
+}
+export async function logout() {
+  unwrap(await requireInsforge().auth.signOut());
+  revision++;
+  publish({ user: null, loading: false, error: '' });
+}
+export async function verifyEmail({ email, code }) {
+  unwrap(await requireInsforge().auth.verifyEmail({ email: normalizeEmail(email), otp: code.trim() }));
+  return syncSession();
+}
+export async function resendVerification(email) {
+  return unwrap(await requireInsforge().auth.resendVerificationEmail({ email: normalizeEmail(email), redirectTo: `${window.location.origin}/login` }));
+}
+export async function updateProfile(form) {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Debes iniciar sesión.');
+  const data = unwrap(await requireInsforge().database.from('perfiles').update({
+    nombre: form.nombre.trim(), apellido: form.apellido.trim(), telefono: form.telefono.trim(),
+  }).eq('id', user.id).select().single());
+  const updated = { ...user, ...data };
+  publish({ user: updated });
+  return updated;
+}
+export async function updatePreferences(preferencias) {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Debes iniciar sesión.');
+  const safePreferences = { notificacionesEmail: Boolean(preferencias.notificacionesEmail), notificacionesPromos: Boolean(preferencias.notificacionesPromos) };
+  const data = unwrap(await requireInsforge().database.from('perfiles').update({ preferencias: safePreferences }).eq('id',user.id).select().single());
+  const updated = { ...user, ...data };
+  publish({ user: updated });
+  return updated;
+}
+export async function requestPasswordReset(email) {
+  return unwrap(await requireInsforge().auth.sendResetPasswordEmail({ email: normalizeEmail(email), redirectTo: `${window.location.origin}/reset-password` }));
+}
+export async function resetPassword({ email, code, password, token }) {
+  const client = requireInsforge();
+  const otp = token || unwrap(await client.auth.exchangeResetPasswordToken({ email: normalizeEmail(email), code: code.trim() })).token;
+  unwrap(await client.auth.resetPassword({ newPassword: password, otp }));
+  // Password reset revokes sessions server-side; clear the UI as well.
+  revision++;
+  publish({ user: null, loading: false, error: '' });
+}
+// The supported SDK requires email proof for password changes, too.
+export async function changePassword() {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Debes iniciar sesión.');
+  return requestPasswordReset(user.email);
 }
 
-export function changePassword({ currentPassword, newPassword }) {
-  const session = getCurrentUser();
-  if (!session) throw new Error('Debes iniciar sesión para cambiar tu contraseña.');
-
-  const users = getUsers();
-  const userIndex = users.findIndex((u) => u.id === session.id);
-  if (userIndex === -1) throw new Error('No encontramos tu cuenta.');
-
-  if (users[userIndex].password !== currentPassword) {
-    throw new Error('La contraseña actual es incorrecta.');
-  }
-
-  users[userIndex].password = newPassword;
-  saveUsers(users);
-}
-
-export function updateProfile(data) {
-  const session = getCurrentUser();
-  if (!session) throw new Error('Debes iniciar sesión para editar tu perfil.');
-
-  const users = getUsers();
-  const userIndex = users.findIndex((u) => u.id === session.id);
-  if (userIndex === -1) throw new Error('No encontramos tu cuenta.');
-
-  users[userIndex] = {
-    ...users[userIndex],
-    nombre: data.nombre.trim(),
-    apellido: data.apellido.trim(),
-    telefono: data.telefono.trim(),
-  };
-  saveUsers(users);
-
-  const updatedSession = sanitizeUser(users[userIndex]);
-  localStorage.setItem(SESSION_KEY, JSON.stringify(updatedSession));
-  return updatedSession;
-}
-
-export function updatePreferences(preferencias) {
-  const session = getCurrentUser();
-  if (!session) throw new Error('Debes iniciar sesión.');
-
-  const users = getUsers();
-  const userIndex = users.findIndex((u) => u.id === session.id);
-  if (userIndex === -1) throw new Error('No encontramos tu cuenta.');
-
-  users[userIndex].preferencias = { ...users[userIndex].preferencias, ...preferencias };
-  saveUsers(users);
-
-  const updatedSession = sanitizeUser(users[userIndex]);
-  localStorage.setItem(SESSION_KEY, JSON.stringify(updatedSession));
-  return updatedSession;
-}
-
-// --- Cuentas de prueba ---------------------------------------------------
-
-export function seedTestAccounts() {
-  const users = getUsers();
-
-  const demoUsers = [
-    {
-           id: 'demo-cliente-1',
-      nombre: 'Cliente',
-      apellido: 'Demo',
-      email: 'cliente@lenasysabores.test',
-      telefono: '987654321',
-      password: 'Cliente123',
-      rol: 'cliente',
-      preferencias: { notificacionesEmail: true, notificacionesPromos: true,},
-      creadoEn: new Date().toISOString(),
-    },
-    {
-      id: 'demo-admin-1',
-      nombre: 'Ana',
-      apellido: 'Torres',
-      email: 'admin@lenasysabores.test',
-      telefono: '987654322',
-      password: 'Admin123',
-      rol: 'admin',
-      preferencias: { notificacionesEmail: true, notificacionesPromos: false },
-      creadoEn: new Date().toISOString(),
-    },
-    {
-      id: 'demo-mesera-1',
-      nombre: 'Fernando',
-      apellido: 'Celis',
-      email: 'mesera@lenasysabores.test',
-      telefono: '987654323',
-      password: 'Mesera123',
-      rol: 'mesera',
-      preferencias: {notificacionesEmail: true,notificacionesPromos: false,},
-      creadoEn: new Date().toISOString(),
-    },
-    {
-      id: 'demo-cocina-1',
-      nombre: 'Carlos',
-      apellido: 'Ramírez',
-      email: 'cocina@lenasysabores.test',
-      telefono: '987654324',
-      password: 'Cocina123',
-      rol: 'cocina',
-      preferencias: { notificacionesEmail: true,notificacionesPromos: false,
-      },
-      creadoEn: new Date().toISOString(),
-    },
-  ];
-
-  demoUsers.forEach((demoUser) => {
-    const accountExists = users.some(
-      (user) => user.email === demoUser.email
-    );
-
-    if (!accountExists) {
-      users.push(demoUser);
-    }
-  });
-
-  saveUsers(users);
-}
-
-export default {
-  register,
-  login,
-  logout,
-  getCurrentUser,
-  isAuthenticated,
-  requestPasswordReset,
-  resetPassword,
-  changePassword,
-  updateProfile,
-  updatePreferences,
-  seedTestAccounts,
-};

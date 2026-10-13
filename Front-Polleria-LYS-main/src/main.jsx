@@ -8,12 +8,10 @@ import "./styles/login.css";
 import './styles/global.css'
 import "./styles/caja.css";
 import "./styles/dashboard.css";
-import { seedTestAccounts } from './services/authService.js'
-
-seedTestAccounts()
+import AuthGate from './components/common/AuthGate.jsx'
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <App />
+    <AuthGate><App /></AuthGate>
   </StrictMode>
 );

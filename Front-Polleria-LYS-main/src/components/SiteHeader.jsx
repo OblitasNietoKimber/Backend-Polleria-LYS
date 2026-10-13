@@ -2,20 +2,22 @@ import { ShoppingCart } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext'
 import { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import * as authService from '../services/authService';
 export default function SiteHeader() {
   const { cartCount, openCart } = useCart()
   const location = useLocation();
   const navigate = useNavigate();
 
-const handleLogout = () => {
-  authService.logout();
+const handleLogout = async () => {
+  try { await authService.logout(); } catch (error) { setLogoutError(error.message); return; }
   setMenuPath(null);
   navigate('/login');
 };
   const [menuPath, setMenuPath] = useState(null);
 
-  const user = authService.getCurrentUser();
+  const { user } = useAuth();
+  const [logoutError, setLogoutError] = useState('');
   const canAccess = (roles) => Boolean(user && roles.includes(user.rol));
 
   const initials = user
@@ -26,6 +28,7 @@ const handleLogout = () => {
 
   return (
     <nav className="lys-nav">
+      {logoutError && <p role="alert">{logoutError}</p>}
       <div className="lys-nav-inner">
         <NavLink
           to="/"
@@ -59,10 +62,11 @@ const handleLogout = () => {
           {canAccess(['cocina', 'admin']) && (
             <NavLink to="/cocina" className={({ isActive }) =>  `lys-navlink ${isActive ? 'active' : ''}` } > Cocina</NavLink>
           )}
+          {canAccess(['caja', 'admin']) && (
+            <NavLink to="/caja" className={({ isActive }) => `lys-navlink ${isActive ? 'active' : ''}` }> Caja</NavLink>
+          )}
           {canAccess(['admin']) && (
-            <><NavLink to="/caja" className={({ isActive }) => `lys-navlink ${isActive ? 'active' : ''}` }> Caja</NavLink>
-
-              <NavLink to="/dashboard"className={({ isActive }) =>`lys-navlink ${isActive ? 'active' : ''}`}> Dashboard</NavLink> </>
+              <NavLink to="/dashboard"className={({ isActive }) =>`lys-navlink ${isActive ? 'active' : ''}`}> Dashboard</NavLink>
           )}
           {user ? (
             <div
