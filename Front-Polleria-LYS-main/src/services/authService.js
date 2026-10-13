@@ -142,3 +142,17 @@ export async function changePassword() {
   return requestPasswordReset(user.email);
 }
 
+export async function signInWithGoogle() {
+  const client = requireInsforge();
+  const config = unwrap(await client.auth.getPublicAuthConfig());
+  if (!config?.oAuthProviders?.includes('google')) throw new Error('Google no está habilitado en InsForge.');
+  return unwrap(await client.auth.signInWithOAuth('google', {
+    redirectTo: `${window.location.origin}/auth/callback`,
+    additionalParams: { prompt: 'select_account' },
+  }));
+}
+export async function completeOAuth() {
+  const user = await syncSession();
+  if (!user) throw new Error('No se pudo completar el inicio de sesión con Google.');
+  return user;
+}

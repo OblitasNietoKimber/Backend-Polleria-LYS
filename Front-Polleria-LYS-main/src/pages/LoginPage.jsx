@@ -70,6 +70,13 @@ function LoginPage() {
 }
   }
 
+  async function handleGoogle() {
+    if (loading) return;
+    setLoading(true); setFormError('');
+    try { await authService.signInWithGoogle(); }
+    catch (err) { setFormError(err.message); setLoading(false); }
+  }
+
   return (
     <div className="lys-root login-page">
       <div className="login-page__card">
@@ -163,6 +170,7 @@ function LoginPage() {
           </button>
         </form>
 
+        <button type="button" className="btn-ember" disabled={loading} onClick={handleGoogle}>Continuar con Google</button>
         <Link to="/verify-email" className="login-page__link">Verificar mi correo</Link>
         <p className="login-page__register">
           ¿Aún no tienes cuenta?{' '}
