@@ -3,7 +3,7 @@
 Repositorio: `Backend-Polleria-LYS`. Rama local: `feature/catalogo-productos`.
 Base: `6fd5ab0` de `origin/dev`, que ya incorpora EPIC 1.
 
-Se trasladan los trece cambios del catálogo del repositorio `Backend-Polleria`, adaptados a los servicios, migraciones y pruebas de este repositorio. Los mensajes ahora usan los prefijos `feat(catalogo)`, `test(catalogo)` y `docs(catalogo)`. Los hashes son nuevos porque la base y los mensajes son distintos. No se ha realizado push ni aplicado migraciones remotas.
+Se trasladaron los trece cambios del catálogo del repositorio `Backend-Polleria`, adaptados a los servicios, migraciones y pruebas de este repositorio. Los mensajes usan los prefijos `feat(catalogo)`, `test(catalogo)` y `docs(catalogo)`. Esos trece commits ya se subieron a GitHub. Los tres commits posteriores que corrigen el proyecto InsForge se mantienen locales para revisión; no se han aplicado migraciones remotas.
 
 ## Funcionamiento
 
@@ -42,7 +42,11 @@ Las migraciones anteriores se mantienen intactas. Se añaden:
 
 **Estas migraciones solo están preparadas localmente.** Antes de utilizar creación de productos o mostrar agotados en un entorno que aún tiene el esquema de `dev`, el administrador debe aplicarlas mediante `node scripts/apply-migrations.mjs`, siguiendo el README. Subir código a GitHub no las aplica.
 
-El `.env.local` ignorado se reutilizó del repositorio anterior, adaptando `VITE_INSFORGE_URL` al nombre que espera este repositorio: `VITE_INSFORGE_BASE_URL`. Se mantiene el acceso al proyecto Backend-LYS usado anteriormente. Para otro entorno, URL y clave anónima deben corresponder al mismo proyecto. La clave administrativa no se incluye en el frontend ni en Git.
+La configuración local ahora usa **Backend-Polleria-LYS**, con URL `https://b9zz47j5.us-east.insforge.app` e ID `7783e71f-8c16-4fd9-a2e6-24869bf1ec9f`. `.env.local` contiene su clave anónima pública obtenida mediante la CLI. El archivo administrativo `.insforge/project.json` vincula exclusivamente este repositorio al nuevo proyecto y está ignorado. La clave administrativa no se incluye en el frontend ni en Git.
+
+`scripts/configure-insforge-env.mjs` genera el entorno local después de comprobar el ID y la URL del proyecto vinculado. La aplicación rechaza la antigua URL `mpy5z5dn` y las claves administrativas en variables públicas. Las cuentas, sesiones, roles y pedidos de Backend-LYS no se migran automáticamente: pertenecen a otro proyecto.
+
+La inspección real confirmó que Backend-Polleria-LYS tiene las migraciones 001 a 006 y 17 productos. Su política pública todavía exige disponibilidad y el ID aún no tiene identidad. Aplicar 007 y 008 al backend remoto quedó pendiente: la revisión automática no aprobó esa modificación sin autorización explícita. Las consultas actuales de productos disponibles ya funcionan en el nuevo proyecto; mostrar agotados y crear productos con ID automático requieren esas dos migraciones.
 
 ## Commits y tareas
 
@@ -66,18 +70,29 @@ Todos los cambios contribuyen a la historia SCRUM-261; los identificadores apare
 
 ## Validación y revisión
 
+Los commits adicionales son atómicos:
+
+| Mensaje | Alcance |
+|---|---|
+| fix(insforge): vincular la aplicación a Backend-Polleria-LYS | Identidad del proyecto, validación de URL, configuración local reproducible y exclusión de credenciales |
+| test(insforge): verificar la conexión al proyecto correcto | Rechazo de configuración anterior y prueba real de catálogo con solo lecturas |
+| docs(insforge): documentar el cambio de proyecto y las migraciones pendientes | Instrucciones, resultados y límites de la configuración nueva |
+
 Desde `Front-Polleria-LYS-main`:
 
 ```bash
 npm ci
 npm test
+npm run test:catalog-read
 npm run test:e2e
 npm run build
 npm run lint
 npm run dev
 ```
 
-Resultados: **25 pruebas de Vitest aprobadas**, **18 de Playwright aprobadas** y **compilación aprobada**. Vitest comprueba consultas, campos, lotes, detalle, filtros, validación y permisos en PostgreSQL local con PGlite. Aplica las ocho migraciones de este repositorio, incluida la compatibilidad de identidad con IDs existentes. Playwright incluye las once pruebas de autenticación existentes y las siete del catálogo; simula respuestas de InsForge sin crear cuentas ni enviar correos. Se ejecutó con Microsoft Edge mediante `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+Resultados: **28 pruebas de Vitest aprobadas**, **18 de Playwright aprobadas** y **compilación aprobada**. Vitest comprueba consultas, campos, lotes, detalle, filtros, validación, proyecto correcto y permisos en PostgreSQL local con PGlite. Aplica las ocho migraciones de este repositorio, incluida la compatibilidad de identidad con IDs existentes. Playwright incluye las once pruebas de autenticación existentes y las siete del catálogo; simula respuestas de InsForge sin crear cuentas ni enviar correos. Se ejecutó con Microsoft Edge mediante `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+
+`npm run test:catalog-read` también pasó contra **Backend-Polleria-LYS real**, usando únicamente su clave pública: verifica categorías, campos del producto, detalle por ID y búsqueda combinada con categoría. Solo hace lecturas; no crea usuarios, no cambia permisos y no inserta ni modifica productos. No confirma todavía la disponibilidad pública de agotados ni la creación con identidad, que dependen de las migraciones pendientes.
 
 Lint conserva **siete errores y una advertencia preexistentes**, verificados también sobre `origin/dev`. La compilación muestra avisos sobre tamaño del paquete y `crypto` del SDK. La prueba `test:security` del repositorio, que escribe en el backend real, no se ejecutó durante este traslado local.
 
