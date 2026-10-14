@@ -14,15 +14,25 @@ await sql("CREATE TABLE IF NOT EXISTS public.schema_migrations(version text PRIM
 const existing = await sql('SELECT version,checksum FROM public.schema_migrations');
 const applied = new Map((existing.rows || []).map(row => [row.version,row.checksum]));
 const directory = new URL('../insforge/migrations/', import.meta.url);
+const migrations = [];
 for (const file of (await readdir(directory)).filter(name => name.endsWith('.sql')).sort()) {
-  const original = await readFile(new URL(file, directory), 'utf8');
+  // Git stores LF; Windows checkout must not change a migration's fingerprint.
+  const original = (await readFile(new URL(file, directory), 'utf8')).replace(/\r\n/g, '\n');
   const checksum = createHash('sha256').update(original).digest('hex');
+  migrations.push({ file, original, checksum });
+  if (applied.has(file) && applied.get(file) !== checksum) {
+    throw new Error(`La migración aplicada ${file} fue modificada. Crea una nueva migración.`);
+  }
+}
+// Validate every applied fingerprint before submitting any pending migration.
+for (const { file, original, checksum } of migrations) {
   if (applied.has(file)) {
-    if (applied.get(file) !== checksum) throw new Error(`La migración aplicada ${file} fue modificada. Crea una nueva migración.`);
     console.log(`Ya aplicada: ${file}`); continue;
   }
   // InsForge's raw SQL endpoint manages transactions and rejects BEGIN/COMMIT.
   const query = original.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '') + `\nINSERT INTO public.schema_migrations(version,checksum) VALUES ('${file}','${checksum}');`;
   await sql(query);
+  const confirmed = await sql(`SELECT checksum FROM public.schema_migrations WHERE version = '${file}'`);
+  if (confirmed.rows?.[0]?.checksum !== checksum) throw new Error(`No se confirmó la migración ${file}; se detiene el ejecutor.`);
   console.log(`Aplicada: ${file}`);
 }
