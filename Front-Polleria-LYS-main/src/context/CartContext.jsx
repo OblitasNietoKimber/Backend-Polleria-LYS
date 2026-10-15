@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { DELIVERY_COST, PRODUCTS } from '../data/products'
+import { DELIVERY_COST } from '../data/products'
+import { getProduct } from '../services/productService'
 import orderService from '../services/orderService'
 
 const CartContext = createContext(null)
@@ -53,6 +54,12 @@ function readStoredOrderNumber() {
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(readStoredCart)
+  const [products, setProducts] = useState({})
+  const [catalogState, setCatalogState] = useState({ ids: null, error: '' })
+  const cartIds = Object.keys(cart).sort().join(',')
+  const cartLoading = Boolean(cartIds) && catalogState.ids !== cartIds
+  const cartError = catalogState.ids === cartIds ? catalogState.error : ''
+  const missingCartIds = !cartLoading && cartError ? Object.keys(cart).filter(id => !products[id]) : []
   const [cartOpen, setCartOpen] = useState(false)
   const [deliveryType, setDeliveryType] = useState(() => readStoredDelivery().deliveryType)
   const [form, setForm] = useState(() => readStoredDelivery().form)
@@ -60,6 +67,19 @@ export function CartProvider({ children }) {
   const [orderNumber, setOrderNumber] = useState(readStoredOrderNumber)
   const [card, setCard] = useState(EMPTY_CARD)
   const [cardReceipt, setCardReceipt] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    const ids = cartIds ? cartIds.split(',') : []
+    Promise.all(ids.map(getProduct)).then(rows => {
+      if (!active) return
+      setProducts(Object.fromEntries(rows.filter(Boolean).map(product => [product.id, product])))
+      setCatalogState({ ids: cartIds, error: rows.some(product => !product) ? 'Un producto del carrito ya no está en el catálogo.' : '' })
+    }).catch(error => {
+      if (active) setCatalogState({ ids: cartIds, error: error.message })
+    })
+    return () => { active = false }
+  }, [cartIds])
 
   useEffect(() => {
     try {
@@ -97,9 +117,9 @@ export function CartProvider({ children }) {
   const cartItems = useMemo(
     () =>
       Object.entries(cart)
-        .map(([id, qty]) => ({ product: PRODUCTS.find((p) => p.id === Number(id)), qty }))
+        .map(([id, qty]) => ({ product: products[id], qty }))
         .filter((item) => item.product && item.qty > 0),
-    [cart]
+    [cart, products]
   )
   const cartCount = cartItems.reduce((total, item) => total + item.qty, 0)
   const subtotal = cartItems.reduce((total, item) => total + item.qty * item.product.price, 0)
@@ -114,7 +134,12 @@ export function CartProvider({ children }) {
     setCartOpen(false)
   }
 
-  function addToCart(id, qty = 1) {
+  function addToCart(product, qty = 1) {
+    const id = typeof product === 'object' ? product.id : product
+    if (typeof product === 'object') {
+      if (!product.available) return
+      setProducts(current => ({ ...current, [id]: product }))
+    }
     setCart((current) => ({ ...current, [id]: (current[id] || 0) + qty }))
   }
 
@@ -149,8 +174,11 @@ export function CartProvider({ children }) {
 
   const requestId = useRef(null);
   const confirmation = useRef(null);
-  function confirmOrder() {
+  async function confirmOrder() {
     if (confirmation.current) return confirmation.current;
+    if (cartLoading || cartError || !cartItems.length || cartItems.some(item => !item.product.available)) {
+      throw new Error('Revisa los productos y su disponibilidad en el carrito antes de continuar.')
+    }
     requestId.current ||= crypto.randomUUID();
     confirmation.current = orderService.createOrder({ id: requestId.current, items: cartItems, deliveryType, form, payment })
       .then(number => {
@@ -171,6 +199,9 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    missingCartIds,
+    cartLoading,
+    cartError,
     cartItems,
     cartCount,
     subtotal,

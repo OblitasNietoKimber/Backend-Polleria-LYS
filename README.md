@@ -2,11 +2,22 @@
 
 Frontend React + Vite en `Front-Polleria-LYS-main/` y PostgreSQL/Auth administrados por InsForge.
 
+El proyecto de este repositorio es **Backend-Polleria-LYS**, con URL `https://b9zz47j5.us-east.insforge.app` e ID `7783e71f-8c16-4fd9-a2e6-24869bf1ec9f`. La aplicación rechaza la URL del proyecto anterior Backend-LYS.
+
 ## Desarrollo
 
 1. Dentro de `Front-Polleria-LYS-main`, ejecuta `npm ci`.
 2. Copia `.env.example` a `.env.local` y completa `VITE_INSFORGE_ANON_KEY` con la clave **pública** de InsForge (Dashboard → Install → API Keys).
 3. Ejecuta `npm run dev`. Los redirects configurados por defecto usan `http://localhost:5173`.
+
+Para generar `.env.local` con la clave pública del proyecto correcto, autentícate en InsForge CLI y ejecuta desde la raíz:
+
+```bash
+npx -y @insforge/cli link --project-id 7783e71f-8c16-4fd9-a2e6-24869bf1ec9f --org-id 331d8014-42c9-4764-bd3c-5a4724ea279a --json --yes
+node scripts/configure-insforge-env.mjs
+```
+
+El script comprueba el ID y URL del proyecto vinculado antes de obtener su clave anónima pública. No imprime claves. `.insforge/project.json` y `.env.local` están excluidos de Git. Reinicia `npm run dev` después de cambiar la configuración. Las sesiones y cuentas del proyecto anterior no se transfieren al nuevo: inicia sesión con una cuenta registrada en Backend-Polleria-LYS.
 
 La API key privada `ik_…` se utiliza exclusivamente para administrar infraestructura. No debe aparecer en archivos versionados ni en variables `VITE_`. Sin configuración, la aplicación muestra un mensaje de configuración y un botón para reintentar.
 
@@ -51,7 +62,7 @@ Cada usuario nuevo recibe `cliente` en el servidor. No se confía en roles de lo
 UPDATE public.perfiles SET rol = 'caja' WHERE id = 'UUID_DEL_USUARIO';
 ```
 
-RLS oculta perfiles/pedidos/detalles/pagos ajenos. El catálogo disponible es público. El personal puede consultar pedidos; la edición del catálogo queda limitada al administrador. Las operaciones de negocio sobre pagos y estados requieren RPCs validados en sus siguientes épicas y están bloqueadas por escritura directa.
+RLS oculta perfiles/pedidos/detalles/pagos ajenos. Con la migración 007, el catálogo también muestra productos agotados e informa su disponibilidad. El personal puede consultar pedidos; la edición del catálogo queda limitada al administrador. Las operaciones de negocio sobre pagos y estados requieren RPCs validados en sus siguientes épicas y están bloqueadas por escritura directa.
 
 Para conectar registro/login con la consulta de pedidos, el cliente crea pedidos con `crear_pedido_cliente`: el servidor determina propietario, estado inicial, precios y envío (S/ 6 para delivery). El UUID de solicitud evita duplicados al reintentar. No registra cobros. La pasarela de pago, las vistas operativas de mesas/cocina/caja/dashboard y su almacenamiento siguen siendo las simulaciones preexistentes; su migración completa corresponde a las siguientes épicas. El historial y detalle del cliente ya consultan InsForge.
 
@@ -65,6 +76,8 @@ Dentro del frontend:
 
 ```bash
 npm run build
+npm test
+npm run test:catalog-read
 npx playwright install chromium
 npm run test:e2e
 npm run lint
@@ -77,3 +90,5 @@ La suite E2E cubre registro/verificación, errores de login, restauración/logou
 Para usar un Chromium ya instalado, define `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Los cambios de esta rama pasan lint por archivos; el lint global conserva errores previos en módulos ajenos a Auth (ver `docs/VALIDACION.md`).
 
 Nada se publica automáticamente. Esta rama se prepara localmente para revisión antes de push o PR.
+
+Consulta [la revisión del catálogo](docs/catalogo-productos.md) para sus trece commits, servicios, migraciones pendientes de aplicar y resultados de las pruebas.
