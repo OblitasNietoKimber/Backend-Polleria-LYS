@@ -103,8 +103,15 @@ test('la clave no puede reutilizarse para otro pedido y revierte el segundo cobr
   expect((await db.query('SELECT estado_pago FROM pedidos WHERE id=$1', [segundo])).rows[0].estado_pago).toBe('pendiente');
   expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
 });
-test('impide editar productos después del cobro', async () => {
-  const id = await pedido(); await cobrar(id);
-  await expect(db.query('UPDATE detalles_pedido SET cantidad=3 WHERE pedido_id=$1', [id])).rejects.toThrow(/cobrado/);
-  await expect(db.query('DELETE FROM detalles_pedido WHERE pedido_id=$1', [id])).rejects.toThrow(/cobrado/);
+test('impide editar productos, importes y solicitud de cuenta después del cobro', async () => {
+  const id = await pedido(), recibo = await cobrar(id);
+  await expect(asUser(mesera, 'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)', [id,JSON.stringify([{ id: 1, qty: 1 }])])).rejects.toThrow(/finalizado/);
+  await expect(db.query('INSERT INTO detalles_pedido(pedido_id,producto_id,cantidad,precio_unitario) VALUES ($1,1,1,1)', [id])).rejects.toThrow(/cobrado/);
+  for (const sql of ['UPDATE detalles_pedido SET cantidad=3 WHERE pedido_id=$1', 'DELETE FROM detalles_pedido WHERE pedido_id=$1', 'UPDATE pedidos SET subtotal=1 WHERE id=$1', 'UPDATE pedidos SET total=1 WHERE id=$1', "UPDATE pedidos SET estado='pendiente' WHERE id=$1"]) await expect(db.query(sql, [id])).rejects.toThrow(/cobrado/);
+  await expect(asUser(mesera, 'SELECT solicitar_cuenta_salon($1)', [id])).rejects.toThrow(/cobrado/);
+  expect(await cobrar(id)).toEqual(recibo);
+});
+test('exige pago para cerrar la atención', async () => {
+  const id = await pedido();
+  await expect(db.query("UPDATE pedidos SET estado='entregado' WHERE id=$1", [id])).rejects.toThrow(/pago/);
 });
