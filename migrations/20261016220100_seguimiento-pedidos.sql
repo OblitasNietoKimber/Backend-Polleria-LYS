@@ -26,3 +26,31 @@ CREATE POLICY lys_canales_anonimos ON realtime.channels AS RESTRICTIVE FOR SELEC
 USING (pattern NOT IN ('lys:staff','lys:client:%'));
 CREATE POLICY lys_eventos_servidor ON realtime.messages AS RESTRICTIVE FOR INSERT TO anon,authenticated
 WITH CHECK (channel_name NOT LIKE 'lys:%');
+
+CREATE FUNCTION public.notificar_pedido_cocina() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_id uuid; v_cliente uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'pedidos' THEN
+    IF TG_OP = 'DELETE' THEN v_id := OLD.id; v_cliente := OLD.cliente_id;
+    ELSE v_id := NEW.id; v_cliente := NEW.cliente_id; END IF;
+  ELSE
+    IF TG_OP = 'DELETE' THEN v_id := OLD.pedido_id; ELSE v_id := NEW.pedido_id; END IF;
+    SELECT cliente_id INTO v_cliente FROM public.pedidos WHERE id = v_id;
+    -- El sello ya es utilizado por Caja para recuperar actualizaciones perdidas.
+    UPDATE public.pedidos SET actualizado_en = clock_timestamp() WHERE id = v_id;
+    -- El UPDATE anterior publica la notificación mediante el trigger del encabezado.
+    RETURN NULL;
+  END IF;
+  PERFORM realtime.publish('lys:staff','lys:pedido-actualizado',jsonb_build_object('pedidoId',v_id));
+  IF v_cliente IS NOT NULL THEN
+    PERFORM realtime.publish('lys:client:' || v_cliente::text,'lys:pedido-actualizado',jsonb_build_object('pedidoId',v_id));
+  END IF;
+  RETURN NULL;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.notificar_pedido_cocina() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER pedido_cocina_notificar AFTER INSERT OR UPDATE OR DELETE ON public.pedidos
+FOR EACH ROW EXECUTE FUNCTION public.notificar_pedido_cocina();
+CREATE TRIGGER detalles_cocina_notificar AFTER INSERT OR UPDATE OR DELETE ON public.detalles_pedido
+FOR EACH ROW EXECUTE FUNCTION public.notificar_pedido_cocina();
