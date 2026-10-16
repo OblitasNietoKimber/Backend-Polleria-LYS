@@ -78,6 +78,17 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     }
   });
 
+  const [solicitudId, setSolicitudId] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`lys_borrador_mesa_${numeroNormalizado}`);
+      const borrador = raw ? JSON.parse(raw) : null;
+      if (borrador?.solicitudId) return borrador.solicitudId;
+    } catch {
+      // ignore
+    }
+    return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null;
+  });
+
   const [meseraNombre] = useState(() => {
     const usuario = authService.getCurrentUser();
     return usuario?.nombre ? `${usuario.nombre} ${usuario.apellido || ''}`.trim() : 'Ana Rodríguez';
@@ -151,8 +162,9 @@ function NuevoPedidoForm({ numeroNormalizado }) {
       alert('Agrega al menos un producto a la comanda antes de guardar un borrador.');
       return;
     }
-    // Guardar borrador local
+    // Guardar borrador local con solicitudId para idempotencia
     localStorage.setItem(`lys_borrador_mesa_${numeroNormalizado}`, JSON.stringify({
+      solicitudId,
       items: itemsComanda,
       observaciones,
       comensales,
@@ -164,6 +176,9 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   function handleRestaurarBorrador() {
     if (!borradorPendiente) return;
+    if (borradorPendiente.solicitudId) {
+      setSolicitudId(borradorPendiente.solicitudId);
+    }
     setItemsComanda(borradorPendiente.items || []);
     setObservaciones(borradorPendiente.observaciones || '');
     if (borradorPendiente.comensales) {
@@ -202,8 +217,9 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         // Registrar envío a cocina (SCRUM-280)
         await mesaService.enviarPedidoCocina(pedidoExistenteId);
       } else {
-        // Abrir pedido de salón y ocupar mesa en PostgreSQL (SCRUM-278, SCRUM-282)
+        // Abrir pedido de salón y ocupar mesa en PostgreSQL con idempotencia (SCRUM-278, SCRUM-282)
         pedidoIdFinal = await mesaService.abrirPedidoSalon({
+          solicitudId,
           mesaId: mesaActual?.id,
           mesaNumero: numeroNormalizado,
           comensales: Number(comensales),
