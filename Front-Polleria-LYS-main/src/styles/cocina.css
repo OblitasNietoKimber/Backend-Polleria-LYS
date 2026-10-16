@@ -398,3 +398,5 @@
 }
 .cocina-auditoria { font-size: .72rem; color: var(--smoke); overflow-wrap: anywhere; }
 .cocina-codigo { overflow-wrap: anywhere; min-width: 0; }
+.cocina-btn:disabled { opacity: .6; cursor: wait; }
+.cocina-error { padding: 12px; border: 1px solid var(--rust); border-radius: 8px; margin-bottom: 16px; }
