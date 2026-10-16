@@ -122,3 +122,21 @@ test('no libera una mesa reutilizada al reintentar un cobro anterior', async () 
   expect(await cobrar(id)).toEqual(recibo);
   expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
 });
+test('revierte pago, cierre e historial si falla la liberación de mesa', async () => {
+  const id = await pedido();
+  await db.exec(`CREATE FUNCTION public.fallar_liberacion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Fallo controlado'; END; $$;
+    CREATE TRIGGER zz_fallar BEFORE UPDATE ON mesas FOR EACH ROW EXECUTE FUNCTION public.fallar_liberacion();`);
+  try { await expect(cobrar(id)).rejects.toThrow(/Fallo controlado/); }
+  finally { await db.exec('DROP TRIGGER zz_fallar ON mesas; DROP FUNCTION fallar_liberacion()'); }
+  expect((await db.query('SELECT * FROM pagos')).rows).toHaveLength(0);
+  expect((await db.query('SELECT estado_pago,estado,cuenta_solicitada FROM pedidos WHERE id=$1', [id])).rows[0]).toMatchObject({ estado_pago: 'pendiente', estado: 'pendiente', cuenta_solicitada: true });
+  expect((await db.query('SELECT * FROM historial_estados_pedido WHERE pedido_id=$1', [id])).rows).toHaveLength(1);
+});
+test('el sello cambia con artículos y cobros para refrescar caja sin descargar todo en cada intervalo', async () => {
+  const id = await pedido();
+  const sello = async () => (await db.query('SELECT actualizado_en::text AS fecha FROM pedidos WHERE id=$1', [id])).rows[0].fecha;
+  const antes = await sello(); await asUser(mesera, 'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)', [id,JSON.stringify([{ id: 1, qty: 2 }])]);
+  expect(await sello()).not.toBe(antes);
+  const editado = await sello(); await cobrar(id, { total: 85.8, recibido: 100 });
+  expect(await sello()).not.toBe(editado);
+});
