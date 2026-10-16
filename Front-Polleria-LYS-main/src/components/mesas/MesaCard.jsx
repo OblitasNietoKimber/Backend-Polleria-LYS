@@ -18,9 +18,27 @@ export default function MesaCard({ mesa, onClick }) {
     >
       <div className="mesa-card-header">
         <span className="mesa-numero">Mesa {numero}</span>
-        <span className={`mesa-status-badge ${estado}`}>
-          {estado}
-        </span>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {mesa.cuentaSolicitada && (
+            <span
+              className="mesa-status-badge"
+              style={{
+                fontSize: '11px',
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+                padding: '2px 6px',
+                borderRadius: '6px',
+              }}
+              title="Cuenta solicitada a caja"
+            >
+              Cuenta pedida
+            </span>
+          )}
+          <span className={`mesa-status-badge ${estado}`}>
+            {estado}
+          </span>
+        </div>
       </div>
 
       <div className="mesa-visual-wrapper">
