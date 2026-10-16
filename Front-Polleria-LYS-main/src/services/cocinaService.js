@@ -1,129 +1,48 @@
-const STORAGE_KEY = "lys_pedidos"; // misma key que usa Caja
-
-export const ESTADOS_COCINA = {
-  NUEVO: "nuevo",
-  EN_PREPARACION: "en_preparacion",
-  LISTO: "listo",
-  ENTREGADO: "entregado",
-};
-
-const seedPedidos = [];
-
-function inicializar() {
-  const data = localStorage.getItem(STORAGE_KEY);
-
-  if (!data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-    return;
-  }
-
-  // Completa los campos faltantes de pedidos creados por módulos antiguos.
-  const pedidos = JSON.parse(data);
-  let pedidosCliente = [];
-  try {
-    pedidosCliente = JSON.parse(localStorage.getItem("lys-client-orders")) || [];
-  } catch {
-    pedidosCliente = [];
-  }
-
-  let necesitaMigrar = false;
-  const migrados = pedidos.map((p) => {
-    const cambios = {};
-    if (!p.estadoCocina) cambios.estadoCocina = ESTADOS_COCINA.NUEVO;
-    if (!p.estado) cambios.estado = p.estadoPago || "pendiente";
-    if (!p.estadoPago) cambios.estadoPago = p.estado || "pendiente";
-    if (!p.tipo) {
-      const pedidoCliente = pedidosCliente.find((pedido) => pedido.id === p.id);
-      cambios.tipo = p.mesa ? "salon" : pedidoCliente?.deliveryType || "salon";
-    }
-
-    if (Object.keys(cambios).length > 0) {
-      necesitaMigrar = true;
-      return { ...p, ...cambios };
-    }
-    return p;
-  });
-  if (necesitaMigrar) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(migrados));
+import { requireInsforge } from '../lib/insforge';
+import { getCurrentUser } from './authService';
+export const ESTADOS_COCINA = { NUEVO: 'nuevo', EN_PREPARACION: 'en_preparacion', LISTO: 'listo' };
+export const HISTORY_PAGE_SIZE = 50;
+const states = { pendiente: 'nuevo', en_preparacion: 'en_preparacion', listo: 'listo', entregado: 'entregado' };
+const backendStates = { nuevo: 'pendiente', en_preparacion: 'en_preparacion', listo: 'listo' };
+const fields = 'id,tipo,estado,estado_pago,notas,creado_en,actualizado_en,mesas(numero),detalles_pedido(id,producto_id,cantidad,nombre_producto),historial_estados_pedido(id,estado,cambiado_por,cambiado_en,es_reconstruido)';
+function database() {
+  if (!['cocina','admin'].includes(getCurrentUser()?.rol)) throw new Error('Se requiere una cuenta de cocina o administrador.');
+  return requireInsforge().database;
+}
+function unwrap({ data, error }) {
+  if (error) throw new Error(error.message || 'No se pudo consultar cocina.');
+  return data;
+}
+export function mapPedido(row) {
+  const history = [...(row.historial_estados_pedido || [])].sort((a,b) => Number(b.id) - Number(a.id));
+  const last = history[0], ready = history.find(item => item.estado === 'listo' && !item.es_reconstruido);
+  return { id: row.id, tipo: row.tipo, mesa: row.mesas?.numero || null,
+    cliente: row.mesas ? `Mesa ${row.mesas.numero}` : row.tipo === 'delivery' ? 'Delivery' : 'Recojo',
+    estadoCocina: states[row.estado], backendStatus: row.estado, estadoPago: row.estado_pago,
+    observaciones: row.notas || '', createdAt: row.creado_en,
+    finalizadoAt: ready?.cambiado_en || (row.estado === 'entregado' && !last?.es_reconstruido ? last?.cambiado_en : null),
+    cambiadoPor: last?.cambiado_por || null, cambiadoEn: last?.cambiado_en || null,
+    esReconstruido: Boolean(last?.es_reconstruido),
+    items: (row.detalles_pedido || []).map(item => ({ id: item.id, productoId: item.producto_id,
+      nombre: item.nombre_producto, cantidad: Number(item.cantidad) })) };
+}
+async function getPedidosActivos() {
+  const db = database(), result = [];
+  for (let offset = 0; ; offset += 100) {
+    const rows = unwrap(await db.from('pedidos').select(fields).in('estado',['pendiente','en_preparacion','listo'])
+      .order('creado_en',{ascending:true}).order('id',{ascending:true}).range(offset,offset+99)) || [];
+    result.push(...rows.filter(row => row.detalles_pedido?.length).map(mapPedido));
+    if (rows.length < 100) return result;
   }
 }
-
-function getPedidos() {
-  inicializar();
-  return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+async function getPedidosFinalizados() {
+  const rows = unwrap(await database().from('pedidos').select(fields).in('estado',['listo','entregado'])
+    .order('actualizado_en',{ascending:false}).order('id',{ascending:false})
+    .range(0,HISTORY_PAGE_SIZE-1)) || [];
+  return rows.map(mapPedido);
 }
-
-function getPedidosPorEstado(estado) {
-  return getPedidos()
-    .filter((p) => p.estadoCocina === estado)
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+async function cambiarEstado(pedido, nuevoEstado) {
+  return unwrap(await database().rpc('cambiar_estado_cocina', { p_pedido_id: pedido.id,
+    p_estado_actual: backendStates[pedido.estadoCocina], p_nuevo_estado: backendStates[nuevoEstado] }));
 }
-
-function getPedidosActivos() {
-  return getPedidos().filter((p) => p.estadoCocina !== ESTADOS_COCINA.ENTREGADO);
-}
-
-function getPedidosFinalizados() {
-  return getPedidos()
-    .filter((p) => p.estadoCocina === ESTADOS_COCINA.ENTREGADO)
-    .sort((a, b) => new Date(b.finalizadoAt || b.createdAt) - new Date(a.finalizadoAt || a.createdAt));
-}
-
-function cambiarEstado(id, nuevoEstado) {
-  const pedidos = getPedidos();
-  const actualizados = pedidos.map((p) => {
-    if (p.id !== id) return p;
-    const cambios = { ...p, estadoCocina: nuevoEstado };
-    if (nuevoEstado === ESTADOS_COCINA.ENTREGADO) {
-      cambios.finalizadoAt = new Date().toISOString();
-    }
-    return cambios;
-  });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizados));
-  window.dispatchEvent(new CustomEvent("lys_pedidos_updated"));
-  return actualizados.find((p) => p.id === id);
-}
-
-// Crea pedidos desde Mesas, Checkout web u otros módulos sin perder su tipo.
-function crearPedido({
-  id,
-  mesa = null,
-  cliente,
-  items = [],
-  observaciones = "",
-  tipo = "salon",
-  total,
-} = {}) {
-  const pedidos = getPedidos();
-  const nuevoId = id || `PED-${1000 + pedidos.length + 1}`;
-  const nuevoPedido = {
-    id: nuevoId,
-    mesa,
-    cliente: cliente || (mesa ? `Mesa ${mesa}` : "Cliente"),
-    tipo,
-    estadoCocina: ESTADOS_COCINA.NUEVO,
-    estado: "pendiente",
-    estadoPago: "pendiente",
-    observaciones,
-    items,
-    ...(total !== undefined ? { total } : {}),
-    createdAt: new Date().toISOString(),
-  };
-  const existente = pedidos.findIndex((pedido) => pedido.id === nuevoId);
-  const actualizados = [...pedidos];
-  if (existente >= 0) actualizados[existente] = nuevoPedido;
-  else actualizados.push(nuevoPedido);
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizados));
-  window.dispatchEvent(new CustomEvent("lys_pedidos_updated"));
-  return nuevoPedido;
-}
-
-export default {
-  getPedidos,
-  getPedidosPorEstado,
-  getPedidosActivos,
-  getPedidosFinalizados,
-  cambiarEstado,
-  crearPedido,
-};
+export default { getPedidosActivos, getPedidosFinalizados, cambiarEstado };
