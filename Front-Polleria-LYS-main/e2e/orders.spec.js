@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 const identity = { id: '10000000-0000-0000-0000-000000000001', email: 'cliente@example.test', emailVerified: true, profile: { name: 'Cliente Prueba' } }
 const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: identity.id, exp: 4102444800 })).toString('base64url')}.test`
 const form = { name: 'Cliente Prueba', phone: '987654321', address: 'Av. Prueba 123', reference: '' }

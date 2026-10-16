@@ -3,7 +3,7 @@ import { ArrowLeft, Check, Copy } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import orderService from '../services/orderService'
 import OrderStateHistory from '../components/orders/OrderStateHistory'
-import { useCatalogResource } from '../hooks/useCatalogResource'
+import useOrderResource from '../hooks/useOrderResource'
 import { money } from '../utils/currency'
 import OrderDeliveryInfo from '../components/orders/OrderDeliveryInfo'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge'
@@ -14,7 +14,7 @@ export default function OrderDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const load = useCallback(() => orderService.getOrderById(id), [id])
-  const { data: order, loading, error, retry } = useCatalogResource(load, `pedido:${id}`)
+  const { data: order, loading, error, retry } = useOrderResource(load)
   const [copied, setCopied] = useState(false)
 
   if (loading) return <p role="status">Cargando pedido...</p>;

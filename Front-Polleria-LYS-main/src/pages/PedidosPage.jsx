@@ -2,14 +2,14 @@ import { useCallback, useState } from 'react'
 import { PackageSearch } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import orderService, { ORDER_PAGE_SIZE } from '../services/orderService'
-import { useCatalogResource } from '../hooks/useCatalogResource'
+import useOrderResource from '../hooks/useOrderResource'
 import OrderHistoryList from '../components/orders/OrderHistoryList'
 import '../styles/pedidos.css'
 
 export default function PedidosPage() {
   const [page, setPage] = useState(0)
   const load = useCallback(() => orderService.getOrders({ page }), [page])
-  const { data, loading, error, retry } = useCatalogResource(load, `pedidos:${page}`)
+  const { data, loading, error, retry } = useOrderResource(load)
   const orders = data || []
 
   return (

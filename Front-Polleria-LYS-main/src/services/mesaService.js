@@ -62,6 +62,7 @@ function mapMesaFromDb(row) {
     estado: row.estado || ESTADOS_MESA.LIBRE,
     pedidoId: row.pedido_id || null,
     pedidoEstado: row.pedido_estado || null,
+    estadoCocina: ({ pendiente: 'nuevo', en_preparacion: 'en_preparacion', listo: 'listo' })[row.pedido_estado] || null,
     cuentaSolicitada: Boolean(row.cuenta_solicitada),
     comensales: row.comensales || row.capacidad,
     subtotalAcumulado: Number(row.subtotal || 0),
@@ -75,21 +76,22 @@ function mapMesaFromDb(row) {
 /**
  * Consulta las mesas y sus pedidos activos directamente desde PostgreSQL (SCRUM-277).
  */
-export async function fetchMesas() {
+export async function fetchMesas({ strict = false } = {}) {
   try {
     const { db } = getDbClient();
     const res = await db.rpc('obtener_mesas_con_pedidos');
     const data = unwrap(res, 'No se pudo obtener el estado de las mesas desde PostgreSQL.');
     const mesasMapeadas = (Array.isArray(data) ? data : []).map(mapMesaFromDb);
 
-    if (mesasMapeadas.length > 0) {
+    {
       cacheMesas = mesasMapeadas;
       if (typeof window !== 'undefined') {
-        localStorage.setItem(MESAS_KEY, JSON.stringify(mesasMapeadas));
+        try { localStorage.setItem(MESAS_KEY, JSON.stringify(mesasMapeadas)); } catch { /* El servidor sigue siendo la fuente de datos. */ }
       }
     }
     return mesasMapeadas;
   } catch (err) {
+    if (strict) throw err;
     console.warn('Fallo al consultar mesas en PostgreSQL, usando cache local:', err.message);
     return getMesas();
   }
@@ -99,7 +101,7 @@ export async function fetchMesas() {
  * Retorna las mesas sincronizadas (de memoria, de localStorage o semillas).
  */
 export function getMesas() {
-  if (cacheMesas && cacheMesas.length > 0) {
+  if (cacheMesas !== null) {
     return cacheMesas;
   }
 
