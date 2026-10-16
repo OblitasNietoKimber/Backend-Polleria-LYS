@@ -11,6 +11,7 @@
     "test:e2e": "playwright test",
     "test:security": "node tests/integration/security.mjs",
     "test:catalog-read": "node tests/integration/catalog-read.mjs",
+    "test:caja-read": "node tests/integration/caja-read.mjs",
     "test": "vitest run"
   },
   "dependencies": {
