@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 const identity = { id: '00000000-0000-0000-0000-000000000031', email: 'caja@example.test', emailVerified: true, profile: { name: 'Caja' } };
 const order = { id: '00000000-0000-0000-0000-000000000041', tipo: 'salon', estado: 'preparacion', estado_pago: 'pendiente', cuenta_solicitada: true, subtotal: '42.90', envio: '0', total: '42.90', creado_en: '2026-10-09T18:00:00Z', mesas: { numero: '01' }, destinatario: {}, detalles_pedido: [{ producto_id: 1, cantidad: 1, precio_unitario: '42.90', nombre_producto: 'Pollo a la brasa entero' }], pagos: [] };
 async function backend(page, { failFirst = false, reject = '', role = 'caja', readError = false, empty = false } = {}) {

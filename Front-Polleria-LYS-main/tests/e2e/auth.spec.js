@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../e2e/fixtures';
 
 const user = { id: '3b8df9ba-9e09-46c1-9b53-e70a2cacaf37', email: 'cliente@example.test', emailVerified: true, profile: { name: 'Cliente Prueba' } };
 const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: user.id, exp: 4102444800 })).toString('base64url')}.test`;
