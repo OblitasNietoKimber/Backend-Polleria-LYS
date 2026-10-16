@@ -12,6 +12,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   const [comensalesReserva, setComensalesReserva] = useState(() => mesa?.capacidad || 4);
   const [telefonoReserva, setTelefonoReserva] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
+  const [errorOperacion, setErrorOperacion] = useState('');
 
   const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.pedidoEstado } : null;
 
@@ -49,26 +50,6 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
     onClose();
   }
 
-  async function handleLiberarMesa() {
-    if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
-      try {
-        await mesaService.liberarMesa(numero);
-        mesaService.registrarActividad({
-          mesaNumero: numero,
-          tipo: 'pedido_completado',
-          titulo: `Mesa ${numero}`,
-          descripcion: 'Mesa liberada',
-          ordenCodigo: mesa.pedidoId ? `Orden ${mesa.pedidoId}` : '',
-          tipoColor: 'verde',
-        });
-      } catch (err) {
-        console.error('Error al liberar mesa:', err);
-      }
-      if (onMesaUpdated) onMesaUpdated();
-      onClose();
-    }
-  }
-
   async function handleSolicitarCuenta() {
     if (mesa.pedidoId) {
       try {
@@ -86,19 +67,23 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
     onClose();
   }
 
-  function handleCancelarReserva() {
+  async function handleCancelarReserva() {
     if (window.confirm(`¿Confirmas cancelar la reserva de la Mesa ${numero}?`)) {
-      mesaService.liberarMesa(numero);
-      mesaService.registrarActividad({
-        mesaNumero: numero,
-        tipo: 'reserva',
-        titulo: `Mesa ${numero}`,
-        descripcion: 'Reserva cancelada · Mesa liberada',
-        ordenCodigo: 'Cancelada',
-        tipoColor: 'amarillo',
-      });
-      if (onMesaUpdated) onMesaUpdated();
-      onClose();
+      try {
+        await mesaService.liberarMesa(numero);
+        mesaService.registrarActividad({
+          mesaNumero: numero,
+          tipo: 'reserva',
+          titulo: `Mesa ${numero}`,
+          descripcion: 'Reserva cancelada · Mesa liberada',
+          ordenCodigo: 'Cancelada',
+          tipoColor: 'amarillo',
+        });
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
+      } catch (err) {
+        setErrorOperacion(err.message || 'No se pudo confirmar la liberación de la mesa.');
+      }
     }
   }
 
@@ -118,6 +103,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         </div>
 
         <div className="mesa-modal-body">
+          {errorOperacion && <p role="alert">{errorOperacion}</p>}
           {estado === 'libre' && !modoReserva && (
             <div className="mesa-empty-state">
               <p className="mesa-empty-text">
@@ -253,9 +239,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
                 <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta}>
                   Solicitar cuenta para caja
                 </button>
-                <button type="button" className="mesa-btn-secondary-neutral" onClick={handleLiberarMesa}>
-                  Liberar mesa manualmente
-                </button>
+                <p>La mesa se libera al confirmar el pago en caja.</p>
               </div>
             </div>
           )}
