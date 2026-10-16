@@ -16,13 +16,14 @@ const applied = new Map((existing.rows || []).map(row => [row.version,row.checks
 const directory = new URL('../insforge/migrations/', import.meta.url);
 for (const file of (await readdir(directory)).filter(name => name.endsWith('.sql')).sort()) {
   const original = await readFile(new URL(file, directory), 'utf8');
-  const checksum = createHash('sha256').update(original).digest('hex');
+  const normalized = original.replace(/\r\n/g, '\n');
+  const checksum = createHash('sha256').update(normalized).digest('hex');
   if (applied.has(file)) {
     if (applied.get(file) !== checksum) throw new Error(`La migración aplicada ${file} fue modificada. Crea una nueva migración.`);
     console.log(`Ya aplicada: ${file}`); continue;
   }
   // InsForge's raw SQL endpoint manages transactions and rejects BEGIN/COMMIT.
-  const query = original.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '') + `\nINSERT INTO public.schema_migrations(version,checksum) VALUES ('${file}','${checksum}');`;
+  const query = normalized.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '') + `\nINSERT INTO public.schema_migrations(version,checksum) VALUES ('${file}','${checksum}');`;
   await sql(query);
   console.log(`Aplicada: ${file}`);
 }
