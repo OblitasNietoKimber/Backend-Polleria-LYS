@@ -18,7 +18,7 @@ export default function MesasPage() {
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [mostrarModalActividad, setMostrarModalActividad] = useState(false);
 
-  const { mesas, estadisticas, actividades, recargar } = useMesas(zonaSeleccionada);
+  const { mesas, estadisticas, actividades, recargar, loading, error } = useMesas(zonaSeleccionada);
 
   // Filtrado de mesas por texto de búsqueda
   const mesasFiltradas = useMemo(() => {
@@ -97,6 +97,8 @@ export default function MesasPage() {
           </div>
         </div>
 
+        {loading && <p role="status">Cargando mesas...</p>}
+        {error && <p role="alert">{error}</p>}
         {/* Tarjetas KPI de Estado */}
         <EstadisticasMesas estadisticas={estadisticas} />
 
@@ -153,7 +155,7 @@ export default function MesasPage() {
       {/* Modal de detalle de mesa */}
       {mesaSeleccionada && (
         <MesaDetalleModal
-          mesa={mesaSeleccionada}
+          mesa={mesas.find(mesa => mesa.id === mesaSeleccionada.id) || mesaSeleccionada}
           onClose={() => setMesaSeleccionada(null)}
           onMesaUpdated={recargar}
         />
