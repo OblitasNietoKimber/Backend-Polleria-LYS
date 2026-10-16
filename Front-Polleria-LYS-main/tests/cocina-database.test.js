@@ -105,6 +105,19 @@ test('mantiene la protección de pedidos cobrados y permite cancelar una comanda
  const empty=await salon([]);await asUser(3,'SELECT liberar_mesa_salon(1)');
  expect((await db.query('SELECT estado FROM pedidos WHERE id=$1',[empty])).rows[0].estado).toBe('cancelado');
 });
+test('emite en canales privados sin incluir productos ni datos de contacto',async()=>{
+ const id=await create();await db.exec('DELETE FROM realtime.messages');await change(id,'pendiente','en_preparacion');
+ const rows=(await db.query('SELECT channel_name,payload FROM realtime.messages')).rows;
+ expect(rows).toHaveLength(2);expect(rows.map(r=>r.channel_name)).toEqual(['lys:staff',`lys:client:${users[1]}`]);
+ expect(rows.every(r=>JSON.stringify(r.payload)===JSON.stringify({pedidoId:id}))).toBe(true);
+});
+test('modificar detalles actualiza la sonda y publica sin duplicar auditoría',async()=>{
+ const id=await salon();const before=(await db.query('SELECT actualizado_en FROM pedidos WHERE id=$1',[id])).rows[0].actualizado_en;
+ await db.exec('DELETE FROM realtime.messages');await asUser(3,'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)',[id,JSON.stringify([{id:1,qty:2}])]);
+ expect((await db.query('SELECT actualizado_en FROM pedidos WHERE id=$1',[id])).rows[0].actualizado_en.getTime()).toBeGreaterThanOrEqual(before.getTime());
+ expect((await db.query('SELECT channel_name FROM realtime.messages')).rows.length).toBeGreaterThan(0);
+ expect((await db.query('SELECT id FROM historial_estados_pedido WHERE pedido_id=$1',[id])).rows).toHaveLength(1);
+});
 test('RLS restringe el canal al propietario incluso ante una política permisiva',async()=>{
  await db.exec('CREATE POLICY test_abierta ON realtime.channels FOR SELECT TO anon,authenticated USING(true)');
  try{
