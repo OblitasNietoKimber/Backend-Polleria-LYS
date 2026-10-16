@@ -1,52 +1,29 @@
 import { SEED_MESAS, SEED_ACTIVIDADES, ESTADOS_MESA } from '../data/mesasData';
+import { requireInsforge } from '../lib/insforge';
+import { getCurrentUser } from './authService';
 
 const MESAS_KEY = 'lys_mesas';
 const ACTIVIDADES_KEY = 'lys_actividades';
 const PEDIDOS_KEY = 'lys_pedidos';
 
+let cacheMesas = null;
+
+function dispatchLocalEvent(eventName) {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new Event(eventName));
+    } catch {
+      // Ignorar en entornos sin DOM completo
+    }
+  }
+}
+
 function inicializar() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || !window.localStorage) return;
 
   const dataMesas = localStorage.getItem(MESAS_KEY);
   if (!dataMesas) {
     localStorage.setItem(MESAS_KEY, JSON.stringify(SEED_MESAS));
-  } else {
-    try {
-      const mesas = JSON.parse(dataMesas);
-      const zonasDef = { '11': 'terraza', '12': 'terraza', '13': 'terraza', '14': 'terraza', '15': 'segundo_piso', '16': 'segundo_piso' };
-      const tiemposDemo = { '03': 25, '05': 41, '10': 15, '13': 55, '15': 35 };
-      const ahora = Date.now();
-      let huboCambio = false;
-
-      const actualizadas = mesas.map((m) => {
-        let mesaModificada = { ...m };
-
-        // Asegurar asignación de zonas
-        if (zonasDef[m.numero] && m.zona === 'salon_principal') {
-          huboCambio = true;
-          mesaModificada.zona = zonasDef[m.numero];
-        }
-
-        // Auto-reparar timestamps antiguos guardados hace días en localStorage
-        if (mesaModificada.estado === ESTADOS_MESA.OCUPADA && mesaModificada.inicioAt) {
-          const diffMin = (ahora - new Date(mesaModificada.inicioAt).getTime()) / 60000;
-          // Si el timestamp tiene más de 3 horas (180 min) o es del pasado lejano por días
-          if (diffMin > 180 || diffMin < 0) {
-            huboCambio = true;
-            const minSimulados = tiemposDemo[mesaModificada.numero] || 20;
-            mesaModificada.inicioAt = new Date(ahora - minSimulados * 60000).toISOString();
-          }
-        }
-
-        return mesaModificada;
-      });
-
-      if (huboCambio) {
-        localStorage.setItem(MESAS_KEY, JSON.stringify(actualizadas));
-      }
-    } catch {
-      // Ignorar error de parsing
-    }
   }
 
   if (!localStorage.getItem(ACTIVIDADES_KEY)) {
@@ -54,64 +31,101 @@ function inicializar() {
   }
 }
 
-function getMesasRaw() {
+function unwrap({ data, error }, defaultMsg = 'Error en la operación de mesas.') {
+  if (error) {
+    throw new Error(error.message || defaultMsg);
+  }
+  return data;
+}
+
+function getDbClient() {
+  const user = getCurrentUser();
+  const insforge = requireInsforge();
+  return { db: insforge.database, user };
+}
+
+function mapMesaFromDb(row) {
+  const items = (row.items || []).map((it) => ({
+    id: it.producto_id || it.id,
+    nombre: it.nombre,
+    cantidad: it.cantidad,
+    precio: Number(it.precio),
+    subtotal: Number(it.subtotal || it.cantidad * it.precio),
+    observacion: it.observacion || '',
+  }));
+
+  return {
+    id: Number(row.id),
+    numero: String(row.numero).padStart(2, '0'),
+    capacidad: Number(row.capacidad),
+    forma: row.forma,
+    zona: row.zona,
+    estado: row.estado || ESTADOS_MESA.LIBRE,
+    pedidoId: row.pedido_id || null,
+    pedidoEstado: row.pedido_estado || null,
+    cuentaSolicitada: Boolean(row.cuenta_solicitada),
+    comensales: row.comensales || row.capacidad,
+    subtotalAcumulado: Number(row.subtotal || 0),
+    totalAcumulado: Number(row.total || 0),
+    notas: row.notas || '',
+    inicioAt: row.creado_en || null,
+    items,
+  };
+}
+
+/**
+ * Consulta las mesas y sus pedidos activos directamente desde PostgreSQL (SCRUM-277).
+ */
+export async function fetchMesas() {
+  try {
+    const { db } = getDbClient();
+    const res = await db.rpc('obtener_mesas_con_pedidos');
+    const data = unwrap(res, 'No se pudo obtener el estado de las mesas desde PostgreSQL.');
+    const mesasMapeadas = (Array.isArray(data) ? data : []).map(mapMesaFromDb);
+
+    if (mesasMapeadas.length > 0) {
+      cacheMesas = mesasMapeadas;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(MESAS_KEY, JSON.stringify(mesasMapeadas));
+      }
+    }
+    return mesasMapeadas;
+  } catch (err) {
+    console.warn('Fallo al consultar mesas en PostgreSQL, usando cache local:', err.message);
+    return getMesas();
+  }
+}
+
+/**
+ * Retorna las mesas sincronizadas (de memoria, de localStorage o semillas).
+ */
+export function getMesas() {
+  if (cacheMesas && cacheMesas.length > 0) {
+    return cacheMesas;
+  }
+
   inicializar();
   try {
     const data = localStorage.getItem(MESAS_KEY);
-    return data ? JSON.parse(data) : SEED_MESAS;
+    const mesas = data ? JSON.parse(data) : SEED_MESAS;
+    cacheMesas = mesas;
+    return mesas;
   } catch (error) {
-    console.error('Error al leer mesas:', error);
+    console.error('Error al leer mesas locales:', error);
     return SEED_MESAS;
   }
 }
 
 function saveMesas(mesas) {
+  cacheMesas = mesas;
   try {
-    localStorage.setItem(MESAS_KEY, JSON.stringify(mesas));
-    // Disparar evento para sincronización local inmediata
-    window.dispatchEvent(new Event('lys_mesas_updated'));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(MESAS_KEY, JSON.stringify(mesas));
+    }
+    dispatchLocalEvent('lys_mesas_updated');
   } catch (error) {
     console.error('Error al guardar mesas:', error);
   }
-}
-
-/**
- * Retorna las mesas sincronizadas con los pedidos actuales de lys_pedidos.
- * Si un pedido asociado está pagado, la mesa puede liberarse automáticamente o reflejar el estado actual.
- */
-export function getMesas() {
-  const mesas = getMesasRaw();
-  let pedidos = [];
-
-  try {
-    const rawPedidos = localStorage.getItem(PEDIDOS_KEY);
-    pedidos = rawPedidos ? JSON.parse(rawPedidos) : [];
-  } catch {
-    pedidos = [];
-  }
-
-  // Sincronizar montos y estados en vivo con lys_pedidos
-  let huboCambios = false;
-  const mesasSincronizadas = mesas.map((m) => {
-    if (m.estado === ESTADOS_MESA.OCUPADA && m.pedidoId) {
-      const pedido = pedidos.find((p) => p.id === m.pedidoId);
-      if (pedido) {
-        // Calcular total actual del pedido
-        const total = pedido.items?.reduce((acc, it) => acc + (it.cantidad * it.precio), 0) || 0;
-        if (total > 0 && total !== m.totalAcumulado) {
-          huboCambios = true;
-          return { ...m, totalAcumulado: total };
-        }
-      }
-    }
-    return m;
-  });
-
-  if (huboCambios) {
-    saveMesas(mesasSincronizadas);
-  }
-
-  return mesasSincronizadas;
 }
 
 export function getMesaById(id) {
@@ -123,6 +137,153 @@ export function getMesaByNumero(numero) {
   const mesas = getMesas();
   const numNormalizado = String(numero).padStart(2, '0');
   return mesas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado) || null;
+}
+
+/**
+ * Abre un pedido de salón y ocupa la mesa en PostgreSQL mediante RPC (SCRUM-278, SCRUM-282).
+ */
+export async function abrirPedidoSalon({
+  solicitudId,
+  mesaId,
+  mesaNumero,
+  comensales,
+  notas = '',
+  items = [],
+}) {
+  const mesa = mesaId ? getMesaById(mesaId) : getMesaByNumero(mesaNumero);
+  const idMesa = mesa ? mesa.id : Number(mesaNumero);
+
+  const payloadArticulos = items.map((it) => ({
+    id: it.id,
+    qty: it.cantidad,
+  }));
+
+  const { db } = getDbClient();
+  const res = await db.rpc('abrir_pedido_salon', {
+    solicitud_id: solicitudId || null,
+    p_mesa_id: idMesa,
+    p_comensales: Number(comensales) || null,
+    p_notas: notas || '',
+    p_articulos: payloadArticulos,
+  });
+
+  const nuevoPedidoId = unwrap(res, 'No se pudo abrir el pedido en el servidor.');
+
+  // Refrescar mesas desde la base de datos
+  await fetchMesas();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('storage');
+
+  return nuevoPedidoId;
+}
+
+/**
+ * Permite agregar productos y observaciones a un pedido de salón abierto (SCRUM-279).
+ */
+export async function modificarPedidoSalon({ pedidoId, items = [], notas = null }) {
+  const payloadArticulos = items.map((it) => ({
+    id: it.id,
+    qty: it.cantidad,
+  }));
+
+  const { db } = getDbClient();
+  const res = await db.rpc('agregar_o_modificar_detalles_salon', {
+    p_pedido_id: pedidoId,
+    p_articulos: payloadArticulos,
+    p_notas: notas !== null ? notas : null,
+  });
+
+  unwrap(res, 'No se pudo modificar el pedido en el servidor.');
+
+  await fetchMesas();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('storage');
+  return true;
+}
+
+/**
+ * Registra el envío del pedido a cocina en PostgreSQL (SCRUM-280).
+ */
+export async function enviarPedidoCocina(pedidoId) {
+  const { db } = getDbClient();
+  const res = await db.rpc('enviar_pedido_cocina', {
+    p_pedido_id: pedidoId,
+  });
+
+  unwrap(res, 'No se pudo enviar el pedido a cocina.');
+
+  await fetchMesas();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('storage');
+  return true;
+}
+
+/**
+ * Registra la solicitud de cuenta para caja en PostgreSQL (SCRUM-281).
+ */
+export async function solicitarCuenta(pedidoId, mesaNumero) {
+  const { db } = getDbClient();
+  const res = await db.rpc('solicitar_cuenta_salon', {
+    p_pedido_id: pedidoId,
+  });
+
+  unwrap(res, 'No se pudo registrar la solicitud de cuenta.');
+
+  if (mesaNumero) {
+    registrarActividad({
+      mesaNumero,
+      tipo: 'pedido_actualizado',
+      titulo: `Mesa ${String(mesaNumero).padStart(2, '0')}`,
+      descripcion: 'Cuenta solicitada a caja',
+      ordenCodigo: pedidoId || '',
+      tipoColor: 'amarillo',
+    });
+  }
+
+  await fetchMesas();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('storage');
+  return true;
+}
+
+/**
+ * Libera una mesa en PostgreSQL y actualiza la sincronización local (SCRUM-283).
+ */
+export async function liberarMesa(numero) {
+  const mesa = getMesaByNumero(numero);
+  if (mesa?.id) {
+    try {
+      const { db } = getDbClient();
+      await db.rpc('liberar_mesa_salon', { p_mesa_id: mesa.id });
+    } catch (err) {
+      console.warn('Error al liberar mesa en PostgreSQL:', err.message);
+    }
+  }
+
+  const numNormalizado = String(numero).padStart(2, '0');
+  const mesas = getMesas();
+  const actualizadas = mesas.map((m) => {
+    if (String(m.numero).padStart(2, '0') === numNormalizado) {
+      return {
+        ...m,
+        estado: ESTADOS_MESA.LIBRE,
+        pedidoId: null,
+        pedidoEstado: null,
+        inicioAt: null,
+        totalAcumulado: 0,
+        subtotalAcumulado: 0,
+        horaReserva: null,
+        clienteReserva: null,
+        telefonoReserva: null,
+        comensalesReserva: null,
+        items: [],
+      };
+    }
+    return m;
+  });
+
+  saveMesas(actualizadas);
+  return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
 }
 
 export function ocuparMesa(numero, pedidoId, total = 0) {
@@ -137,35 +298,6 @@ export function ocuparMesa(numero, pedidoId, total = 0) {
         pedidoId,
         inicioAt: new Date().toISOString(),
         totalAcumulado: total,
-        horaReserva: null,
-        clienteReserva: null,
-        telefonoReserva: null,
-        comensalesReserva: null,
-      };
-    }
-    return m;
-  });
-
-  saveMesas(actualizadas);
-  return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
-}
-
-export function liberarMesa(numero) {
-  const mesas = getMesas();
-  const numNormalizado = String(numero).padStart(2, '0');
-
-  const actualizadas = mesas.map((m) => {
-    if (String(m.numero).padStart(2, '0') === numNormalizado) {
-      return {
-        ...m,
-        estado: ESTADOS_MESA.LIBRE,
-        pedidoId: null,
-        inicioAt: null,
-        totalAcumulado: 0,
-        horaReserva: null,
-        clienteReserva: null,
-        telefonoReserva: null,
-        comensalesReserva: null,
       };
     }
     return m;
@@ -243,9 +375,15 @@ export function registrarActividad({ mesaNumero, tipo, titulo, descripcion, orde
     createdAt: ahora.toISOString(),
   };
 
-  const listaActualizada = [nuevaActividad, ...actividades].slice(0, 20); // guardar últimas 20
-  localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(listaActualizada));
-  window.dispatchEvent(new Event('lys_actividades_updated'));
+  const listaActualizada = [nuevaActividad, ...actividades].slice(0, 20);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(listaActualizada));
+    }
+    dispatchLocalEvent('lys_actividades_updated');
+  } catch {
+    // ignorar error de cuota
+  }
   return nuevaActividad;
 }
 
@@ -253,21 +391,24 @@ export function getMinutosOcupada(inicioAt) {
   if (!inicioAt) return 0;
   const diffMs = Date.now() - new Date(inicioAt).getTime();
   const mins = Math.max(0, Math.floor(diffMs / 60000));
-  // Si supera 3 horas por timestamps desfasados en localStorage, acotar a un tiempo de consumo realista
   if (mins > 180) return 35;
   return mins;
 }
 
 export default {
+  fetchMesas,
   getMesas,
   getMesaById,
   getMesaByNumero,
-  ocuparMesa,
+  abrirPedidoSalon,
+  modificarPedidoSalon,
+  enviarPedidoCocina,
+  solicitarCuenta,
   liberarMesa,
+  ocuparMesa,
   reservarMesa,
   getEstadisticasMesas,
   getActividades,
   registrarActividad,
   getMinutosOcupada,
 };
-
