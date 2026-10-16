@@ -103,6 +103,12 @@ test('la clave no puede reutilizarse para otro pedido y revierte el segundo cobr
   expect((await db.query('SELECT estado_pago FROM pedidos WHERE id=$1', [segundo])).rows[0].estado_pago).toBe('pendiente');
   expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
 });
+test('impide liberar o cerrar una mesa pendiente mediante RPC o escritura directa', async () => {
+  const id = await pedido();
+  await expect(asUser(mesera, 'SELECT liberar_mesa_salon(1)')).rejects.toThrow(/pago/);
+  await expect(asUser(mesera, "UPDATE mesas SET estado='libre' WHERE id=1")).rejects.toThrow(/pendiente de pago/);
+  await expect(db.query("UPDATE pedidos SET estado='entregado' WHERE id=$1", [id])).rejects.toThrow(/pago/);
+});
 test('impide editar productos, importes y solicitud de cuenta después del cobro', async () => {
   const id = await pedido(), recibo = await cobrar(id);
   await expect(asUser(mesera, 'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)', [id,JSON.stringify([{ id: 1, qty: 1 }])])).rejects.toThrow(/finalizado/);
@@ -111,7 +117,8 @@ test('impide editar productos, importes y solicitud de cuenta después del cobro
   await expect(asUser(mesera, 'SELECT solicitar_cuenta_salon($1)', [id])).rejects.toThrow(/cobrado/);
   expect(await cobrar(id)).toEqual(recibo);
 });
-test('exige pago para cerrar la atención', async () => {
-  const id = await pedido();
-  await expect(db.query("UPDATE pedidos SET estado='entregado' WHERE id=$1", [id])).rejects.toThrow(/pago/);
+test('no libera una mesa reutilizada al reintentar un cobro anterior', async () => {
+  const id = await pedido(), recibo = await cobrar(id); await pedido();
+  expect(await cobrar(id)).toEqual(recibo);
+  expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
 });
