@@ -50,3 +50,12 @@ test('detiene la migración ante mesas históricas cerradas sin pago', async () 
   const id = await legacy(); await db.query("UPDATE pedidos SET estado='entregado' WHERE id=$1", [id]);
   await expect(applyAndRollback()).rejects.toThrow(/mesas cerradas/); await unchanged(id, 0);
 });
+test('conserva los pagos históricos válidos y los marca como liquidados', async () => {
+  const id = await legacy(); await oldPayment(id);
+  await applyAndRollback(async () => {
+    expect((await db.query('SELECT estado_pago FROM pedidos WHERE id=$1', [id])).rows[0].estado_pago).toBe('pagado');
+    const pago = (await db.query('SELECT monto,recibido,vuelto FROM pagos WHERE pedido_id=$1', [id])).rows[0];
+    expect(Number(pago.monto)).toBe(42.9); expect(Number(pago.recibido)).toBe(42.9); expect(Number(pago.vuelto)).toBe(0);
+  });
+  await unchanged(id, 1);
+});
