@@ -105,3 +105,20 @@ test('mantiene la protección de pedidos cobrados y permite cancelar una comanda
  const empty=await salon([]);await asUser(3,'SELECT liberar_mesa_salon(1)');
  expect((await db.query('SELECT estado FROM pedidos WHERE id=$1',[empty])).rows[0].estado).toBe('cancelado');
 });
+test('RLS restringe el canal al propietario incluso ante una política permisiva',async()=>{
+ await db.exec('CREATE POLICY test_abierta ON realtime.channels FOR SELECT TO anon,authenticated USING(true)');
+ try{
+  await db.query("SELECT set_config('test.channel',$1,false)",[`lys:client:${users[1]}`]);
+  expect((await asUser(1,'SELECT pattern FROM realtime.channels')).rows).toEqual([{pattern:'lys:client:%'}]);
+  expect((await asUser(2,'SELECT pattern FROM realtime.channels')).rows).toEqual([]);
+  expect((await asUser(0,'SELECT pattern FROM realtime.channels')).rows).toEqual([{pattern:'lys:staff'}]);
+  expect((await asUser(null,'SELECT pattern FROM realtime.channels')).rows).toEqual([]);
+ }finally{await db.exec('DROP POLICY test_abierta ON realtime.channels');}
+});
+test('no se pueden falsificar notificaciones desde SDK ni mediante INSERT',async()=>{
+ await db.exec('CREATE POLICY test_publicar ON realtime.messages FOR INSERT TO authenticated WITH CHECK(true)');
+ try{
+  await expect(asUser(1,"INSERT INTO realtime.messages VALUES ('lys:staff','lys:pedido-actualizado','{}')")).rejects.toThrow(/row-level security/);
+  await expect(asUser(0,"SELECT realtime.publish('lys:staff','lys:pedido-actualizado','{}')")).rejects.toThrow(/permission denied/);
+ }finally{await db.exec('DROP POLICY test_publicar ON realtime.messages');}
+});
