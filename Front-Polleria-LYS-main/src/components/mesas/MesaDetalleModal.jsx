@@ -54,50 +54,39 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
     onClose();
   }
 
-  function handleLiberarMesa() {
+  async function handleLiberarMesa() {
     if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
-      mesaService.liberarMesa(numero);
-      mesaService.registrarActividad({
-        mesaNumero: numero,
-        tipo: 'pedido_completado',
-        titulo: `Mesa ${numero}`,
-        descripcion: 'Mesa liberada',
-        ordenCodigo: mesa.pedidoId ? `Orden ${mesa.pedidoId}` : '',
-        tipoColor: 'verde',
-      });
+      try {
+        await mesaService.liberarMesa(numero);
+        mesaService.registrarActividad({
+          mesaNumero: numero,
+          tipo: 'pedido_completado',
+          titulo: `Mesa ${numero}`,
+          descripcion: 'Mesa liberada',
+          ordenCodigo: mesa.pedidoId ? `Orden ${mesa.pedidoId}` : '',
+          tipoColor: 'verde',
+        });
+      } catch (err) {
+        console.error('Error al liberar mesa:', err);
+      }
       if (onMesaUpdated) onMesaUpdated();
       onClose();
     }
   }
 
-  function handleSolicitarCuenta() {
+  async function handleSolicitarCuenta() {
     if (mesa.pedidoId) {
       try {
-        const raw = localStorage.getItem('lys_pedidos');
-        const pedidos = raw ? JSON.parse(raw) : [];
-        const actualizados = pedidos.map((p) => {
-          if (p.id === mesa.pedidoId) {
-            return { ...p, cuentaSolicitada: true };
-          }
-          return p;
-        });
-        localStorage.setItem('lys_pedidos', JSON.stringify(actualizados));
-        window.dispatchEvent(new Event('storage'));
+        await mesaService.solicitarCuenta(mesa.pedidoId, numero);
+        alert(`Se ha solicitado la cuenta de la Mesa ${numero} para Caja.`);
       } catch (err) {
-        console.error(err);
+        console.error('Error al solicitar cuenta:', err);
+        alert('No se pudo solicitar la cuenta: ' + err.message);
       }
+    } else {
+      alert(`La Mesa ${numero} no tiene un pedido activo.`);
     }
 
-    mesaService.registrarActividad({
-      mesaNumero: numero,
-      tipo: 'pedido_actualizado',
-      titulo: `Mesa ${numero}`,
-      descripcion: 'Cuenta solicitada a caja',
-      ordenCodigo: mesa.pedidoId || '',
-      tipoColor: 'amarillo',
-    });
-
-    alert(`Se ha solicitado la cuenta de la Mesa ${numero} para Caja.`);
     if (onMesaUpdated) onMesaUpdated();
     onClose();
   }
@@ -249,13 +238,13 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
                 )}
               </div>
 
-              {pedidoActivo?.items?.length > 0 && (
+              {(pedidoActivo?.items?.length > 0 || mesa?.items?.length > 0) && (
                 <div className="mesa-comanda-box">
                   <h4 className="mesa-comanda-title">Comanda actual</h4>
                   <ul className="mesa-comanda-list">
-                    {pedidoActivo.items.map((it, idx) => (
+                    {(pedidoActivo?.items?.length > 0 ? pedidoActivo.items : mesa.items).map((it, idx) => (
                       <li key={idx}>
-                        {it.cantidad}x {it.nombre} - S/ {(it.precio * it.cantidad).toFixed(2)}
+                        {it.cantidad}x {it.nombre} - S/ {((it.precio || 0) * (it.cantidad || 1)).toFixed(2)}
                       </li>
                     ))}
                   </ul>

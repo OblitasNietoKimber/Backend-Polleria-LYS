@@ -5,12 +5,22 @@ export default function useMesas(zona = 'salon_principal') {
   const [listaCompleta, setListaCompleta] = useState(() => mesaService.getMesas());
   const [actividades, setActividades] = useState(() => mesaService.getActividades());
 
-  const recargar = useCallback(() => {
-    setListaCompleta(mesaService.getMesas());
+  const recargar = useCallback(async () => {
+    try {
+      const actualizadas = await mesaService.fetchMesas();
+      if (Array.isArray(actualizadas) && actualizadas.length > 0) {
+        setListaCompleta(actualizadas);
+      } else {
+        setListaCompleta(mesaService.getMesas());
+      }
+    } catch {
+      setListaCompleta(mesaService.getMesas());
+    }
     setActividades(mesaService.getActividades());
   }, []);
 
   useEffect(() => {
+    recargar();
     // Polling cada 5 segundos para mantener sincronizados consumos y tiempos en vivo
     const timer = setInterval(recargar, 5000);
 
