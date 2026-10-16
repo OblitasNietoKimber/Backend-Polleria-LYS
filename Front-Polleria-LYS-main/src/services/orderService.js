@@ -61,11 +61,14 @@ async function getOrderHistory(id, { before } = {}) {
 }
 async function createOrder({ id, items, deliveryType, form, payment }) {
   const { db } = client()
-  return unwrap(await db.rpc('crear_pedido_cliente', {
+  const savedId = unwrap(await db.rpc('crear_pedido_cliente', {
     solicitud_id: id, tipo_entrega: deliveryType,
     articulos: items.map(({ product, qty }) => ({ id: product.id, qty })),
     datos_entrega: form, metodo: payment,
   }))
+  const saved = await getOrderById(savedId)
+  if (!saved) throw new Error('No se pudo consultar el pedido confirmado. Reintenta con la misma solicitud.')
+  return saved
 }
 function getOrderStatus(order) { return STATUS[order.backendStatus] || 'recibido' }
 export default { getOrders, getOrderById, getOrderState, getOrderHistory, createOrder, getOrderStatus }
