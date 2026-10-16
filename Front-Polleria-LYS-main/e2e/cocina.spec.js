@@ -45,6 +45,10 @@ test('cocina consulta PostgreSQL, avanza estados desde el panel',async({page})=>
  await page.getByRole('button',{name:'Marcar listo'}).click();await expect(page.getByText(/Listo para entrega/)).toBeVisible();await expect(page.getByRole('button',{name:'Entregar',exact:true})).toHaveCount(0);
  expect(backend.calls).toEqual([{p_pedido_id:backend.row.id,p_estado_actual:'pendiente',p_nuevo_estado:'en_preparacion'},{p_pedido_id:backend.row.id,p_estado_actual:'en_preparacion',p_nuevo_estado:'listo'}]);
 });
+test('rechazo de concurrencia deja el pedido visible y muestra el error',async({page})=>{
+ const backend=fixture();backend.reject();await backend.install(page);await page.goto('/cocina');
+ await page.getByRole('button',{name:'Comenzar'}).click();await expect(page.getByRole('alert')).toContainText('Otro usuario');await expect(page.getByRole('button',{name:'Comenzar'})).toBeEnabled();
+});
 test('recupera cambios por consulta automática cuando WebSocket no está disponible',async({page})=>{
  const backend=fixture();await backend.install(page);await page.routeWebSocket('**/socket.io/**',ws=>ws.close());await page.goto('/cocina');
  await expect(page.getByRole('button',{name:'Comenzar'})).toBeVisible();backend.row.estado='en_preparacion';backend.row.actualizado_en='2026-10-16T22:00:00Z';await expect(page.getByRole('button',{name:'Marcar listo'})).toBeVisible({timeout:8000});
