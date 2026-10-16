@@ -170,4 +170,27 @@ $$;
 CREATE TRIGGER detalle_cobrado BEFORE INSERT OR UPDATE OR DELETE ON public.detalles_pedido
 FOR EACH ROW EXECUTE FUNCTION public.proteger_detalle_cobrado();
 
-REVOKE ALL ON FUNCTION public.proteger_detalle_cobrado() FROM PUBLIC;
+CREATE FUNCTION public.proteger_pedido_cobrado() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF OLD.estado_pago = 'pagado' AND (
+    NEW.total IS DISTINCT FROM OLD.total OR NEW.subtotal IS DISTINCT FROM OLD.subtotal OR NEW.envio IS DISTINCT FROM OLD.envio
+    OR NEW.tipo IS DISTINCT FROM OLD.tipo OR NEW.mesa_id IS DISTINCT FROM OLD.mesa_id
+    OR NEW.estado_pago IS DISTINCT FROM OLD.estado_pago OR NEW.cuenta_solicitada IS DISTINCT FROM OLD.cuenta_solicitada
+    OR NEW.destinatario IS DISTINCT FROM OLD.destinatario OR NEW.cliente_id IS DISTINCT FROM OLD.cliente_id
+    OR NEW.estado = 'cancelado'
+    OR (OLD.tipo = 'salon' AND NEW.estado IS DISTINCT FROM OLD.estado)
+  ) THEN
+    RAISE EXCEPTION 'No se pueden modificar los importes ni reabrir un pedido cobrado' USING ERRCODE = '22023';
+  END IF;
+  IF (NEW.estado_pago = 'pagado' OR (NEW.tipo = 'salon' AND NEW.estado = 'entregado'))
+     AND NOT EXISTS (SELECT 1 FROM public.pagos WHERE pedido_id = NEW.id) THEN
+    RAISE EXCEPTION 'Confirma el pago en caja antes de cerrar la atención' USING ERRCODE = '22023';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER pedido_cobrado BEFORE UPDATE ON public.pedidos
+FOR EACH ROW EXECUTE FUNCTION public.proteger_pedido_cobrado();
+
+REVOKE ALL ON FUNCTION public.proteger_detalle_cobrado(),public.proteger_pedido_cobrado() FROM PUBLIC;
