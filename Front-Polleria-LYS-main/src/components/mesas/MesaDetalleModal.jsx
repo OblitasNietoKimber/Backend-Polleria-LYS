@@ -14,7 +14,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   const [errorReserva, setErrorReserva] = useState('');
   const [errorOperacion, setErrorOperacion] = useState('');
 
-  const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.pedidoEstado } : null;
+  const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.estadoCocina } : null;
 
   if (!mesa) return null;
 

@@ -67,6 +67,7 @@ test('fetchMesas consulta obtener_mesas_con_pedidos y mapea los datos correctame
     numero: '01',
     estado: 'ocupada',
     pedidoId: '10000000-0000-0000-0000-000000000001',
+    estadoCocina: 'nuevo',
     totalAcumulado: 42.9,
     comensales: 2,
     notas: 'Mesa rápida',
@@ -148,3 +149,13 @@ test('gestiona errores de RPC rechazando la promesa', async () => {
     })
   ).rejects.toThrow('La mesa ya tiene un pedido activo')
 })
+
+test('la vista estricta propaga el fallo de PostgreSQL sin presentar la caché como datos nuevos', async () => {
+ fake.rpc.mockResolvedValueOnce({error:{message:'Conexión interrumpida'}});
+ await expect(mesaService.fetchMesas({strict:true})).rejects.toThrow('Conexión interrumpida');
+});
+test('una respuesta vacía del servidor elimina la mesa antigua de la caché', async () => {
+ fake.rpc.mockResolvedValueOnce({data:[{id:1,numero:'01',estado:'ocupada',capacidad:2}]}).mockResolvedValueOnce({data:[]});
+ await mesaService.fetchMesas();await mesaService.fetchMesas({strict:true});
+ expect(mesaService.getMesas()).toEqual([]);
+});
