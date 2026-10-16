@@ -35,10 +35,11 @@ async function getPedidosActivos() {
     if (rows.length < 100) return result;
   }
 }
-async function getPedidosFinalizados() {
+async function getPedidosFinalizados({ page = 0 } = {}) {
+  if (!Number.isSafeInteger(page) || page < 0) throw new Error('Página inválida.');
   const rows = unwrap(await database().from('pedidos').select(fields).in('estado',['listo','entregado'])
     .order('actualizado_en',{ascending:false}).order('id',{ascending:false})
-    .range(0,HISTORY_PAGE_SIZE-1)) || [];
+    .range(page*HISTORY_PAGE_SIZE,(page+1)*HISTORY_PAGE_SIZE-1)) || [];
   return rows.map(mapPedido);
 }
 async function cambiarEstado(pedido, nuevoEstado) {

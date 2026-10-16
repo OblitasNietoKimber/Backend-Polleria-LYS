@@ -32,6 +32,10 @@ test('propaga el conflicto de concurrencia y los errores de lectura',async()=>{
  fake.rpc.mockResolvedValue({error:{message:'Otro usuario cambió el pedido'}});await expect(cocina.cambiarEstado({id:row.id,estadoCocina:'nuevo'},'en_preparacion')).rejects.toThrow(/Otro usuario/);
  fake.query.range.mockResolvedValue({error:{message:'Sin conexión'}});await expect(cocina.getPedidosActivos()).rejects.toThrow(/Sin conexión/);
 });
+test('pagina el historial de listos y entregados y rechaza páginas inválidas',async()=>{
+ await cocina.getPedidosFinalizados({page:2});expect(fake.query.in).toHaveBeenCalledWith('estado',['listo','entregado']);expect(fake.query.range).toHaveBeenCalledWith(100,149);
+ await expect(cocina.getPedidosFinalizados({page:-1})).rejects.toThrow(/Página/);
+});
 test.each(['cliente','mesera','caja',null])('el rol %s no consulta ni modifica cocina',async rol=>{
  fake.user.mockReturnValue(rol?{rol}:null);await expect(cocina.getPedidosActivos()).rejects.toThrow(/cocina/);await expect(cocina.cambiarEstado({id:row.id},'listo')).rejects.toThrow(/cocina/);
 });
