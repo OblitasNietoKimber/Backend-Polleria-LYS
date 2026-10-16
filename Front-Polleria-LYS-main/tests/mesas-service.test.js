@@ -10,6 +10,25 @@ vi.mock('../src/services/authService', () => ({
 
 import mesaService from '../src/services/mesaService'
 
+test('liberarMesa propaga el rechazo del servidor y conserva el pedido pendiente en la vista', async () => {
+  const ocupada = { id: 1, numero: '01', capacidad: 2, estado: 'ocupada', pedido_id: 'pedido-pendiente', total: 42.9 };
+  fake.rpc.mockResolvedValue({ data: [ocupada] });
+  await mesaService.fetchMesas();
+  fake.rpc.mockResolvedValueOnce({ error: { message: 'La mesa tiene un pedido pendiente de pago' } });
+  await expect(mesaService.liberarMesa('01')).rejects.toThrow('pendiente de pago');
+  expect(mesaService.getMesaByNumero('01')).toMatchObject({ estado: 'ocupada', pedidoId: 'pedido-pendiente' });
+});
+
+test('liberarMesa confirma la RPC y vuelve a consultar el estado persistido', async () => {
+  fake.rpc.mockResolvedValueOnce({ data: [{ id: 1, numero: '01', estado: 'ocupada', capacidad: 2 }] });
+  await mesaService.fetchMesas();
+  fake.rpc.mockResolvedValueOnce({ data: true }).mockResolvedValueOnce({ data: [{ id: 1, numero: '01', estado: 'libre', capacidad: 2 }] });
+  const mesa = await mesaService.liberarMesa('01');
+  expect(fake.rpc).toHaveBeenCalledWith('liberar_mesa_salon', { p_mesa_id: 1 });
+  expect(fake.rpc).toHaveBeenCalledWith('obtener_mesas_con_pedidos');
+  expect(mesa.estado).toBe('libre');
+});
+
 beforeEach(() => {
   fake.rpc.mockReset()
   fake.user.mockReturnValue({ id: 'mesera-1', rol: 'mesera' })

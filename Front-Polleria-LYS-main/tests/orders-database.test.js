@@ -35,6 +35,7 @@ beforeAll(async () => {
     VALUES (900001,'pollos','Nombre vendido',42.90,true),(900002,'pollos','Segundo plato',10,true)`)
   await create(request({ id: legacy }))
   for (const file of files.filter(file => file >= '009')) await db.exec(await readFile(new URL(file, directory), 'utf8'))
+  await db.exec(await readFile(new URL('../../migrations/20261016194047_caja-pagos.sql', import.meta.url), 'utf8'))
 }, 30000)
 afterAll(() => db.close())
 afterEach(async () => {

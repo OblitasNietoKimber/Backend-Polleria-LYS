@@ -92,3 +92,5 @@ Para usar un Chromium ya instalado, define `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
 Nada se publica automáticamente. Esta rama se prepara localmente para revisión antes de push o PR.
 
 Consulta [la revisión del catálogo](docs/catalogo-productos.md) para sus trece commits, servicios, migraciones pendientes de aplicar y resultados de las pruebas.
+
+Consulta [Caja y Pagos](docs/caja-pagos.md) para sus 18 commits, contrato de cobro, migración aplicada al nuevo InsForge y resultados de validación.
