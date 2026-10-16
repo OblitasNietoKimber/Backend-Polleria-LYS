@@ -52,3 +52,9 @@ test('cocina consulta la mesa, productos vendidos y observaciones protegidos',as
  expect((await asUser(0,'SELECT notas,estado FROM pedidos WHERE id=$1',[id])).rows[0]).toEqual({notas:'Sin ají',estado:'pendiente'});
  expect((await asUser(0,'SELECT nombre_producto,cantidad FROM detalles_pedido WHERE pedido_id=$1',[id])).rows[0]).toMatchObject({nombre_producto:expect.any(String),cantidad:1});
 });
+test('la validación también protege un UPDATE administrativo con contexto de cocina',async()=>{
+ const id=await create();await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[users[0]]);
+ try{await expect(db.query("UPDATE pedidos SET estado='listo' WHERE id=$1",[id])).rejects.toThrow(/no permitida/);}
+ finally{await db.exec("SELECT set_config('request.jwt.claim.sub','',false)");}
+ await expect(asUser(0,"UPDATE pedidos SET estado='listo' WHERE id=$1",[id])).rejects.toThrow(/permission denied/);
+});
