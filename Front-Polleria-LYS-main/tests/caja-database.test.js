@@ -103,3 +103,8 @@ test('la clave no puede reutilizarse para otro pedido y revierte el segundo cobr
   expect((await db.query('SELECT estado_pago FROM pedidos WHERE id=$1', [segundo])).rows[0].estado_pago).toBe('pendiente');
   expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
 });
+test('impide editar productos después del cobro', async () => {
+  const id = await pedido(); await cobrar(id);
+  await expect(db.query('UPDATE detalles_pedido SET cantidad=3 WHERE pedido_id=$1', [id])).rejects.toThrow(/cobrado/);
+  await expect(db.query('DELETE FROM detalles_pedido WHERE pedido_id=$1', [id])).rejects.toThrow(/cobrado/);
+});
