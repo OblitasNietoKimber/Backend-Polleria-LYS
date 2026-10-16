@@ -34,6 +34,7 @@ beforeAll(async () => {
     await db.query('INSERT INTO public.perfiles(id,rol,nombre,apellido,telefono) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE SET rol=$2',
       [users[i], roles[i], `Usuario ${roles[i]}`, 'Prueba', '999888777'])
   }
+  await db.exec(await readFile(new URL('../../migrations/20261016194047_caja-pagos.sql', import.meta.url), 'utf8'))
 }, 30000)
 
 afterAll(() => db.close())
