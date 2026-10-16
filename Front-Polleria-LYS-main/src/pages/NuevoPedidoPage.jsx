@@ -41,31 +41,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   const [busqueda, setBusqueda] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
-  const [itemsComanda, setItemsComanda] = useState(() => {
-    if (mesaActual?.items && mesaActual.items.length > 0) return mesaActual.items;
-    if (!mesaActual?.pedidoId) return [];
-    try {
-      const raw = localStorage.getItem('lys_pedidos');
-      const pedidos = raw ? JSON.parse(raw) : [];
-      const pedidoExistente = pedidos.find((p) => p.id === mesaActual.pedidoId);
-      return pedidoExistente?.items || [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [observaciones, setObservaciones] = useState(() => {
-    if (mesaActual?.notas) return mesaActual.notas;
-    if (!mesaActual?.pedidoId) return '';
-    try {
-      const raw = localStorage.getItem('lys_pedidos');
-      const pedidos = raw ? JSON.parse(raw) : [];
-      const pedidoExistente = pedidos.find((p) => p.id === mesaActual.pedidoId);
-      return pedidoExistente?.observaciones || '';
-    } catch {
-      return '';
-    }
-  });
+  const [itemsComanda, setItemsComanda] = useState(() => mesaActual?.items || []);
+  const [observaciones, setObservaciones] = useState(() => mesaActual?.notas || '');
 
   // Verificar si hay un borrador previo guardado para esta mesa
   const [borradorPendiente, setBorradorPendiente] = useState(() => {
@@ -230,45 +207,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         await mesaService.enviarPedidoCocina(pedidoIdFinal);
       }
 
-      // Sincronizar compatibilidad con módulos de cocina y caja (SCRUM-283)
-      try {
-        const rawPedidos = localStorage.getItem('lys_pedidos');
-        const pedidos = rawPedidos ? JSON.parse(rawPedidos) : [];
-        const nuevoPedido = {
-          id: pedidoIdFinal,
-          mesa: Number(numeroNormalizado),
-          cliente: `Mesa ${numeroNormalizado}`,
-          mesera: meseraNombre,
-          comensales: Number(comensales),
-          estadoCocina: 'en_preparacion',
-          estado: 'pendiente',
-          observaciones: observaciones.trim(),
-          items: itemsComanda.map((it) => ({
-            id: it.id,
-            nombre: it.nombre || it.name,
-            imagen: it.imagen || it.image,
-            cantidad: it.cantidad,
-            precio: it.precio || it.price,
-            observacion: '',
-          })),
-          subtotal: Number(subtotal.toFixed(2)),
-          igv: Number(igv.toFixed(2)),
-          total: Number(total.toFixed(2)),
-          createdAt: new Date().toISOString(),
-        };
-
-        let pedidosActualizados;
-        if (pedidoExistenteId) {
-          pedidosActualizados = pedidos.map((p) => (p.id === pedidoExistenteId ? nuevoPedido : p));
-        } else {
-          pedidosActualizados = [...pedidos, nuevoPedido];
-        }
-
-        localStorage.setItem('lys_pedidos', JSON.stringify(pedidosActualizados));
-        localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`);
-      } catch {
-        // Ignorar si falla el storage
-      }
+      try { localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`); } catch { /* Conserva el pedido confirmado si Web Storage está bloqueado. */ }
 
       mesaService.registrarActividad({
         mesaNumero: numeroNormalizado,

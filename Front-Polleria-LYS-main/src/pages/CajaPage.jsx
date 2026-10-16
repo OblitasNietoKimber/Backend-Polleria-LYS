@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Banknote, CheckCircle2, Clock3, ShoppingBag } from "lucide-react";
+import { watchOrders } from '../services/orderUpdates';
 import cajaService from "../services/pagoService";
 import ListaPedidos from "../components/caja/ListaPedidos";
 import BuscadorPedidos from "../components/caja/BuscadorPedidos";
@@ -24,10 +25,12 @@ export default function CajaPage() {
   const bloqueo = useRef(false);
   const montado = useRef(false);
   const consulta = useRef(0);
+  const consultando = useRef(false);
   const sello = useRef(null);
 
   const recargar = useCallback(async (forzar = true) => {
-    if (bloqueo.current) return;
+    if (bloqueo.current || (!forzar && consultando.current)) return;
+    consultando.current = true;
     const version = ++consulta.current;
     try {
       const cambios = await cajaService.getSelloCambios();
@@ -42,6 +45,7 @@ export default function CajaPage() {
     } catch (err) {
       if (montado.current && version === consulta.current) setError(err.message || "No se pudieron consultar los pedidos.");
     } finally {
+      if (version === consulta.current) consultando.current = false;
       if (montado.current && version === consulta.current) setCargando(false);
     }
   }, []);
@@ -49,12 +53,13 @@ export default function CajaPage() {
   useEffect(() => {
     montado.current = true;
     const inicial = setTimeout(recargar, 0);
+    const stop = watchOrders(() => { if (!intento.current && !bloqueo.current) void recargar(false); }, { initialRefresh: false, poll: false });
     const timer = setInterval(() => {
       if (!intento.current && document.visibilityState === 'visible') recargar(false);
     }, 10000);
     const visible = () => { if (document.visibilityState === 'visible' && !intento.current) recargar(false); };
     document.addEventListener('visibilitychange', visible);
-    return () => { montado.current = false; clearTimeout(inicial); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+    return () => { montado.current = false; stop(); clearTimeout(inicial); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
   }, [recargar]);
 
   const pendientes = pedidos.filter((pedido) => pedido.estado === "pendiente" && pedido.total > 0);
