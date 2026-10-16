@@ -21,8 +21,34 @@ export default function useMesas(zona = 'salon_principal') {
 
   useEffect(() => {
     recargar();
-    // Polling cada 5 segundos para mantener sincronizados consumos y tiempos en vivo
-    const timer = setInterval(recargar, 5000);
+
+    let timer = null;
+
+    function iniciarPolling() {
+      if (!timer) {
+        timer = setInterval(recargar, 5000);
+      }
+    }
+
+    function detenerPolling() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+
+    function onVisibilityChange() {
+      if (typeof document !== 'undefined') {
+        if (document.hidden) {
+          detenerPolling();
+        } else {
+          recargar();
+          iniciarPolling();
+        }
+      }
+    }
+
+    iniciarPolling();
 
     function onStorageEvent(e) {
       if (e.key === 'lys_mesas' || e.key === 'lys_actividades' || e.key === 'lys_pedidos') {
@@ -30,15 +56,25 @@ export default function useMesas(zona = 'salon_principal') {
       }
     }
 
-    window.addEventListener('storage', onStorageEvent);
-    window.addEventListener('lys_mesas_updated', recargar);
-    window.addEventListener('lys_actividades_updated', recargar);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', onStorageEvent);
+      window.addEventListener('lys_mesas_updated', recargar);
+      window.addEventListener('lys_actividades_updated', recargar);
+    }
 
     return () => {
-      clearInterval(timer);
-      window.removeEventListener('storage', onStorageEvent);
-      window.removeEventListener('lys_mesas_updated', recargar);
-      window.removeEventListener('lys_actividades_updated', recargar);
+      detenerPolling();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorageEvent);
+        window.removeEventListener('lys_mesas_updated', recargar);
+        window.removeEventListener('lys_actividades_updated', recargar);
+      }
     };
   }, [recargar]);
 
