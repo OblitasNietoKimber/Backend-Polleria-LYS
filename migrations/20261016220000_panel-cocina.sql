@@ -7,3 +7,36 @@ END; $$;
 
 CREATE POLICY mesas_lectura_cocina ON public.mesas FOR SELECT TO authenticated
 USING (public.rol_actual() = 'cocina');
+
+CREATE FUNCTION public.validar_transicion_cocina() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_rol text := COALESCE(public.rol_actual(), '');
+BEGIN
+  IF NEW.estado IS NOT DISTINCT FROM OLD.estado THEN RETURN NEW; END IF;
+  -- Las reparaciones administrativas sin sesión Auth mantienen su acceso previo.
+  IF auth.uid() IS NULL THEN RETURN NEW; END IF;
+  IF (
+    (OLD.estado = 'pendiente' AND NEW.estado = 'en_preparacion'
+      AND (v_rol IN ('cocina','admin') OR (v_rol = 'mesera' AND NEW.tipo = 'salon')))
+    OR (OLD.estado = 'en_preparacion' AND NEW.estado = 'listo' AND v_rol IN ('cocina','admin'))
+    -- Caja puede cerrar una atención ya cobrada, incluso si cocina no la marcó lista.
+    OR (OLD.estado NOT IN ('entregado','cancelado') AND NEW.estado = 'entregado'
+      AND NEW.tipo = 'salon' AND NEW.estado_pago = 'pagado' AND v_rol IN ('caja','admin')
+      AND EXISTS (SELECT 1 FROM public.pagos WHERE pedido_id = NEW.id))
+    OR (OLD.estado = 'listo' AND NEW.estado = 'entregado' AND NEW.tipo <> 'salon'
+      AND NEW.estado_pago = 'pagado' AND v_rol = 'admin')
+    OR (OLD.estado NOT IN ('entregado','cancelado') AND NEW.estado = 'cancelado' AND v_rol = 'admin')
+    OR (OLD.estado = 'pendiente' AND NEW.estado = 'cancelado' AND v_rol = 'mesera'
+      AND NEW.tipo = 'salon' AND NOT EXISTS (SELECT 1 FROM public.detalles_pedido WHERE pedido_id = NEW.id))
+  ) IS NOT TRUE THEN
+    RAISE EXCEPTION 'Transición de estado no permitida: % → %', OLD.estado, NEW.estado USING ERRCODE = '22023';
+  END IF;
+  IF NEW.estado IN ('en_preparacion','listo') AND NOT EXISTS (
+    SELECT 1 FROM public.detalles_pedido WHERE pedido_id = NEW.id
+  ) THEN RAISE EXCEPTION 'El pedido debe contener productos' USING ERRCODE = '22023'; END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.validar_transicion_cocina() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER pedido_transicion_cocina BEFORE UPDATE OF estado ON public.pedidos
+FOR EACH ROW EXECUTE FUNCTION public.validar_transicion_cocina();
