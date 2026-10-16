@@ -41,8 +41,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   const [busqueda, setBusqueda] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
-  // Carga los productos de esta mesa si ya tiene una orden activa
   const [itemsComanda, setItemsComanda] = useState(() => {
+    if (mesaActual?.items && mesaActual.items.length > 0) return mesaActual.items;
     if (!mesaActual?.pedidoId) return [];
     try {
       const raw = localStorage.getItem('lys_pedidos');
@@ -55,6 +55,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   });
 
   const [observaciones, setObservaciones] = useState(() => {
+    if (mesaActual?.notas) return mesaActual.notas;
     if (!mesaActual?.pedidoId) return '';
     try {
       const raw = localStorage.getItem('lys_pedidos');
@@ -178,76 +179,97 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     setBorradorPendiente(null);
   }
 
-  function handleEnviarCocina() {
+  const [enviando, setEnviando] = useState(false);
+
+  async function handleEnviarCocina() {
     if (itemsComanda.length === 0) {
       alert('La comanda está vacía. Selecciona al menos un producto.');
       return;
     }
 
+    setEnviando(true);
     try {
-      const rawPedidos = localStorage.getItem('lys_pedidos');
-      const pedidos = rawPedidos ? JSON.parse(rawPedidos) : [];
-
-      // Si ya existía un pedido de esta mesa se actualiza, si no, se crea uno nuevo
       const pedidoExistenteId = mesaActual?.pedidoId;
-      const nuevoId = pedidoExistenteId || `PED-${1000 + pedidos.length + 1}`;
+      let pedidoIdFinal = pedidoExistenteId;
 
-      const nuevoPedido = {
-        id: nuevoId,
-        mesa: Number(numeroNormalizado),
-        cliente: `Mesa ${numeroNormalizado}`,
-        mesera: meseraNombre,
-        comensales: Number(comensales),
-        estadoCocina: 'nuevo', // Notifica a cocina
-        estado: 'pendiente',   // Notifica a caja
-        observaciones: observaciones.trim(),
-        items: itemsComanda.map((it) => ({
-          id: it.id,
-          nombre: it.nombre,
-          imagen: it.imagen,
-          cantidad: it.cantidad,
-          precio: it.precio,
-          observacion: '',
-        })),
-        subtotal: Number(subtotal.toFixed(2)),
-        igv: Number(igv.toFixed(2)),
-        total: Number(total.toFixed(2)),
-        createdAt: new Date().toISOString(),
-      };
-
-      let pedidosActualizados;
       if (pedidoExistenteId) {
-        pedidosActualizados = pedidos.map((p) => (p.id === pedidoExistenteId ? nuevoPedido : p));
+        // Modificar productos y observaciones de un pedido de salón abierto (SCRUM-279)
+        await mesaService.modificarPedidoSalon({
+          pedidoId: pedidoExistenteId,
+          items: itemsComanda,
+          notas: observaciones.trim(),
+        });
+        // Registrar envío a cocina (SCRUM-280)
+        await mesaService.enviarPedidoCocina(pedidoExistenteId);
       } else {
-        pedidosActualizados = [...pedidos, nuevoPedido];
+        // Abrir pedido de salón y ocupar mesa en PostgreSQL (SCRUM-278, SCRUM-282)
+        pedidoIdFinal = await mesaService.abrirPedidoSalon({
+          mesaId: mesaActual?.id,
+          mesaNumero: numeroNormalizado,
+          comensales: Number(comensales),
+          notas: observaciones.trim(),
+          items: itemsComanda,
+        });
+        // Registrar envío a cocina (SCRUM-280)
+        await mesaService.enviarPedidoCocina(pedidoIdFinal);
       }
 
-      localStorage.setItem('lys_pedidos', JSON.stringify(pedidosActualizados));
+      // Sincronizar compatibilidad con módulos de cocina y caja (SCRUM-283)
+      try {
+        const rawPedidos = localStorage.getItem('lys_pedidos');
+        const pedidos = rawPedidos ? JSON.parse(rawPedidos) : [];
+        const nuevoPedido = {
+          id: pedidoIdFinal,
+          mesa: Number(numeroNormalizado),
+          cliente: `Mesa ${numeroNormalizado}`,
+          mesera: meseraNombre,
+          comensales: Number(comensales),
+          estadoCocina: 'en_preparacion',
+          estado: 'pendiente',
+          observaciones: observaciones.trim(),
+          items: itemsComanda.map((it) => ({
+            id: it.id,
+            nombre: it.nombre || it.name,
+            imagen: it.imagen || it.image,
+            cantidad: it.cantidad,
+            precio: it.precio || it.price,
+            observacion: '',
+          })),
+          subtotal: Number(subtotal.toFixed(2)),
+          igv: Number(igv.toFixed(2)),
+          total: Number(total.toFixed(2)),
+          createdAt: new Date().toISOString(),
+        };
 
-      // Limpiar cualquier borrador pendiente de esta mesa
-      localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`);
+        let pedidosActualizados;
+        if (pedidoExistenteId) {
+          pedidosActualizados = pedidos.map((p) => (p.id === pedidoExistenteId ? nuevoPedido : p));
+        } else {
+          pedidosActualizados = [...pedidos, nuevoPedido];
+        }
 
-      // Actualizar mesa a ocupada
-      mesaService.ocuparMesa(numeroNormalizado, nuevoId, total);
+        localStorage.setItem('lys_pedidos', JSON.stringify(pedidosActualizados));
+        localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`);
+      } catch {
+        // Ignorar si falla el storage
+      }
 
-      // Registrar actividad
       mesaService.registrarActividad({
         mesaNumero: numeroNormalizado,
         tipo: 'pedido_creado',
         titulo: `Mesa ${numeroNormalizado}`,
         descripcion: pedidoExistenteId ? 'Comanda actualizada y enviada a cocina' : 'Nuevo pedido enviado a cocina',
-        ordenCodigo: `Orden #${nuevoId}`,
+        ordenCodigo: `Orden #${pedidoIdFinal}`,
         tipoColor: 'rojo',
       });
-
-      // Disparar storage para sincronizar panel de cocina y mesas
-      window.dispatchEvent(new Event('storage'));
 
       alert(`¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`);
       navigate('/mesas');
     } catch (err) {
       console.error('Error al enviar a cocina:', err);
-      alert('Ocurrió un error al enviar el pedido a cocina.');
+      alert('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -562,10 +584,11 @@ function NuevoPedidoForm({ numeroNormalizado }) {
               type="button"
               className="btn-enviar-cocina"
               onClick={handleEnviarCocina}
+              disabled={enviando}
               title="Enviar comanda a la pantalla de cocina"
             >
               <ChefHat size={18} className="np-btn-icon-inline" />
-              Enviar a cocina
+              {enviando ? 'Enviando...' : 'Enviar a cocina'}
             </button>
           </div>
         </aside>
