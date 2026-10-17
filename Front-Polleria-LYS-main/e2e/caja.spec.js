@@ -26,6 +26,13 @@ async function backend(page, { failFirst = false, reject = '', role = 'caja', re
         if (failFirst && calls.length === 1) { status = 503; response = { message: 'Respuesta interrumpida' }; }
         else { await new Promise(resolve => setTimeout(resolve, 250)); response = paid; }
       }
+    } else if (path.includes('/rpc/obtener_dashboard_admin')) {
+      const total = paid ? 42.9 : 0, cantidad = paid ? 1 : 0;
+      response = { hoy: '2026-10-09', resumen: Object.fromEntries(['dia', 'semana', 'mes', 'total'].map(k => [k, { cantidadPedidos: cantidad, totalVentas: total }])),
+        productos: paid ? [{ productoId: 1, nombre: 'Pollo a la brasa entero', cantidad: 1, total }] : [],
+        metodosPago: paid ? [{ metodo: paid.pago.metodo, cantidad, total }] : [], ventasPorDia: [], tendencias: {}, operativas: {}, pedidosPendientes: paid ? 0 : 1 };
+    } else if (path.includes('/rpc/obtener_historial_ventas')) {
+      response = { ventas: paid ? [{ id: paid.id, codigo: paid.codigo, pagoId: paid.pago.id, tipo: 'salon', mesa: '01', cliente: 'Mesa 01', total: 42.9, pagadoAt: paid.pagadoAt, pago: { metodo: paid.pago.metodo } }] : [], siguiente: null };
     } else if (path === '/api/database/records/mesas') response = [{ id: 1, numero: '01', capacidad: 4, forma: 'cuadrada', zona: 'salon_principal', estado: table }];
     await route.fulfill({ status, headers: { 'content-range': empty ? '*/0' : '0-0/1' }, contentType: 'application/json', body: JSON.stringify(response) });
   });
