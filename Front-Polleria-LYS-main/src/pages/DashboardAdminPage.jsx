@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import cajaService from "../services/cajaService";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dashboardService from "../services/dashboardService";
 import FiltroFechas from "../components/admin/FiltroFechas";
 import MetricasOperativas from "../components/admin/MetricasOperativas";
 import ProductosTop from "../components/admin/ProductosTop";
@@ -10,22 +10,30 @@ import VentasMetodoPago from "../components/admin/VentasMetodoPago";
 
 export default function DashboardAdminPage() {
   const [filtros, setFiltros] = useState({ fechaInicio: "", fechaFin: "" });
-  const [pedidos, setPedidos] = useState([]);
+  const [datos, setDatos] = useState(null);
+  const [historial, setHistorial] = useState({ ventas: [], siguiente: null });
   const [cargando, setCargando] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const filtrosActuales = useRef(filtros);
   const actualizar = useCallback(() => setRevision(valor => valor + 1), []);
   useEffect(() => {
-    let activo = true, consultando = false, sello = null;
+    let activo = true, consultando = false, clave = null;
+    filtrosActuales.current = filtros;
     async function cargar() {
       if (consultando || document.visibilityState === 'hidden') return;
       consultando = true;
       try {
-        const cambios = await cajaService.getSelloCambios();
-        if (cambios === sello) { if (activo) setError(""); return; }
-        const data = await cajaService.getPedidos();
-        sello = cambios;
-        if (activo) { setPedidos(data); setError(""); }
+        // El cambio de fecha también renueva las ventas del día aunque no haya cobros nuevos.
+        const cambios = `${await dashboardService.getSelloCambios()}|${new Date().toDateString()}`;
+        if (cambios === clave) { if (activo) setError(""); return; }
+        const [dashboard, pagina] = await Promise.all([
+          dashboardService.getDashboard(filtros),
+          dashboardService.getHistorialVentas(filtros),
+        ]);
+        clave = cambios;
+        if (activo) { setDatos(dashboard); setHistorial(pagina); setError(""); }
       } catch (err) {
         if (activo) setError(err.message || "No se pudo consultar las ventas.");
       } finally {
@@ -37,18 +45,24 @@ export default function DashboardAdminPage() {
     const timer = setInterval(cargar, 10000);
     document.addEventListener('visibilitychange', cargar);
     return () => { activo = false; clearInterval(timer); document.removeEventListener('visibilitychange', cargar); };
-  }, [revision]);
+  }, [filtros, revision]);
 
-  const resumen = useMemo(() => cajaService.getResumenVentas(filtros, pedidos), [filtros, pedidos]);
-  const productos = useMemo(() => cajaService.getProductosMasVendidos(filtros, pedidos), [filtros, pedidos]);
-  const metodosPago = useMemo(() => cajaService.getVentasPorMetodoPago(filtros, pedidos), [filtros, pedidos]);
-  const ventasPorDia = useMemo(() => cajaService.getVentasPorDia(filtros, pedidos), [filtros, pedidos]);
-  const historial = useMemo(() => cajaService.getHistorialVentas(filtros, pedidos), [filtros, pedidos]);
-  const pedidosPendientes = pedidos.filter(p => p.estado === "pendiente" && p.total > 0).length;
-  const tendenciasResumen = useMemo(() => cajaService.getTendenciasResumen(pedidos), [pedidos]);
-  const metricasPorDia = useMemo(() => cajaService.getMetricasOperativasPorDia(pedidos), [pedidos]);
+  const cargarMas = async () => {
+    const consulta = filtrosActuales.current;
+    setCargandoMas(true);
+    try {
+      const pagina = await dashboardService.getHistorialVentas(consulta, { siguiente: historial.siguiente });
+      if (filtrosActuales.current !== consulta) return;
+      setHistorial(actual => ({ ventas: [...actual.ventas, ...pagina.ventas], siguiente: pagina.siguiente }));
+    } catch (err) {
+      setError(err.message || "No se pudo consultar el historial de ventas.");
+    } finally {
+      setCargandoMas(false);
+    }
+  };
 
-  const limpiarFiltros = () => setFiltros({ fechaInicio: "", fechaFin: "" });
+  const cambiarFiltros = (nuevos) => { setCargando(true); setFiltros(nuevos); };
+  const limpiarFiltros = () => cambiarFiltros({ fechaInicio: "", fechaFin: "" });
 
   return (
     <div className="lys-root admin-screen">
@@ -59,22 +73,23 @@ export default function DashboardAdminPage() {
             <p>Resumen general de tu restaurante</p>
           </div>
 
-          <FiltroFechas filtros={filtros} onCambiar={setFiltros} onLimpiar={limpiarFiltros} />
+          <FiltroFechas filtros={filtros} onCambiar={cambiarFiltros} onLimpiar={limpiarFiltros} />
         </section>
 
         {cargando && <p role="status">Consultando ventas…</p>}
         {error && <div role="alert">{error}<button type="button" onClick={actualizar}>Reintentar</button></div>}
-        <TarjetasResumen resumen={resumen} tendencias={tendenciasResumen} />
-        <MetricasOperativas resumen={resumen} pedidosPendientes={pedidosPendientes} tendencias={metricasPorDia} />
+        <TarjetasResumen resumen={datos?.resumen} tendencias={datos?.tendencias} />
+        <MetricasOperativas resumen={datos?.resumen} pedidosPendientes={datos?.pedidosPendientes} tendencias={datos?.operativas} />
 
         <section className="admin-double-grid">
-          <VentasMetodoPago metodos={metodosPago} />
-          <ProductosTop productos={productos} />
+          <VentasMetodoPago metodos={datos?.metodosPago} />
+          <ProductosTop productos={datos?.productos} />
         </section>
 
         <section className="admin-double-grid">
-          <Ventas7Dias ventas={ventasPorDia} />
-          <HistorialVentas ventas={historial} />
+          <Ventas7Dias ventas={datos?.ventasPorDia} />
+          <HistorialVentas ventas={historial.ventas} haySiguiente={Boolean(historial.siguiente)}
+            cargandoMas={cargandoMas} onCargarMas={cargarMas} />
         </section>
       </main>
     </div>
