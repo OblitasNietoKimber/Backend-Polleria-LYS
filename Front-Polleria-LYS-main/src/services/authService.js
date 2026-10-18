@@ -20,7 +20,9 @@ function unwrap({ data, error }) {
       EMAIL_NOT_VERIFIED: 'Verifica tu correo antes de iniciar sesión.',
       USER_ALREADY_EXISTS: 'Ya existe una cuenta con ese correo.',
     };
-    throw new Error(messages[error.error] || error.message || 'No se pudo completar la operación.');
+    throw Object.assign(new Error(messages[error.error] || error.message || 'No se pudo completar la operación.'), {
+      code: error.error || error.code,
+    });
   }
   return data;
 }
