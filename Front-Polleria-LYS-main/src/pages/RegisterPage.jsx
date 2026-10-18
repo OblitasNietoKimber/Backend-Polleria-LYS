@@ -110,7 +110,7 @@ function RegisterPage() {
     try {
       const result = await authService.register(form);
       if (result.requireEmailVerification) {
-        navigate('/verify-email', { state: { email: result.email } });
+        navigate('/verify-email', { state: { email: result.email }, replace: true });
       } else {
         navigate('/profile');
       }

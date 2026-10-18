@@ -62,6 +62,10 @@ function LoginPage() {
 
   navigate(routesByRole[rol] || '/profile', { replace: true });
 } catch (err) {
+  if (err.code === 'EMAIL_NOT_VERIFIED') {
+    navigate('/verify-email', { state: { email: form.email.trim().toLowerCase() }, replace: true });
+    return;
+  }
   setFormError(
     err.message || 'No se pudo iniciar sesión. Inténtalo nuevamente.'
   );
@@ -189,9 +193,6 @@ function LoginPage() {
           <span>Continuar con Google</span>
         </button>
 
-        <p className="login-page__verify">
-          <Link to="/verify-email" className="login-page__link">Verificar mi correo</Link>
-        </p>
         <p className="login-page__register">
           ¿Aún no tienes cuenta?{' '}
           <Link to="/register" className="login-page__link">
