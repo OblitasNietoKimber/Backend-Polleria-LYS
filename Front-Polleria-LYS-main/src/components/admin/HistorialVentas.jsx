@@ -11,12 +11,12 @@ function iconoMetodo(metodo) {
   return <IconoCelular size={15} color="#8A2BE2" />;
 }
 
-export default function HistorialVentas({ ventas = [] }) {
+export default function HistorialVentas({ ventas = [], haySiguiente = false, cargandoMas = false, onCargarMas }) {
   return (
     <section className="ticket-card admin-history-card">
       <div className="admin-block-title">
         <IconoDocumento size={18} color="var(--ember)" />
-        <span className="font-display">Historial de ventas recientes</span>
+        <span className="font-display">Historial de ventas</span>
       </div>
 
       <div className="admin-table-wrap">
@@ -28,7 +28,7 @@ export default function HistorialVentas({ ventas = [] }) {
               <th>Mesa / Tipo</th>
               <th>Total</th>
               <th>Metodo</th>
-              <th>Hora</th>
+              <th>Fecha</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -37,12 +37,12 @@ export default function HistorialVentas({ ventas = [] }) {
               <tr>
                 <td colSpan="7" className="admin-empty-cell">No hay ventas pagadas registradas.</td>
               </tr>
-            ) : ventas.slice(0, 5).map((venta) => {
+            ) : ventas.map((venta) => {
               const fechaVenta = new Date(venta.pagadoAt || venta.createdAt);
               const metodo = venta.pago?.metodo || "Sin metodo";
 
               return (
-              <tr key={venta.id}>
+              <tr key={venta.pagoId || venta.id}>
                 <td className="font-mono admin-strong-cell">{venta.codigo}</td>
                 <td className="admin-strong-cell">{venta.cliente}</td>
                 <td className="admin-muted-cell">{venta.mesa ? `Mesa ${venta.mesa}` : venta.tipo}</td>
@@ -54,7 +54,7 @@ export default function HistorialVentas({ ventas = [] }) {
                   </div>
                 </td>
                 <td className="font-mono admin-time-cell">
-                  {fechaVenta.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
+                  {fechaVenta.toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </td>
                 <td>
                   <span className="step-stub done admin-status-badge">Completado</span>
@@ -65,6 +65,12 @@ export default function HistorialVentas({ ventas = [] }) {
           </tbody>
         </table>
       </div>
+
+      {haySiguiente && (
+        <button type="button" className="admin-filtro-limpiar admin-history-more" onClick={onCargarMas} disabled={cargandoMas}>
+          {cargandoMas ? "Cargando…" : "Ver más ventas"}
+        </button>
+      )}
     </section>
   );
 }
