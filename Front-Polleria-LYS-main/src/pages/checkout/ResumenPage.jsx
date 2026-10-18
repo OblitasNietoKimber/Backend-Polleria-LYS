@@ -9,7 +9,8 @@ import '../../styles/compras.css'
 
 export default function ResumenPage() {
   const navigate = useNavigate()
-  const { cartItems, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, confirmOrder } = useCart()
+  const { cartItems, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, confirmOrder, cartLoading, cartError } = useCart()
+  const unavailable = cartItems.some(item => !item.product.available)
 
   // Si eligió tarjeta pero no completó el cobro (por ejemplo, llegó por atrás
   // o refrescó la página), lo regresamos a Pago en vez de dejarlo confirmar
@@ -43,6 +44,8 @@ export default function ResumenPage() {
 
       {error && <p role="alert">{error}</p>}
       {saving && <p role="status">Guardando pedido...</p>}
+      {cartLoading && <p role="status">Actualizando los productos del carrito...</p>}
+      {(cartError || unavailable) && <p role="alert">{cartError || 'Hay productos no disponibles en el carrito.'}</p>}
       <OrderSummary
         items={cartItems}
         subtotal={subtotal}
@@ -55,7 +58,7 @@ export default function ResumenPage() {
         money={money}
         onBack={() => navigate('/checkout/pago')}
         onConfirm={handleConfirm}
-        saving={saving}
+        saving={saving || cartLoading || Boolean(cartError) || unavailable}
       />
     </section>
   )

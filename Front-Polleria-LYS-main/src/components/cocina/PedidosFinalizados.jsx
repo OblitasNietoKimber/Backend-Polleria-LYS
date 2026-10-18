@@ -1,7 +1,7 @@
 import { useTiempoTranscurrido } from "../../hooks/useTiempoTranscurrido";
 
 function FilaPedido({ pedido }) {
-  const { texto: duracion } = useTiempoTranscurrido(pedido.createdAt, pedido.finalizadoAt);
+  const { texto: duracion } = useTiempoTranscurrido(pedido.createdAt, pedido.finalizadoAt || pedido.createdAt);
 
   return (
     <div className="cocina-finalizado-item">
@@ -10,9 +10,10 @@ function FilaPedido({ pedido }) {
         <span className="cocina-id cocina-finalizado-cliente">{pedido.cliente}</span>
       </div>
       <div className="cocina-finalizado-meta">
-        <span className="font-mono cocina-finalizado-duracion">Preparación: {duracion}</span>
+        <span>{pedido.cambiadoPor ? 'Usuario: ' + pedido.cambiadoPor : 'Usuario sin registro'}</span>
+        <span className="font-mono cocina-finalizado-duracion">{pedido.finalizadoAt ? 'Preparación: ' + duracion : 'Preparación sin fecha confirmada'}</span>
         <span className="font-mono cocina-finalizado-hora">
-          {new Date(pedido.finalizadoAt).toLocaleTimeString()}
+          {pedido.finalizadoAt ? new Date(pedido.finalizadoAt).toLocaleTimeString() : "Fecha no disponible"}
         </span>
       </div>
     </div>

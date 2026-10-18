@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { DELIVERY_COST, PRODUCTS } from '../data/products'
+import { DELIVERY_COST } from '../data/products'
+import { getProduct } from '../services/productService'
 import orderService from '../services/orderService'
+import { getCurrentUser } from '../services/authService'
+import { orderSignature, readPendingOrder, savePendingOrder, clearPendingOrder } from '../utils/pendingOrder'
 
 const CartContext = createContext(null)
 const CART_STORAGE_KEY = 'lys-cart'
@@ -53,6 +56,12 @@ function readStoredOrderNumber() {
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(readStoredCart)
+  const [products, setProducts] = useState({})
+  const [catalogState, setCatalogState] = useState({ ids: null, error: '' })
+  const cartIds = Object.keys(cart).sort().join(',')
+  const cartLoading = Boolean(cartIds) && catalogState.ids !== cartIds
+  const cartError = catalogState.ids === cartIds ? catalogState.error : ''
+  const missingCartIds = !cartLoading && cartError ? Object.keys(cart).filter(id => !products[id]) : []
   const [cartOpen, setCartOpen] = useState(false)
   const [deliveryType, setDeliveryType] = useState(() => readStoredDelivery().deliveryType)
   const [form, setForm] = useState(() => readStoredDelivery().form)
@@ -60,6 +69,19 @@ export function CartProvider({ children }) {
   const [orderNumber, setOrderNumber] = useState(readStoredOrderNumber)
   const [card, setCard] = useState(EMPTY_CARD)
   const [cardReceipt, setCardReceipt] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    const ids = cartIds ? cartIds.split(',') : []
+    Promise.all(ids.map(getProduct)).then(rows => {
+      if (!active) return
+      setProducts(Object.fromEntries(rows.filter(Boolean).map(product => [product.id, product])))
+      setCatalogState({ ids: cartIds, error: rows.some(product => !product) ? 'Un producto del carrito ya no está en el catálogo.' : '' })
+    }).catch(error => {
+      if (active) setCatalogState({ ids: cartIds, error: error.message })
+    })
+    return () => { active = false }
+  }, [cartIds])
 
   useEffect(() => {
     try {
@@ -97,9 +119,9 @@ export function CartProvider({ children }) {
   const cartItems = useMemo(
     () =>
       Object.entries(cart)
-        .map(([id, qty]) => ({ product: PRODUCTS.find((p) => p.id === Number(id)), qty }))
+        .map(([id, qty]) => ({ product: products[id], qty }))
         .filter((item) => item.product && item.qty > 0),
-    [cart]
+    [cart, products]
   )
   const cartCount = cartItems.reduce((total, item) => total + item.qty, 0)
   const subtotal = cartItems.reduce((total, item) => total + item.qty * item.product.price, 0)
@@ -114,7 +136,12 @@ export function CartProvider({ children }) {
     setCartOpen(false)
   }
 
-  function addToCart(id, qty = 1) {
+  function addToCart(product, qty = 1) {
+    const id = typeof product === 'object' ? product.id : product
+    if (typeof product === 'object') {
+      if (!product.available) return
+      setProducts(current => ({ ...current, [id]: product }))
+    }
     setCart((current) => ({ ...current, [id]: (current[id] || 0) + qty }))
   }
 
@@ -147,20 +174,33 @@ export function CartProvider({ children }) {
     setCard(EMPTY_CARD)
   }
 
-  const requestId = useRef(null);
+  const pendingOrder = useRef(readPendingOrder());
   const confirmation = useRef(null);
-  function confirmOrder() {
+  async function confirmOrder() {
     if (confirmation.current) return confirmation.current;
-    requestId.current ||= crypto.randomUUID();
-    confirmation.current = orderService.createOrder({ id: requestId.current, items: cartItems, deliveryType, form, payment })
-      .then(number => {
-        setOrderNumber(number); setCart({}); clearCard(); setCardReceipt(null); requestId.current = null;
-        return number;
+    if (cartLoading || cartError || !cartItems.length || cartItems.some(item => !item.product.available)) {
+      throw new Error('Revisa los productos y su disponibilidad en el carrito antes de continuar.')
+    }
+    const user = getCurrentUser();
+    if (!user || user.rol !== 'cliente') throw new Error('Debes iniciar sesión como cliente.');
+    const request = { items: cartItems, deliveryType, form, payment };
+    const signature = orderSignature(user.id, request);
+    if (pendingOrder.current?.signature !== signature) {
+      pendingOrder.current = { id: crypto.randomUUID(), signature };
+    }
+    savePendingOrder(pendingOrder.current);
+    confirmation.current = orderService.createOrder({ id: pendingOrder.current.id, ...request })
+      .then(saved => {
+        setOrderNumber(saved.id); setCart({}); clearCard(); setCardReceipt(null);
+        pendingOrder.current = null; clearPendingOrder();
+        return saved.id;
       }).finally(() => { confirmation.current = null; });
     return confirmation.current;
   }
 
   function resetAll() {
+    pendingOrder.current = null
+    clearPendingOrder()
     setCart({})
     setDeliveryType('delivery')
     setForm(EMPTY_FORM)
@@ -171,6 +211,9 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    missingCartIds,
+    cartLoading,
+    cartError,
     cartItems,
     cartCount,
     subtotal,
