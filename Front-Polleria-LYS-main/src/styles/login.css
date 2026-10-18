@@ -263,13 +263,6 @@
   flex-shrink: 0;
 }
 
-.login-page .login-page__verify {
-  margin: 20px 0 0;
-  text-align: center;
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
 .login-page .login-page__code {
   text-align: center;
   letter-spacing: 0.3em;
