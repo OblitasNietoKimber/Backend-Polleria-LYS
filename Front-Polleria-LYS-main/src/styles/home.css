@@ -147,8 +147,7 @@
 
 @media (max-width: 640px) {
   .mascot-carousel {
-    width: 100%;
-    opacity: 0.9;
+    display: none;
   }
 }
 
