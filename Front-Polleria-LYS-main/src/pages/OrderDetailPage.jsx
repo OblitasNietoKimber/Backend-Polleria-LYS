@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ArrowLeft, Check, Copy } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import orderService from '../services/orderService'
+import OrderStateHistory from '../components/orders/OrderStateHistory'
+import useOrderResource from '../hooks/useOrderResource'
 import { money } from '../utils/currency'
 import OrderDeliveryInfo from '../components/orders/OrderDeliveryInfo'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge'
@@ -11,18 +13,12 @@ import '../styles/pedidos.css'
 export default function OrderDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [order, setOrder] = useState(null)
-  const [result, setResult] = useState({ id: null, error: '' })
-  useEffect(() => {
-    let active = true;
-    orderService.getOrderById(id).then(data => { if (active) { setOrder(data); setResult({ id, error: '' }); } })
-      .catch(err => { if (active) setResult({ id, error: err.message }); });
-    return () => { active = false; };
-  }, [id])
+  const load = useCallback(() => orderService.getOrderById(id), [id])
+  const { data: order, loading, error, retry } = useOrderResource(load)
   const [copied, setCopied] = useState(false)
 
-  if (result.id !== id) return <p role="status">Cargando pedido...</p>;
-  if (result.error) return <p role="alert">{result.error}</p>;
+  if (loading) return <p role="status">Cargando pedido...</p>;
+  if (error) return <div><p role="alert">{error}</p><button className="btn-outline" onClick={retry}>Reintentar pedido</button></div>;
   if (!order) {
     return (
       <section className="orders-page">
@@ -98,6 +94,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
       <OrderDeliveryInfo order={order} />
+      <OrderStateHistory key={id} orderId={id} />
     </section>
   )
 }
