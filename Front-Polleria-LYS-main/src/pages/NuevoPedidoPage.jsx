@@ -41,30 +41,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   const [busqueda, setBusqueda] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
-  // Carga los productos de esta mesa si ya tiene una orden activa
-  const [itemsComanda, setItemsComanda] = useState(() => {
-    if (!mesaActual?.pedidoId) return [];
-    try {
-      const raw = localStorage.getItem('lys_pedidos');
-      const pedidos = raw ? JSON.parse(raw) : [];
-      const pedidoExistente = pedidos.find((p) => p.id === mesaActual.pedidoId);
-      return pedidoExistente?.items || [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [observaciones, setObservaciones] = useState(() => {
-    if (!mesaActual?.pedidoId) return '';
-    try {
-      const raw = localStorage.getItem('lys_pedidos');
-      const pedidos = raw ? JSON.parse(raw) : [];
-      const pedidoExistente = pedidos.find((p) => p.id === mesaActual.pedidoId);
-      return pedidoExistente?.observaciones || '';
-    } catch {
-      return '';
-    }
-  });
+  const [itemsComanda, setItemsComanda] = useState(() => mesaActual?.items || []);
+  const [observaciones, setObservaciones] = useState(() => mesaActual?.notas || '');
 
   // Verificar si hay un borrador previo guardado para esta mesa
   const [borradorPendiente, setBorradorPendiente] = useState(() => {
@@ -75,6 +53,17 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     } catch {
       return null;
     }
+  });
+
+  const [solicitudId, setSolicitudId] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`lys_borrador_mesa_${numeroNormalizado}`);
+      const borrador = raw ? JSON.parse(raw) : null;
+      if (borrador?.solicitudId) return borrador.solicitudId;
+    } catch {
+      // ignore
+    }
+    return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null;
   });
 
   const [meseraNombre] = useState(() => {
@@ -147,11 +136,13 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   function handleGuardarBorrador() {
     if (itemsComanda.length === 0) {
-      alert('Agrega al menos un producto a la comanda antes de guardar un borrador.');
+      setToastMsg('Agrega al menos un producto a la comanda antes de guardar un borrador.');
+      setTimeout(() => setToastMsg(''), 3000);
       return;
     }
-    // Guardar borrador local
+    // Guardar borrador local con solicitudId para idempotencia
     localStorage.setItem(`lys_borrador_mesa_${numeroNormalizado}`, JSON.stringify({
+      solicitudId,
       items: itemsComanda,
       observaciones,
       comensales,
@@ -163,6 +154,9 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   function handleRestaurarBorrador() {
     if (!borradorPendiente) return;
+    if (borradorPendiente.solicitudId) {
+      setSolicitudId(borradorPendiente.solicitudId);
+    }
     setItemsComanda(borradorPendiente.items || []);
     setObservaciones(borradorPendiente.observaciones || '');
     if (borradorPendiente.comensales) {
@@ -178,76 +172,62 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     setBorradorPendiente(null);
   }
 
-  function handleEnviarCocina() {
+  const [enviando, setEnviando] = useState(false);
+
+  async function handleEnviarCocina() {
     if (itemsComanda.length === 0) {
-      alert('La comanda está vacía. Selecciona al menos un producto.');
+      setToastMsg('La comanda está vacía. Selecciona al menos un producto.');
+      setTimeout(() => setToastMsg(''), 3000);
       return;
     }
 
+    setEnviando(true);
     try {
-      const rawPedidos = localStorage.getItem('lys_pedidos');
-      const pedidos = rawPedidos ? JSON.parse(rawPedidos) : [];
-
-      // Si ya existía un pedido de esta mesa se actualiza, si no, se crea uno nuevo
       const pedidoExistenteId = mesaActual?.pedidoId;
-      const nuevoId = pedidoExistenteId || `PED-${1000 + pedidos.length + 1}`;
+      let pedidoIdFinal = pedidoExistenteId;
 
-      const nuevoPedido = {
-        id: nuevoId,
-        mesa: Number(numeroNormalizado),
-        cliente: `Mesa ${numeroNormalizado}`,
-        mesera: meseraNombre,
-        comensales: Number(comensales),
-        estadoCocina: 'nuevo', // Notifica a cocina
-        estado: 'pendiente',   // Notifica a caja
-        observaciones: observaciones.trim(),
-        items: itemsComanda.map((it) => ({
-          id: it.id,
-          nombre: it.nombre,
-          imagen: it.imagen,
-          cantidad: it.cantidad,
-          precio: it.precio,
-          observacion: '',
-        })),
-        subtotal: Number(subtotal.toFixed(2)),
-        igv: Number(igv.toFixed(2)),
-        total: Number(total.toFixed(2)),
-        createdAt: new Date().toISOString(),
-      };
-
-      let pedidosActualizados;
       if (pedidoExistenteId) {
-        pedidosActualizados = pedidos.map((p) => (p.id === pedidoExistenteId ? nuevoPedido : p));
+        // Modificar productos y observaciones de un pedido de salón abierto (SCRUM-279)
+        await mesaService.modificarPedidoSalon({
+          pedidoId: pedidoExistenteId,
+          items: itemsComanda,
+          notas: observaciones.trim(),
+        });
       } else {
-        pedidosActualizados = [...pedidos, nuevoPedido];
+        // Abrir pedido de salón y ocupar mesa en PostgreSQL con idempotencia (SCRUM-278, SCRUM-282)
+        // El pedido se crea en estado 'pendiente' para ingresar a la columna 'Nuevos pedidos' en Cocina
+        pedidoIdFinal = await mesaService.abrirPedidoSalon({
+          solicitudId,
+          mesaId: mesaActual?.id,
+          mesaNumero: numeroNormalizado,
+          comensales: Number(comensales),
+          notas: observaciones.trim(),
+          items: itemsComanda,
+        });
       }
 
-      localStorage.setItem('lys_pedidos', JSON.stringify(pedidosActualizados));
+      try { localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`); } catch { /* Conserva el pedido confirmado si Web Storage está bloqueado. */ }
 
-      // Limpiar cualquier borrador pendiente de esta mesa
-      localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`);
-
-      // Actualizar mesa a ocupada
-      mesaService.ocuparMesa(numeroNormalizado, nuevoId, total);
-
-      // Registrar actividad
       mesaService.registrarActividad({
         mesaNumero: numeroNormalizado,
         tipo: 'pedido_creado',
         titulo: `Mesa ${numeroNormalizado}`,
         descripcion: pedidoExistenteId ? 'Comanda actualizada y enviada a cocina' : 'Nuevo pedido enviado a cocina',
-        ordenCodigo: `Orden #${nuevoId}`,
+        ordenCodigo: `Orden #${pedidoIdFinal}`,
         tipoColor: 'rojo',
       });
 
-      // Disparar storage para sincronizar panel de cocina y mesas
-      window.dispatchEvent(new Event('storage'));
-
-      alert(`¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`);
-      navigate('/mesas');
+      navigate('/mesas', {
+        state: {
+          toastExito: `¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`
+        }
+      });
     } catch (err) {
       console.error('Error al enviar a cocina:', err);
-      alert('Ocurrió un error al enviar el pedido a cocina.');
+      setToastMsg('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      setTimeout(() => setToastMsg(''), 4000);
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -562,10 +542,11 @@ function NuevoPedidoForm({ numeroNormalizado }) {
               type="button"
               className="btn-enviar-cocina"
               onClick={handleEnviarCocina}
+              disabled={enviando}
               title="Enviar comanda a la pantalla de cocina"
             >
               <ChefHat size={18} className="np-btn-icon-inline" />
-              Enviar a cocina
+              {enviando ? 'Enviando...' : 'Enviar a cocina'}
             </button>
           </div>
         </aside>

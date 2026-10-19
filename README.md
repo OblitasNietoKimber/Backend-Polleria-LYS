@@ -64,7 +64,7 @@ UPDATE public.perfiles SET rol = 'caja' WHERE id = 'UUID_DEL_USUARIO';
 
 RLS oculta perfiles/pedidos/detalles/pagos ajenos. Con la migración 007, el catálogo también muestra productos agotados e informa su disponibilidad. El personal puede consultar pedidos; la edición del catálogo queda limitada al administrador. Las operaciones de negocio sobre pagos y estados requieren RPCs validados en sus siguientes épicas y están bloqueadas por escritura directa.
 
-Para conectar registro/login con la consulta de pedidos, el cliente crea pedidos con `crear_pedido_cliente`: el servidor determina propietario, estado inicial, precios y envío (S/ 6 para delivery). El UUID de solicitud evita duplicados al reintentar. No registra cobros. La pasarela de pago, las vistas operativas de mesas/cocina/caja/dashboard y su almacenamiento siguen siendo las simulaciones preexistentes; su migración completa corresponde a las siguientes épicas. El historial y detalle del cliente ya consultan InsForge.
+Los pedidos del cliente usan `crear_pedido_cliente`: el servidor determina propietario, estado inicial, precios y envío (S/ 6 delivery, S/ 0 recojo). Las migraciones 009–011 añaden importes y nombres vendidos, historial de estados protegido y reintentos validados por contenido. La aplicación pagina pedidos e historial y conserva la solicitud al recargar tras un fallo. No registra cobros. Las vistas operativas de mesas/cocina/caja/dashboard y la pasarela de tarjeta conservan las simulaciones existentes; su migración completa corresponde a las siguientes épicas. Consulta [pedidos del cliente](docs/pedidos-cliente.md) para contratos, pruebas y migraciones, actualmente verificadas en una rama aislada de InsForge y pendientes de aplicar al proyecto principal.
 
 ## Facebook — SCRUM-255
 
@@ -96,3 +96,9 @@ Las ocho migraciones de la rama, incluidas 007 y 008 del catálogo, están aplic
 La [actualización del menú](docs/actualizacion-menu.md) incorpora las siete imágenes indicadas por el usuario y los precios de su carta, con las migraciones 017 a 019 aplicadas sin duplicar productos.
 
 La [ampliación de la carta](docs/ampliacion-carta.md) organiza el resto de imágenes en trece categorías, con las migraciones 020 a 034, precios del PDF y conservación de productos existentes.
+
+Consulta [Caja y Pagos](docs/caja-pagos.md) para sus 18 commits, contrato de cobro, migración aplicada al nuevo InsForge y resultados de validación.
+
+## Cocina y seguimiento
+
+El panel de cocina consulta PostgreSQL, valida las transiciones en el servidor y sincroniza cocina, mesas, Caja y el seguimiento del cliente mediante canales privados. Las migraciones se verificaron en la rama aislada `panel-cocina` del nuevo InsForge; su aplicación al backend principal y la publicación de Git requieren revisión. Consulta [la implementación de cocina](docs/panel-cocina.md).

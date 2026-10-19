@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { DELIVERY_COST } from '../data/products'
 import { getProduct } from '../services/productService'
 import orderService from '../services/orderService'
+import { getCurrentUser } from '../services/authService'
+import { orderSignature, readPendingOrder, savePendingOrder, clearPendingOrder } from '../utils/pendingOrder'
 
 const CartContext = createContext(null)
 const CART_STORAGE_KEY = 'lys-cart'
@@ -172,23 +174,33 @@ export function CartProvider({ children }) {
     setCard(EMPTY_CARD)
   }
 
-  const requestId = useRef(null);
+  const pendingOrder = useRef(readPendingOrder());
   const confirmation = useRef(null);
   async function confirmOrder() {
     if (confirmation.current) return confirmation.current;
     if (cartLoading || cartError || !cartItems.length || cartItems.some(item => !item.product.available)) {
       throw new Error('Revisa los productos y su disponibilidad en el carrito antes de continuar.')
     }
-    requestId.current ||= crypto.randomUUID();
-    confirmation.current = orderService.createOrder({ id: requestId.current, items: cartItems, deliveryType, form, payment })
-      .then(number => {
-        setOrderNumber(number); setCart({}); clearCard(); setCardReceipt(null); requestId.current = null;
-        return number;
+    const user = getCurrentUser();
+    if (!user || user.rol !== 'cliente') throw new Error('Debes iniciar sesión como cliente.');
+    const request = { items: cartItems, deliveryType, form, payment };
+    const signature = orderSignature(user.id, request);
+    if (pendingOrder.current?.signature !== signature) {
+      pendingOrder.current = { id: crypto.randomUUID(), signature };
+    }
+    savePendingOrder(pendingOrder.current);
+    confirmation.current = orderService.createOrder({ id: pendingOrder.current.id, ...request })
+      .then(saved => {
+        setOrderNumber(saved.id); setCart({}); clearCard(); setCardReceipt(null);
+        pendingOrder.current = null; clearPendingOrder();
+        return saved.id;
       }).finally(() => { confirmation.current = null; });
     return confirmation.current;
   }
 
   function resetAll() {
+    pendingOrder.current = null
+    clearPendingOrder()
     setCart({})
     setDeliveryType('delivery')
     setForm(EMPTY_FORM)

@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Calendar, CheckCircle2 } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import mesaService from '../../services/mesaService';
-import cocinaService from '../../services/cocinaService';
 
-export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
+export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotificacion }) {
   const navigate = useNavigate();
 
   const [modoReserva, setModoReserva] = useState(false);
@@ -13,108 +12,131 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   const [comensalesReserva, setComensalesReserva] = useState(() => mesa?.capacidad || 4);
   const [telefonoReserva, setTelefonoReserva] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
+  const [errorOperacion, setErrorOperacion] = useState('');
 
-  const pedidoActivo = useMemo(() => {
-    if (!mesa?.pedidoId) return null;
-    const pedidos = cocinaService.getPedidos();
-    return pedidos.find((p) => p.id === mesa.pedidoId) || null;
-  }, [mesa]);
+  const [modoAnulacion, setModoAnulacion] = useState(false);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('Cliente se retiró sin pagar');
+  const [cargandoAnulacion, setCargandoAnulacion] = useState(false);
+  const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.estadoCocina } : null;
 
   if (!mesa) return null;
 
   const { numero, capacidad, estado, inicioAt, totalAcumulado, horaReserva } = mesa;
   const minutos = mesaService.getMinutosOcupada(inicioAt);
+  let tiempoDetalle = `${minutos} minutos`;
+  if (minutos >= 720) {
+    const horas = Math.floor(minutos / 60);
+    tiempoDetalle = `Turno anterior (+${horas}h) · Atención prolongada`;
+  } else if (minutos >= 60) {
+    tiempoDetalle = `${Math.floor(minutos / 60)}h ${minutos % 60}m (${minutos} min)`;
+  }
 
   function handleIrAPedido() {
     onClose();
     navigate(`/mesas/${numero}/pedido`);
   }
 
-  function handleConfirmarReserva() {
+  async function handleConfirmarReserva() {
     if (!clienteNombre.trim()) {
       setErrorReserva('Por favor ingresa el nombre del cliente o familia.');
       return;
     }
-    mesaService.reservarMesa(numero, {
-      cliente: clienteNombre.trim(),
-      hora: horaReservaInput,
-      comensales: comensalesReserva,
-      telefono: telefonoReserva.trim(),
-    });
-    mesaService.registrarActividad({
-      mesaNumero: numero,
-      tipo: 'reserva',
-      titulo: `Mesa ${numero}`,
-      descripcion: `Reserva confirmada a nombre de ${clienteNombre.trim()}`,
-      ordenCodigo: `${horaReservaInput} hrs`,
-      tipoColor: 'amarillo',
-    });
-    window.dispatchEvent(new Event('storage'));
-    if (onMesaUpdated) onMesaUpdated();
-    onClose();
-  }
-
-  function handleLiberarMesa() {
-    if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
-      mesaService.liberarMesa(numero);
-      mesaService.registrarActividad({
-        mesaNumero: numero,
-        tipo: 'pedido_completado',
-        titulo: `Mesa ${numero}`,
-        descripcion: 'Mesa liberada',
-        ordenCodigo: mesa.pedidoId ? `Orden ${mesa.pedidoId}` : '',
-        tipoColor: 'verde',
+    try {
+      await mesaService.reservarMesa(numero, {
+        cliente: clienteNombre.trim(),
+        hora: horaReservaInput,
+        comensales: comensalesReserva,
+        telefono: telefonoReserva.trim(),
       });
+      if (onNotificacion) {
+        onNotificacion(`Reserva para Mesa ${numero} guardada con éxito.`);
+      }
       if (onMesaUpdated) onMesaUpdated();
       onClose();
+    } catch (err) {
+      setErrorReserva(err.message || 'Error al guardar la reserva');
     }
   }
 
-  function handleSolicitarCuenta() {
-    if (mesa.pedidoId) {
+  async function handleLiberarMesa() {
+    setErrorOperacion('');
+    if (mesa.pedidoId && Number(totalAcumulado || 0) > 0) {
+      setModoAnulacion(true);
+      return;
+    }
+
+    if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
       try {
-        const raw = localStorage.getItem('lys_pedidos');
-        const pedidos = raw ? JSON.parse(raw) : [];
-        const actualizados = pedidos.map((p) => {
-          if (p.id === mesa.pedidoId) {
-            return { ...p, cuentaSolicitada: true };
-          }
-          return p;
-        });
-        localStorage.setItem('lys_pedidos', JSON.stringify(actualizados));
-        window.dispatchEvent(new Event('storage'));
+        await mesaService.liberarMesa(numero);
+        if (onNotificacion) {
+          onNotificacion(`Mesa ${numero} liberada con éxito.`);
+        }
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
       } catch (err) {
-        console.error(err);
+        console.error('Error al liberar mesa:', err);
+        if (err.message && err.message.toLowerCase().includes('pago')) {
+          setModoAnulacion(true);
+        } else {
+          setErrorOperacion(err.message || 'No se pudo liberar la mesa.');
+        }
+      }
+    }
+  }
+
+  async function handleConfirmarAnulacion() {
+    setErrorOperacion('');
+    if (window.confirm(`¿Confirmas anular la comanda y liberar la Mesa ${numero}?\nMotivo: "${motivoAnulacion}"`)) {
+      try {
+        setCargandoAnulacion(true);
+        await mesaService.anularComandaYLiberarMesa(numero, motivoAnulacion);
+        if (onNotificacion) {
+          onNotificacion(`Comanda anulada y Mesa ${numero} liberada con éxito.`);
+        }
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
+      } catch (err) {
+        console.error('Error al anular y liberar mesa:', err);
+        setErrorOperacion(err.message || 'No se pudo anular la comanda.');
+      } finally {
+        setCargandoAnulacion(false);
       }
     }
 
-    mesaService.registrarActividad({
-      mesaNumero: numero,
-      tipo: 'pedido_actualizado',
-      titulo: `Mesa ${numero}`,
-      descripcion: 'Cuenta solicitada a caja',
-      ordenCodigo: mesa.pedidoId || '',
-      tipoColor: 'amarillo',
-    });
-
-    alert(`Se ha solicitado la cuenta de la Mesa ${numero} para Caja.`);
-    if (onMesaUpdated) onMesaUpdated();
-    onClose();
   }
 
-  function handleCancelarReserva() {
+  async function handleSolicitarCuenta() {
+    setErrorOperacion('');
+    if (mesa.pedidoId) {
+      try {
+        await mesaService.solicitarCuenta(mesa.pedidoId, numero);
+        if (onNotificacion) {
+          onNotificacion(`Se ha solicitado la cuenta de la Mesa ${numero} para Caja.`);
+        }
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
+      } catch (err) {
+        console.error('Error al solicitar cuenta:', err);
+        setErrorOperacion('No se pudo solicitar la cuenta: ' + (err.message || 'Error en el servidor'));
+      }
+    } else {
+      setErrorOperacion(`La Mesa ${numero} no tiene un pedido activo.`);
+    }
+  }
+
+  async function handleCancelarReserva() {
     if (window.confirm(`¿Confirmas cancelar la reserva de la Mesa ${numero}?`)) {
-      mesaService.liberarMesa(numero);
-      mesaService.registrarActividad({
-        mesaNumero: numero,
-        tipo: 'reserva',
-        titulo: `Mesa ${numero}`,
-        descripcion: 'Reserva cancelada · Mesa liberada',
-        ordenCodigo: 'Cancelada',
-        tipoColor: 'amarillo',
-      });
-      if (onMesaUpdated) onMesaUpdated();
-      onClose();
+      try {
+        await mesaService.liberarMesa(numero);
+        if (onNotificacion) {
+          onNotificacion(`Reserva de Mesa ${numero} cancelada con éxito.`);
+        }
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
+      } catch (err) {
+        console.error('Error al cancelar reserva:', err);
+        setErrorOperacion(err.message || 'No se pudo confirmar la cancelación de la reserva.');
+      }
     }
   }
 
@@ -134,6 +156,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         </div>
 
         <div className="mesa-modal-body">
+          {errorOperacion && <p role="alert" className="mesa-reserva-error">{errorOperacion}</p>}
           {estado === 'libre' && !modoReserva && (
             <div className="mesa-empty-state">
               <p className="mesa-empty-text">
@@ -232,7 +255,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
                   <span className="mesa-ocupada-label">Tiempo en mesa:</span>
                   <span className="mesa-ocupada-value">
                     <Clock size={14} className="mesa-inline-icon" />
-                    {minutos} minutos
+                    {tiempoDetalle}
                   </span>
                 </div>
                 <div className="mesa-ocupada-row">
@@ -249,30 +272,85 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
                 )}
               </div>
 
-              {pedidoActivo?.items?.length > 0 && (
+              {(pedidoActivo?.items?.length > 0 || mesa?.items?.length > 0) && (
                 <div className="mesa-comanda-box">
                   <h4 className="mesa-comanda-title">Comanda actual</h4>
                   <ul className="mesa-comanda-list">
-                    {pedidoActivo.items.map((it, idx) => (
+                    {(pedidoActivo?.items?.length > 0 ? pedidoActivo.items : mesa.items).map((it, idx) => (
                       <li key={idx}>
-                        {it.cantidad}x {it.nombre} - S/ {(it.precio * it.cantidad).toFixed(2)}
+                        {it.cantidad}x {it.nombre} - S/ {((it.precio || 0) * (it.cantidad || 1)).toFixed(2)}
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              <div className="mesa-actions-col">
-                <button className="btn-nuevo-pedido mesa-btn-block" onClick={handleIrAPedido}>
-                  Ver / Agregar a la comanda
-                </button>
-                <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta}>
-                  Solicitar cuenta para caja
-                </button>
-                <button type="button" className="mesa-btn-secondary-neutral" onClick={handleLiberarMesa}>
-                  Liberar mesa manualmente
-                </button>
-              </div>
+              {modoAnulacion ? (
+                <div className="mesa-anulacion-box">
+                  <h4 className="mesa-anulacion-title">
+                    <AlertTriangle size={18} />
+                    Liberar mesa con pedido pendiente
+                  </h4>
+                  <p className="mesa-anulacion-desc">
+                    Esta mesa tiene un consumo registrado de <strong>S/ {Number(totalAcumulado || 0).toFixed(2)}</strong>.
+                    Si el cliente pagará, solicite la cuenta para Caja. Si ocurrió un incidente (cliente se retiró, canceló pedido o comanda por error), elija el motivo para anular la comanda y desocupar la mesa:
+                  </p>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label className="mesa-reserva-label">Motivo de anulación / liberación:</label>
+                    <select
+                      value={motivoAnulacion}
+                      onChange={(e) => setMotivoAnulacion(e.target.value)}
+                      className="mesa-reserva-input"
+                    >
+                      <option value="Cliente se retiró sin pagar">Cliente se retiró sin pagar</option>
+                      <option value="Cliente canceló la atención / reclamo">Cliente canceló la atención / reclamo</option>
+                      <option value="Comanda registrada por error">Comanda registrada por error</option>
+                      <option value="Mesa de prueba / limpieza de salón">Mesa de prueba / limpieza de salón</option>
+                      <option value="Otro incidente de atención">Otro incidente de atención</option>
+                    </select>
+                  </div>
+
+                  <div className="mesa-actions-col">
+                    <button
+                      type="button"
+                      className="mesa-btn-danger"
+                      onClick={handleConfirmarAnulacion}
+                      disabled={cargandoAnulacion}
+                    >
+                      {cargandoAnulacion ? 'Anulando...' : 'Anular comanda y liberar mesa'}
+                    </button>
+                    <button
+                      type="button"
+                      className="mesa-btn-secondary-warn"
+                      onClick={handleSolicitarCuenta}
+                      disabled={cargandoAnulacion}
+                    >
+                      Solicitar cuenta para caja (Cobro regular)
+                    </button>
+                    <button
+                      type="button"
+                      className="mesa-btn-secondary-neutral"
+                      onClick={() => setModoAnulacion(false)}
+                      disabled={cargandoAnulacion}
+                    >
+                      Volver
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mesa-actions-col">
+                  <button className="btn-nuevo-pedido mesa-btn-block" onClick={handleIrAPedido}>
+                    Ver / Agregar a la comanda
+                  </button>
+                  <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta}>
+                    Solicitar cuenta para caja
+                  </button>
+                  <button type="button" className="mesa-btn-secondary-neutral" onClick={handleLiberarMesa}>
+                    Liberar mesa manualmente
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
