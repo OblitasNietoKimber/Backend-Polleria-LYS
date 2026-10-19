@@ -1,0 +1,63 @@
+import "../styles/cocina.css";
+import { useCallback, useState } from 'react';
+import useOrderResource from '../hooks/useOrderResource';
+import cocinaService from "../services/cocinaService";
+import CocinaNavLateral from "../components/cocina/CocinaNavLateral";
+import PedidosFinalizados from "../components/cocina/PedidosFinalizados";
+
+function esHoy(fechaISO) {
+  if (!fechaISO) return false;
+  const f = new Date(fechaISO);
+  const hoy = new Date();
+  return f.toDateString() === hoy.toDateString();
+}
+
+function dentroDeDias(fechaISO, dias) {
+  if (!fechaISO) return false;
+  const limite = Date.now() - dias * 24 * 60 * 60 * 1000;
+  return new Date(fechaISO).getTime() >= limite;
+}
+
+export default function HistorialCocinaPage() {
+  const [page, setPage] = useState(0);
+  const load = useCallback(() => cocinaService.getPedidosFinalizados({ page }), [page]);
+  const { data, loading, error, retry } = useOrderResource(load);
+  const finalizados = data || [];
+  const sinFecha = finalizados.filter(p => !p.finalizadoAt);
+  const deHoy = finalizados.filter((p) => esHoy(p.finalizadoAt));
+  const ultimos30 = finalizados.filter(
+    (p) => !esHoy(p.finalizadoAt) && dentroDeDias(p.finalizadoAt, 30)
+  );
+
+  return (
+    <div className="lys-root admin-screen">
+      <div className="cocina-shell">
+        <CocinaNavLateral />
+
+        <div className="cocina-main">
+          <div className="cocina-topbar-local">
+            <h1 className="font-display cocina-page-title">Historial de cocina</h1>
+          </div>
+
+          {loading && <p role="status">Cargando historial...</p>}
+          {error && <div role="alert"><p>{error}</p><button onClick={retry}>Reintentar</button></div>}
+          <nav className="cocina-paginacion" aria-label="Páginas del historial">
+            <button disabled={page === 0} onClick={() => setPage(value => value - 1)}>Anterior</button>
+            <span>Página {page + 1}</span>
+            <button disabled={finalizados.length < 50} onClick={() => setPage(value => value + 1)}>Siguiente</button>
+          </nav>
+          {sinFecha.length > 0 && <section className="cocina-history-section"><h2 className="cocina-seccion-titulo">Sin fecha confirmada ({sinFecha.length})</h2><PedidosFinalizados pedidos={sinFecha} /></section>}
+          <section className="cocina-history-section">
+            <h2 className="cocina-seccion-titulo">Hoy ({deHoy.length})</h2>
+            <PedidosFinalizados pedidos={deHoy} />
+          </section>
+
+          <section>
+            <h2 className="cocina-seccion-titulo">Últimos 30 días ({ultimos30.length})</h2>
+            <PedidosFinalizados pedidos={ultimos30} />
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}

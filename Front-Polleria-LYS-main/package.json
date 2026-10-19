@@ -1,0 +1,41 @@
+{
+  "name": "front-polleria-lys",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:security": "node tests/integration/security.mjs",
+    "test:catalog-read": "node tests/integration/catalog-read.mjs",
+    "test:caja-read": "node tests/integration/caja-read.mjs",
+    "test:cocina-read": "node tests/integration/cocina-read.mjs",
+    "test:dashboard-read": "node tests/integration/dashboard-read.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@insforge/sdk": "^1.5.2",
+    "echarts": "^6.1.0",
+    "lucide-react": "^1.38.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "eslint": "^10.9.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.11.0",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.3"
+  }
+}

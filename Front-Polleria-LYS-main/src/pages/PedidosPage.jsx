@@ -1,0 +1,57 @@
+import { useCallback, useState } from 'react'
+import { PackageSearch } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import orderService, { ORDER_PAGE_SIZE } from '../services/orderService'
+import useOrderResource from '../hooks/useOrderResource'
+import OrderHistoryList from '../components/orders/OrderHistoryList'
+import '../styles/pedidos.css'
+
+export default function PedidosPage() {
+  const [page, setPage] = useState(0)
+  const load = useCallback(() => orderService.getOrders({ page }), [page])
+  const { data, loading, error, retry } = useOrderResource(load)
+  const orders = data || []
+
+  return (
+    <section className="orders-page">
+      <div className="orders-page-header">
+        <h1 className="font-display">Mis pedidos</h1>
+        <p>Aquí puedes ver el estado y el historial de todo lo que has pedido.</p>
+      </div>
+
+      <div className="orders-banner">
+        <span className="orders-banner-eyebrow">GRACIAS POR ELEGRNOS</span>
+        <h2 className="orders-banner-title font-display">
+          Cada pedido tuyo <em>alimenta</em><br />nuestra tradición.
+        </h2>
+      </div>
+
+      {error && <div><p role="alert">{error}</p><button className="btn-outline" onClick={retry}>Reintentar pedidos</button></div>}
+      {loading ? (
+        <div className="orders-skeleton">
+          <div className="orders-skeleton-card" />
+          <div className="orders-skeleton-card" />
+          <div className="orders-skeleton-card" />
+        </div>
+      ) : error ? null : orders.length === 0 ? (
+        <div className="orders-empty">
+          <PackageSearch size={40} strokeWidth={1.4} color="var(--ember)" />
+          <p>{page === 0 ? 'Todavía no tienes pedidos.' : 'No hay más pedidos.'}</p>
+          {page > 0 && <button className="btn-outline" onClick={() => setPage(page - 1)}>Volver a la página anterior</button>}
+          <Link to="/catalogo" className="btn-ember">
+            Ver el menú
+          </Link>
+        </div>
+      ) : (
+        <>
+          <OrderHistoryList orders={orders} />
+          <nav aria-label="Páginas de pedidos" className="orders-pagination">
+            <button className="btn-ember" disabled={page === 0} onClick={() => setPage(page - 1)}>Anterior</button>
+            <span>Página {page + 1}</span>
+            <button className="btn-ember" disabled={orders.length < ORDER_PAGE_SIZE} onClick={() => setPage(page + 1)}>Siguiente</button>
+          </nav>
+        </>
+      )}
+    </section>
+  )
+}
