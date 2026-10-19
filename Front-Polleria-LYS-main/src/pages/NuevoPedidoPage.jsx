@@ -136,7 +136,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   function handleGuardarBorrador() {
     if (itemsComanda.length === 0) {
-      alert('Agrega al menos un producto a la comanda antes de guardar un borrador.');
+      setToastMsg('Agrega al menos un producto a la comanda antes de guardar un borrador.');
+      setTimeout(() => setToastMsg(''), 3000);
       return;
     }
     // Guardar borrador local con solicitudId para idempotencia
@@ -175,7 +176,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   async function handleEnviarCocina() {
     if (itemsComanda.length === 0) {
-      alert('La comanda está vacía. Selecciona al menos un producto.');
+      setToastMsg('La comanda está vacía. Selecciona al menos un producto.');
+      setTimeout(() => setToastMsg(''), 3000);
       return;
     }
 
@@ -191,10 +193,9 @@ function NuevoPedidoForm({ numeroNormalizado }) {
           items: itemsComanda,
           notas: observaciones.trim(),
         });
-        // Registrar envío a cocina (SCRUM-280)
-        await mesaService.enviarPedidoCocina(pedidoExistenteId);
       } else {
         // Abrir pedido de salón y ocupar mesa en PostgreSQL con idempotencia (SCRUM-278, SCRUM-282)
+        // El pedido se crea en estado 'pendiente' para ingresar a la columna 'Nuevos pedidos' en Cocina
         pedidoIdFinal = await mesaService.abrirPedidoSalon({
           solicitudId,
           mesaId: mesaActual?.id,
@@ -203,8 +204,6 @@ function NuevoPedidoForm({ numeroNormalizado }) {
           notas: observaciones.trim(),
           items: itemsComanda,
         });
-        // Registrar envío a cocina (SCRUM-280)
-        await mesaService.enviarPedidoCocina(pedidoIdFinal);
       }
 
       try { localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`); } catch { /* Conserva el pedido confirmado si Web Storage está bloqueado. */ }
@@ -218,11 +217,15 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         tipoColor: 'rojo',
       });
 
-      alert(`¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`);
-      navigate('/mesas');
+      navigate('/mesas', {
+        state: {
+          toastExito: `¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`
+        }
+      });
     } catch (err) {
       console.error('Error al enviar a cocina:', err);
-      alert('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      setToastMsg('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      setTimeout(() => setToastMsg(''), 4000);
     } finally {
       setEnviando(false);
     }

@@ -1,6 +1,11 @@
+import { useMemo } from 'react';
 import { Clock, CheckCircle2, Utensils, Calendar, ChevronRight, X } from 'lucide-react';
 
 export default function ActividadReciente({ actividades = [], onToggleCollapse, onVerTodo }) {
+  const listaOrdenada = useMemo(() => {
+    return [...actividades].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [actividades]);
+
   function renderIcono(tipo) {
     switch (tipo) {
       case 'pedido_completado':
@@ -34,7 +39,7 @@ export default function ActividadReciente({ actividades = [], onToggleCollapse, 
       </div>
 
       <div className="activity-list">
-        {actividades.slice(0, 8).map((item) => (
+        {listaOrdenada.slice(0, 8).map((item) => (
           <div key={item.id} className="activity-item">
             <div className="activity-item-main">
               <div className={`activity-avatar ${item.tipoColor || 'rojo'}`}>
