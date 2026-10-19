@@ -179,15 +179,53 @@ test('SCRUM-281: registra la solicitud de cuenta para caja', async () => {
   expect(mesa5.cuenta_solicitada).toBe(true)
 })
 
-test('liberar_mesa_salon desocupa la mesa', async () => {
+test('liberar_mesa_salon desocupa la mesa y cierra el pedido activo', async () => {
   const pedidoId = randomUUID()
-  await asUser(1, 'SELECT public.abrir_pedido_salon($1, 6, 2, $2, $3::jsonb)', [pedidoId, '', '[]'])
+  await asUser(1, 'SELECT public.abrir_pedido_salon($1, 6, 2, $2, $3::jsonb)', [
+    pedidoId,
+    '',
+    JSON.stringify([{ id: 1, qty: 1 }]),
+  ])
+  await asUser(1, 'SELECT public.enviar_pedido_cocina($1)', [pedidoId])
 
-  let mesa = (await asUser(1, 'SELECT * FROM public.mesas WHERE id = 6')).rows[0]
-  expect(mesa.estado).toBe('ocupada')
+  let mesas = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data
+  let mesa6 = mesas.find((m) => m.numero === '06')
+  expect(mesa6.estado).toBe('ocupada')
 
   await asUser(1, 'SELECT public.liberar_mesa_salon(6)')
 
-  mesa = (await asUser(1, 'SELECT * FROM public.mesas WHERE id = 6')).rows[0]
-  expect(mesa.estado).toBe('libre')
+  mesas = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data
+  mesa6 = mesas.find((m) => m.numero === '06')
+  expect(mesa6.estado).toBe('libre')
+  expect(mesa6.pedido_id).toBeNull()
+})
+
+test('reservar_mesa_salon registra la reserva en PostgreSQL y se refleja en obtener_mesas_con_pedidos', async () => {
+  await asUser(1, 'SELECT public.reservar_mesa_salon(8, $1, $2, $3, 4)', ['Familia Gómez', '21:00', '987654321'])
+
+  const mesas = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data
+  const mesa8 = mesas.find((m) => m.numero === '08')
+  expect(mesa8.estado).toBe('reservada')
+  expect(mesa8.cliente_reserva).toBe('Familia Gómez')
+  expect(mesa8.hora_reserva).toBe('21:00')
+
+  // Liberar mesa limpia la reserva
+  await asUser(1, 'SELECT public.liberar_mesa_salon(8)')
+  const mesasLibres = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data
+  const mesa8Libre = mesasLibres.find((m) => m.numero === '08')
+  expect(mesa8Libre.estado).toBe('libre')
+  expect(mesa8Libre.cliente_reserva).toBeNull()
+})
+
+test('obtener_actividad_salon devuelve los eventos reales del historial de pedidos', async () => {
+  const pedidoId = randomUUID()
+  await asUser(1, 'SELECT public.abrir_pedido_salon($1, 9, 2, $2, $3::jsonb)', [pedidoId, '', '[]'])
+
+  const acts = (await asUser(1, 'SELECT public.obtener_actividad_salon() AS data')).rows[0].data
+  expect(Array.isArray(acts)).toBe(true)
+  expect(acts.length).toBeGreaterThan(0)
+  expect(acts[0]).toMatchObject({
+    mesaNumero: '09',
+    tipo: 'pedido_creado',
+  })
 })
