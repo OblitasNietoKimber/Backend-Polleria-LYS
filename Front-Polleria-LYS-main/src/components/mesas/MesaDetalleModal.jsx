@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import mesaService from '../../services/mesaService';
 
-export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
+export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotificacion }) {
   const navigate = useNavigate();
 
   const [modoReserva, setModoReserva] = useState(false);
@@ -49,6 +49,9 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         comensales: comensalesReserva,
         telefono: telefonoReserva.trim(),
       });
+      if (onNotificacion) {
+        onNotificacion(`Reserva para Mesa ${numero} guardada con éxito.`);
+      }
       if (onMesaUpdated) onMesaUpdated();
       onClose();
     } catch (err) {
@@ -66,6 +69,9 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
     if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
       try {
         await mesaService.liberarMesa(numero);
+        if (onNotificacion) {
+          onNotificacion(`Mesa ${numero} liberada con éxito.`);
+        }
         if (onMesaUpdated) onMesaUpdated();
         onClose();
       } catch (err) {
@@ -85,6 +91,9 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
       try {
         setCargandoAnulacion(true);
         await mesaService.anularComandaYLiberarMesa(numero, motivoAnulacion);
+        if (onNotificacion) {
+          onNotificacion(`Comanda anulada y Mesa ${numero} liberada con éxito.`);
+        }
         if (onMesaUpdated) onMesaUpdated();
         onClose();
       } catch (err) {
@@ -97,26 +106,31 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   }
 
   async function handleSolicitarCuenta() {
+    setErrorOperacion('');
     if (mesa.pedidoId) {
       try {
         await mesaService.solicitarCuenta(mesa.pedidoId, numero);
-        alert(`Se ha solicitado la cuenta de la Mesa ${numero} para Caja.`);
+        if (onNotificacion) {
+          onNotificacion(`Se ha solicitado la cuenta de la Mesa ${numero} para Caja.`);
+        }
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
       } catch (err) {
         console.error('Error al solicitar cuenta:', err);
-        alert('No se pudo solicitar la cuenta: ' + err.message);
+        setErrorOperacion('No se pudo solicitar la cuenta: ' + (err.message || 'Error en el servidor'));
       }
     } else {
-      alert(`La Mesa ${numero} no tiene un pedido activo.`);
+      setErrorOperacion(`La Mesa ${numero} no tiene un pedido activo.`);
     }
-
-    if (onMesaUpdated) onMesaUpdated();
-    onClose();
   }
 
   async function handleCancelarReserva() {
     if (window.confirm(`¿Confirmas cancelar la reserva de la Mesa ${numero}?`)) {
       try {
         await mesaService.liberarMesa(numero);
+        if (onNotificacion) {
+          onNotificacion(`Reserva de Mesa ${numero} cancelada con éxito.`);
+        }
         if (onMesaUpdated) onMesaUpdated();
         onClose();
       } catch (err) {

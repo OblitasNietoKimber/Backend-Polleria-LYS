@@ -194,6 +194,7 @@ export default function MesasPage() {
           mesa={mesas.find(mesa => mesa.id === mesaSeleccionada.id) || mesaSeleccionada}
           onClose={() => setMesaSeleccionada(null)}
           onMesaUpdated={recargar}
+          onNotificacion={(msg) => setToastExito(msg)}
         />
       )}
 
