@@ -32,7 +32,7 @@ afterAll(() => db.close())
 
 test('el visitante consulta las categorías y todos los campos de productos', async () => {
   expect((await asRole('anon', 'SELECT id,nombre,descripcion,imagen FROM categorias')).rows).toHaveLength(4)
-  expect((await asRole('anon', 'SELECT id,categoria_id,nombre,descripcion,imagen,precio,disponible FROM productos')).rows).toHaveLength(17)
+  expect((await asRole('anon', 'SELECT id,categoria_id,nombre,descripcion,imagen,precio,disponible FROM productos')).rows).toHaveLength(21)
 })
 
 test('el visitante no crea ni edita productos mediante SQL directo', async () => {
