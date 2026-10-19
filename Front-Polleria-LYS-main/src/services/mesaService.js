@@ -61,6 +61,10 @@ function mapMesaFromDb(row) {
     forma: row.forma,
     zona: row.zona,
     estado: row.estado || ESTADOS_MESA.LIBRE,
+    horaReserva: row.hora_reserva || null,
+    clienteReserva: row.cliente_reserva || null,
+    telefonoReserva: row.telefono_reserva || null,
+    comensalesReserva: row.comensales_reserva || null,
     pedidoId: row.pedido_id || null,
     pedidoEstado: row.pedido_estado || null,
     cuentaSolicitada: Boolean(row.cuenta_solicitada),
@@ -307,26 +311,21 @@ export function ocuparMesa(numero, pedidoId, total = 0) {
   return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
 }
 
-export function reservarMesa(numero, { cliente, hora, comensales, telefono } = {}) {
-  const mesas = getMesas();
-  const numNormalizado = String(numero).padStart(2, '0');
+export async function reservarMesa(numero, { cliente, hora, comensales, telefono } = {}) {
+  const mesa = getMesaByNumero(numero);
+  if (!mesa?.id) throw new Error('La mesa no existe.');
+  const { db } = getDbClient();
+  unwrap(await db.rpc('reservar_mesa_salon', {
+    p_mesa_id: mesa.id,
+    p_cliente: (cliente || '').trim(),
+    p_hora: hora || '20:00',
+    p_telefono: (telefono || '').trim(),
+    p_comensales: Number(comensales) || mesa.capacidad,
+  }), 'No se pudo registrar la reserva en el servidor.');
 
-  const actualizadas = mesas.map((m) => {
-    if (String(m.numero).padStart(2, '0') === numNormalizado) {
-      return {
-        ...m,
-        estado: ESTADOS_MESA.RESERVADA,
-        horaReserva: hora || '20:00',
-        clienteReserva: (cliente || 'Cliente Reserva').trim(),
-        telefonoReserva: (telefono || '').trim(),
-        comensalesReserva: Number(comensales) || m.capacidad,
-      };
-    }
-    return m;
-  });
-
-  saveMesas(actualizadas);
-  return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
+  await fetchMesas();
+  dispatchLocalEvent('lys_mesas_updated');
+  return getMesaByNumero(numero);
 }
 
 export function getEstadisticasMesas(zona = 'salon_principal') {
@@ -346,6 +345,23 @@ export function getEstadisticasMesas(zona = 'salon_principal') {
     pctOcupadas: ((ocupadas / total) * 100).toFixed(1),
     pctReservadas: ((reservadas / total) * 100).toFixed(1),
   };
+}
+
+export async function fetchActividades() {
+  try {
+    const { db } = getDbClient();
+    const res = await db.rpc('obtener_actividad_salon');
+    const data = unwrap(res, 'No se pudo obtener la actividad desde PostgreSQL.');
+    if (Array.isArray(data)) {
+      if (typeof localStorage !== 'undefined') {
+        try { localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+      }
+      return data;
+    }
+    return getActividades();
+  } catch {
+    return getActividades();
+  }
 }
 
 export function getActividades() {
@@ -390,9 +406,8 @@ export function registrarActividad({ mesaNumero, tipo, titulo, descripcion, orde
 export function getMinutosOcupada(inicioAt) {
   if (!inicioAt) return 0;
   const diffMs = Date.now() - new Date(inicioAt).getTime();
-  const mins = Math.max(0, Math.floor(diffMs / 60000));
-  if (mins > 180) return 35;
-  return mins;
+  if (isNaN(diffMs) || diffMs < 0) return 0;
+  return Math.floor(diffMs / 60000);
 }
 
 export default {
@@ -408,6 +423,7 @@ export default {
   ocuparMesa,
   reservarMesa,
   getEstadisticasMesas,
+  fetchActividades,
   getActividades,
   registrarActividad,
   getMinutosOcupada,

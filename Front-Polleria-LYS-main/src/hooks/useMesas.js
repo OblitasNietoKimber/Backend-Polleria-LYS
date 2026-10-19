@@ -16,7 +16,16 @@ export default function useMesas(zona = 'salon_principal') {
     } catch {
       setListaCompleta(mesaService.getMesas());
     }
-    setActividades(mesaService.getActividades());
+    try {
+      const acts = await mesaService.fetchActividades();
+      if (Array.isArray(acts)) {
+        setActividades(acts);
+      } else {
+        setActividades(mesaService.getActividades());
+      }
+    } catch {
+      setActividades(mesaService.getActividades());
+    }
   }, []);
 
   useEffect(() => {
@@ -108,9 +117,13 @@ export default function useMesas(zona = 'salon_principal') {
     estadisticas,
     actividades,
     recargar,
-    liberarMesa: (numero) => {
-      mesaService.liberarMesa(numero);
-      recargar();
+    liberarMesa: async (numero) => {
+      await mesaService.liberarMesa(numero);
+      await recargar();
+    },
+    reservarMesa: async (numero, datos) => {
+      await mesaService.reservarMesa(numero, datos);
+      await recargar();
     },
     ocuparMesa: (numero, pedidoId, total) => {
       mesaService.ocuparMesa(numero, pedidoId, total);

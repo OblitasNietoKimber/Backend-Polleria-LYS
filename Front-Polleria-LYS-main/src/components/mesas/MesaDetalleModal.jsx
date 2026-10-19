@@ -24,34 +24,39 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
 
   const { numero, capacidad, estado, inicioAt, totalAcumulado, horaReserva } = mesa;
   const minutos = mesaService.getMinutosOcupada(inicioAt);
+  const tiempoDetalle = minutos < 60 ? `${minutos} minutos` : `${Math.floor(minutos / 60)}h ${minutos % 60}m (${minutos} min)`;
 
   function handleIrAPedido() {
     onClose();
     navigate(`/mesas/${numero}/pedido`);
   }
 
-  function handleConfirmarReserva() {
+  async function handleConfirmarReserva() {
     if (!clienteNombre.trim()) {
       setErrorReserva('Por favor ingresa el nombre del cliente o familia.');
       return;
     }
-    mesaService.reservarMesa(numero, {
-      cliente: clienteNombre.trim(),
-      hora: horaReservaInput,
-      comensales: comensalesReserva,
-      telefono: telefonoReserva.trim(),
-    });
-    mesaService.registrarActividad({
-      mesaNumero: numero,
-      tipo: 'reserva',
-      titulo: `Mesa ${numero}`,
-      descripcion: `Reserva confirmada a nombre de ${clienteNombre.trim()}`,
-      ordenCodigo: `${horaReservaInput} hrs`,
-      tipoColor: 'amarillo',
-    });
-    window.dispatchEvent(new Event('storage'));
-    if (onMesaUpdated) onMesaUpdated();
-    onClose();
+    try {
+      await mesaService.reservarMesa(numero, {
+        cliente: clienteNombre.trim(),
+        hora: horaReservaInput,
+        comensales: comensalesReserva,
+        telefono: telefonoReserva.trim(),
+      });
+      mesaService.registrarActividad({
+        mesaNumero: numero,
+        tipo: 'reserva',
+        titulo: `Mesa ${numero}`,
+        descripcion: `Reserva confirmada a nombre de ${clienteNombre.trim()}`,
+        ordenCodigo: `${horaReservaInput} hrs`,
+        tipoColor: 'amarillo',
+      });
+      window.dispatchEvent(new Event('storage'));
+      if (onMesaUpdated) onMesaUpdated();
+      onClose();
+    } catch (err) {
+      setErrorReserva(err.message || 'Error al guardar la reserva');
+    }
   }
 
   async function handleLiberarMesa() {
@@ -66,11 +71,12 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
           ordenCodigo: mesa.pedidoId ? `Orden ${mesa.pedidoId}` : '',
           tipoColor: 'verde',
         });
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
       } catch (err) {
         console.error('Error al liberar mesa:', err);
+        alert('Error al liberar mesa: ' + (err.message || err));
       }
-      if (onMesaUpdated) onMesaUpdated();
-      onClose();
     }
   }
 
@@ -221,7 +227,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
                   <span className="mesa-ocupada-label">Tiempo en mesa:</span>
                   <span className="mesa-ocupada-value">
                     <Clock size={14} className="mesa-inline-icon" />
-                    {minutos} minutos
+                    {tiempoDetalle}
                   </span>
                 </div>
                 <div className="mesa-ocupada-row">
