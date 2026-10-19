@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -15,17 +15,38 @@ import {
   CupSoda,
   CakeSlice,
   Grid2X2,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { PRODUCTS } from '../data/products';
+import { getCategories, getProducts } from '../services/productService';
 import mesaService from '../services/mesaService';
 import * as authService from '../services/authService';
 import '../styles/nuevoPedido.css';
 
-const CATEGORIAS_MENU = [
+function getCategoryIcon(catId) {
+  switch (catId) {
+    case 'pollos':
+      return Flame;
+    case 'parrillas':
+      return UtensilsCrossed;
+    case 'entradas':
+    case 'combos':
+      return Layers;
+    case 'bebidas':
+      return CupSoda;
+    case 'postres':
+      return CakeSlice;
+    case 'todos':
+    default:
+      return Grid2X2;
+  }
+}
+
+const CATEGORIAS_FALLBACK = [
   { id: 'pollos', label: 'Pollos y Brasas', icono: Flame },
-  { id: 'combos', label: 'Combos & Extras', icono: Layers },
+  { id: 'parrillas', label: 'Parrillas', icono: UtensilsCrossed },
+  { id: 'entradas', label: 'Entradas y Guarniciones', icono: Layers },
   { id: 'bebidas', label: 'Bebidas', icono: CupSoda },
-  { id: 'postres', label: 'Postres', icono: CakeSlice },
   { id: 'todos', label: 'Toda la carta', icono: Grid2X2 },
 ];
 
@@ -71,14 +92,58 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     return usuario?.nombre ? `${usuario.nombre} ${usuario.apellido || ''}`.trim() : 'Ana Rodríguez';
   });
 
+  const [listaProductos, setListaProductos] = useState(() => PRODUCTS);
+  const [categorias, setCategorias] = useState(() => CATEGORIAS_FALLBACK);
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    async function sincronizarCarta() {
+      try {
+        setCargandoCatalogo(true);
+        const [catsRes, prodsRes] = await Promise.allSettled([
+          getCategories(),
+          getProducts(),
+        ]);
+
+        if (cancelado) return;
+
+        if (catsRes.status === 'fulfilled' && Array.isArray(catsRes.value) && catsRes.value.length > 0) {
+          const catsMapeadas = [
+            ...catsRes.value.map((c) => ({
+              id: c.id,
+              label: c.label || c.nombre || c.id,
+              icono: getCategoryIcon(c.id),
+            })),
+            { id: 'todos', label: 'Toda la carta', icono: Grid2X2 },
+          ];
+          setCategorias(catsMapeadas);
+        }
+
+        if (prodsRes.status === 'fulfilled' && Array.isArray(prodsRes.value) && prodsRes.value.length > 0) {
+          setListaProductos(prodsRes.value);
+        }
+      } catch (err) {
+        console.warn('Usando catálogo local de reserva para salón:', err);
+      } finally {
+        if (!cancelado) setCargandoCatalogo(false);
+      }
+    }
+
+    sincronizarCarta();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   // Filtrar productos
   const productosFiltrados = useMemo(() => {
-    return PRODUCTS.filter((prod) => {
+    return listaProductos.filter((prod) => {
       const matchCat = categoriaActiva === 'todos' || prod.category === categoriaActiva;
-      const matchSearch = prod.name.toLowerCase().includes(busqueda.toLowerCase());
+      const matchSearch = (prod.name || '').toLowerCase().includes(busqueda.toLowerCase());
       return matchCat && matchSearch;
     });
-  }, [categoriaActiva, busqueda]);
+  }, [listaProductos, categoriaActiva, busqueda]);
 
   // Manipulación de comanda
   function handleAgregarItem(producto) {
@@ -290,8 +355,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
           <span className="rail-title">Categorías</span>
           <nav className="rail-nav">
-            {CATEGORIAS_MENU.map((cat) => {
-              const Icono = cat.icono;
+            {categorias.map((cat) => {
+              const Icono = cat.icono || Grid2X2;
               const esActiva = categoriaActiva === cat.id;
               return (
                 <button
@@ -333,25 +398,27 @@ function NuevoPedidoForm({ numeroNormalizado }) {
               )}
             </div>
             <span className="catalog-counter">
-              {productosFiltrados.length} {productosFiltrados.length === 1 ? 'producto' : 'productos'}
+              {cargandoCatalogo ? 'Actualizando carta...' : `${productosFiltrados.length} ${productosFiltrados.length === 1 ? 'producto' : 'productos'}`}
             </span>
           </div>
 
           <div className="platos-grid">
             {productosFiltrados.map((prod) => (
-              <div key={prod.id} className="plato-card">
+              <div key={prod.id} className={`plato-card ${prod.available === false ? 'plato-agotado' : ''}`}>
                 <div className="plato-img-wrapper">
                   <img src={prod.image} alt={prod.name} className="plato-img" loading="lazy" />
+                  {prod.available === false && <span className="plato-badge-agotado">Agotado</span>}
                 </div>
                 <div className="plato-info">
                   <span className="plato-nombre">{prod.name}</span>
                   <div className="plato-precio-row">
-                    <span className="plato-precio">S/ {prod.price.toFixed(2)}</span>
+                    <span className="plato-precio">S/ {Number(prod.price || 0).toFixed(2)}</span>
                     <button
                       type="button"
                       className="btn-add-item"
-                      title="Agregar a la comanda"
+                      title={prod.available === false ? 'Producto agotado en cocina' : 'Agregar a la comanda'}
                       onClick={() => handleAgregarItem(prod)}
+                      disabled={prod.available === false}
                     >
                       +
                     </button>
@@ -364,7 +431,9 @@ function NuevoPedidoForm({ numeroNormalizado }) {
           {productosFiltrados.length === 0 && (
             <div className="np-empty-state">
               <p className="np-empty-state-text">
-                No se encontraron productos con "{busqueda}".
+                {busqueda
+                  ? `No se encontraron productos con "${busqueda}".`
+                  : 'No hay productos disponibles en esta categoría.'}
               </p>
             </div>
           )}
