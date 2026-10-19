@@ -36,6 +36,8 @@ beforeAll(async () => {
     await db.query('INSERT INTO auth.users(id) VALUES ($1)', [id]);
     await db.query('UPDATE perfiles SET rol=$2 WHERE id=$1', [id, rol]);
   }
+  // Precios controlados del escenario de negocio; independientes de la carta comercial.
+  await db.exec("UPDATE productos SET precio = CASE id WHEN 1 THEN 42.90 WHEN 2 THEN 24.90 WHEN 3 THEN 14.90 END WHERE id IN (1,2,3)")
 }, 30000);
 beforeEach(async () => { await db.exec("TRUNCATE pedidos CASCADE; UPDATE mesas SET estado='libre'"); });
 afterAll(() => db.close());

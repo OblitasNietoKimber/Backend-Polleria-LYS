@@ -35,6 +35,8 @@ beforeAll(async () => {
       [users[i], roles[i], `Usuario ${roles[i]}`, 'Prueba', '999888777'])
   }
   await db.exec(await readFile(new URL('../../migrations/20261016194047_caja-pagos.sql', import.meta.url), 'utf8'))
+  // Precios controlados del escenario de negocio; independientes de la carta comercial.
+  await db.exec("UPDATE productos SET precio = CASE id WHEN 1 THEN 42.90 WHEN 2 THEN 24.90 WHEN 3 THEN 14.90 END WHERE id IN (1,2,3)")
 }, 30000)
 
 afterAll(() => db.close())
@@ -122,15 +124,15 @@ test('SCRUM-279: permite agregar productos y observaciones a un pedido abierto',
     pedidoId,
     JSON.stringify([
       { id: 1, qty: 1 }, // 42.90
-      { id: 13, qty: 2 }, // 2 * 11.90 = 23.80
+      { id: 13, qty: 2 }, // 2 * 10.00 = 20.00, precio de la carta actual
     ]),
     'Sin cebolla y cremas aparte',
   ])
 
   const pedido = (await asUser(1, 'SELECT * FROM public.pedidos WHERE id = $1', [pedidoId])).rows[0]
   expect(pedido.notas).toBe('Sin cebolla y cremas aparte')
-  expect(Number(pedido.subtotal)).toBe(66.70)
-  expect(Number(pedido.total)).toBe(66.70)
+  expect(Number(pedido.subtotal)).toBe(62.90)
+  expect(Number(pedido.total)).toBe(62.90)
 
   // Consultar sincronización con mesas
   const mesas = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data

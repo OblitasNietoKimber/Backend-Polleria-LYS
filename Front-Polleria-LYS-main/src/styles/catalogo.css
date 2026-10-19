@@ -55,8 +55,7 @@
 .catalogo-chip-icon {
   width: 16px;
   height: 16px;
-  object-fit: cover;
-  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .catalogo-empty {

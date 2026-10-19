@@ -62,6 +62,8 @@ beforeAll(async () => {
     await db.query('INSERT INTO auth.users(id) VALUES ($1)', [id]);
     await db.query('UPDATE perfiles SET rol=$2 WHERE id=$1', [id, rol]);
   }
+  // Precios controlados del escenario de negocio; independientes de la carta comercial.
+  await db.exec("UPDATE productos SET precio = CASE id WHEN 1 THEN 42.90 WHEN 2 THEN 24.90 WHEN 3 THEN 14.90 END WHERE id IN (1,2,3)")
 }, 30000);
 beforeEach(async () => { await db.exec("TRUNCATE pedidos CASCADE; UPDATE mesas SET estado='libre'"); });
 afterAll(() => db.close());
@@ -81,7 +83,7 @@ test('los indicadores coinciden con los pagos registrados y excluyen pendientes 
   expect(data.resumen.dia).toEqual(data.resumen.total);
   expect(data.metodosPago).toEqual([{ metodo: 'efectivo', cantidad: 1, total: 85.8 }, { metodo: 'yape', cantidad: 1, total: 30.9 }]);
   expect(data.productos.map(p => [p.productoId, p.cantidad, p.total])).toEqual([[1, 2, 85.8], [2, 1, 24.9]]);
-  expect(data.productos[0]).toMatchObject({ nombre: 'Pollo a la brasa entero', imagen: expect.stringContaining('pollo-entero') });
+  expect(data.productos[0]).toMatchObject({ nombre: 'Pollo a la brasa entero', imagen: expect.stringContaining('Pollo_entero.png') });
   expect(data.pedidosPendientes).toBe(1);
   expect(data.operativas.completados.at(-1)).toBe(2);
   expect(data.operativas.pendientes.at(-1)).toBe(1);

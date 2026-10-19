@@ -30,7 +30,7 @@ node scripts/apply-migrations.mjs
 node scripts/configure-auth.mjs
 ```
 
-Las migraciones se aplican por orden y se registran con SHA-256. El script omite las ya aplicadas y rechaza archivos modificados después de su aplicación. El endpoint de InsForge controla las transacciones; no acepta comandos BEGIN/COMMIT enviados por MCP. La configuración de Auth utiliza `PUT /api/auth/config`, porque modificar `auth.config` por SQL no está permitido.
+Las migraciones se aplican por orden y se registran con SHA-256. El script normaliza los finales de línea a LF, valida todas las firmas antes de aplicar pendientes, omite las ya aplicadas y confirma cada registro. Rechaza archivos modificados después de su aplicación. El endpoint de InsForge controla las transacciones; no acepta comandos BEGIN/COMMIT enviados por MCP. La configuración de Auth utiliza `PUT /api/auth/config`, porque modificar `auth.config` por SQL no está permitido.
 
 No se encontró el esquema MySQL original en `dev`. Estas migraciones reconstruyen el modelo a partir del frontend; no representan una conversión validada de un DDL MySQL ausente. No hay migración automática de cuentas locales: esas cuentas eran simuladas y deben registrarse de nuevo.
 
@@ -91,7 +91,11 @@ Para usar un Chromium ya instalado, define `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
 
 Nada se publica automáticamente. Esta rama se prepara localmente para revisión antes de push o PR.
 
-Consulta [la revisión del catálogo](docs/catalogo-productos.md) para sus trece commits, servicios, migraciones pendientes de aplicar y resultados de las pruebas.
+Las ocho migraciones de la rama, incluidas 007 y 008 del catálogo, están aplicadas en Backend-Polleria-LYS. Consulta [la revisión del catálogo](docs/catalogo-productos.md) para los commits, servicios y verificaciones del backend real.
+
+La [actualización del menú](docs/actualizacion-menu.md) incorpora las siete imágenes indicadas por el usuario y los precios de su carta, con las migraciones 017 a 019 aplicadas sin duplicar productos.
+
+La [ampliación de la carta](docs/ampliacion-carta.md) organiza el resto de imágenes en trece categorías, con las migraciones 020 a 034, precios del PDF y conservación de productos existentes.
 
 Consulta [Caja y Pagos](docs/caja-pagos.md) para sus 18 commits, contrato de cobro, migración aplicada al nuevo InsForge y resultados de validación.
 
