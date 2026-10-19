@@ -94,3 +94,5 @@ Nada se publica automáticamente. Esta rama se prepara localmente para revisión
 Las ocho migraciones de la rama, incluidas 007 y 008 del catálogo, están aplicadas en Backend-Polleria-LYS. Consulta [la revisión del catálogo](docs/catalogo-productos.md) para los commits, servicios y verificaciones del backend real.
 
 La [actualización del menú](docs/actualizacion-menu.md) incorpora las siete imágenes indicadas por el usuario y los precios de su carta, con las migraciones 017 a 019 aplicadas sin duplicar productos.
+
+La [ampliación de la carta](docs/ampliacion-carta.md) organiza el resto de imágenes en trece categorías, con las migraciones 020 a 034, precios del PDF y conservación de productos existentes.
