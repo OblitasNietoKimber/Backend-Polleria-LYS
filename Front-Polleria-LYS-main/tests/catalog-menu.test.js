@@ -13,7 +13,7 @@ beforeAll(async () => {
     CREATE TABLE auth.users(id uuid PRIMARY KEY, profile jsonb NOT NULL DEFAULT '{}');
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     GRANT USAGE ON SCHEMA auth,public TO anon,authenticated;`)
-  for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && !updates.includes(name)).sort()) await apply(name)
+  for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && Number(name.slice(0, 3)) < 17).sort()) await apply(name)
   originalProducts = (await db.query('SELECT * FROM productos ORDER BY id')).rows
   for (const name of updates) await apply(name)
 }, 30000)
