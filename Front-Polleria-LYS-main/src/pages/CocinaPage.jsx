@@ -1,5 +1,5 @@
 import "../styles/cocina.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardList, CookingPot, BellRing } from "lucide-react";
 import usePedidosCocina from "../hooks/usePedidosCocina";
 import cocinaService, { ESTADOS_COCINA } from "../services/cocinaService";
@@ -9,7 +9,7 @@ import CocinaNavLateral from "../components/cocina/CocinaNavLateral";
 import FiltrosTipoPedido from "../components/cocina/FiltrosTipoPedido";
 
 export default function CocinaPage() {
-  const { pedidos, recargar } = usePedidosCocina();
+  const { pedidos, recargar, loading, error } = usePedidosCocina();
   const [filtro, setFiltro] = useState("todos");
   const [ahora, setAhora] = useState(new Date());
 
@@ -18,9 +18,21 @@ export default function CocinaPage() {
     return () => clearInterval(intervalo);
   }, []);
 
-  function handleCambiarEstado(id, nuevoEstado) {
-    cocinaService.cambiarEstado(id, nuevoEstado);
-    recargar();
+  const [actualizando, setActualizando] = useState(new Set());
+  const [errorCambio, setErrorCambio] = useState('');
+  const pendientes = useRef(new Set());
+  async function handleCambiarEstado(pedido, nuevoEstado) {
+    if (pendientes.current.has(pedido.id)) return;
+    pendientes.current.add(pedido.id);
+    setActualizando(new Set(pendientes.current));
+    setErrorCambio('');
+    try { await cocinaService.cambiarEstado(pedido, nuevoEstado); }
+    catch (error) { setErrorCambio(error.message); }
+    finally {
+      await recargar();
+      pendientes.current.delete(pedido.id);
+      setActualizando(new Set(pendientes.current));
+    }
   }
 
   const pedidosFiltrados =
@@ -52,22 +64,24 @@ export default function CocinaPage() {
 
           <FiltrosTipoPedido filtroActivo={filtro} onCambiarFiltro={setFiltro} />
 
-          <div className="cocina-board">
+          {loading && <p role="status">Cargando pedidos de cocina...</p>}
+          {(error || errorCambio) && <div className="cocina-error" role="alert"><p>{errorCambio || error}</p><button onClick={recargar}>Actualizar panel</button></div>}
+          <div className="cocina-board" aria-busy={loading}>
             <ColumnaPedidos titulo="Nuevos pedidos" variante="nuevo" icono={ClipboardList} pedidos={nuevos}>
               {nuevos.map((p) => (
-                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} />
+                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} actualizando={actualizando.has(p.id)} />
               ))}
             </ColumnaPedidos>
 
             <ColumnaPedidos titulo="Preparando" variante="preparacion" icono={CookingPot} pedidos={enPreparacion}>
               {enPreparacion.map((p) => (
-                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} />
+                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} actualizando={actualizando.has(p.id)} />
               ))}
             </ColumnaPedidos>
 
             <ColumnaPedidos titulo="Listos" variante="listo" icono={BellRing} pedidos={listos}>
               {listos.map((p) => (
-                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} />
+                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} actualizando={actualizando.has(p.id)} />
               ))}
             </ColumnaPedidos>
           </div>

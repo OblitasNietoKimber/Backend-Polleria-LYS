@@ -11,6 +11,9 @@
     "test:e2e": "playwright test",
     "test:security": "node tests/integration/security.mjs",
     "test:catalog-read": "node tests/integration/catalog-read.mjs",
+    "test:caja-read": "node tests/integration/caja-read.mjs",
+    "test:cocina-read": "node tests/integration/cocina-read.mjs",
+    "test:dashboard-read": "node tests/integration/dashboard-read.mjs",
     "test": "vitest run"
   },
   "dependencies": {

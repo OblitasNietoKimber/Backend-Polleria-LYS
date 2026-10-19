@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 const categories = [
   { id: 'especiales', nombre: 'Especiales persistidos', descripcion: 'Categoría del servidor', imagen: null },

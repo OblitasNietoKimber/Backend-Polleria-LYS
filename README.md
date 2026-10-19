@@ -92,3 +92,9 @@ Para usar un Chromium ya instalado, define `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
 Nada se publica automáticamente. Esta rama se prepara localmente para revisión antes de push o PR.
 
 Consulta [la revisión del catálogo](docs/catalogo-productos.md) para sus trece commits, servicios, migraciones pendientes de aplicar y resultados de las pruebas.
+
+Consulta [Caja y Pagos](docs/caja-pagos.md) para sus 18 commits, contrato de cobro, migración aplicada al nuevo InsForge y resultados de validación.
+
+## Cocina y seguimiento
+
+El panel de cocina consulta PostgreSQL, valida las transiciones en el servidor y sincroniza cocina, mesas, Caja y el seguimiento del cliente mediante canales privados. Las migraciones se verificaron en la rama aislada `panel-cocina` del nuevo InsForge; su aplicación al backend principal y la publicación de Git requieren revisión. Consulta [la implementación de cocina](docs/panel-cocina.md).

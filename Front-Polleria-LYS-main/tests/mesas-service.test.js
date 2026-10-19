@@ -10,6 +10,25 @@ vi.mock('../src/services/authService', () => ({
 
 import mesaService from '../src/services/mesaService'
 
+test('liberarMesa propaga el rechazo del servidor y conserva el pedido pendiente en la vista', async () => {
+  const ocupada = { id: 1, numero: '01', capacidad: 2, estado: 'ocupada', pedido_id: 'pedido-pendiente', total: 42.9 };
+  fake.rpc.mockResolvedValue({ data: [ocupada] });
+  await mesaService.fetchMesas();
+  fake.rpc.mockResolvedValueOnce({ error: { message: 'La mesa tiene un pedido pendiente de pago' } });
+  await expect(mesaService.liberarMesa('01')).rejects.toThrow('pendiente de pago');
+  expect(mesaService.getMesaByNumero('01')).toMatchObject({ estado: 'ocupada', pedidoId: 'pedido-pendiente' });
+});
+
+test('liberarMesa confirma la RPC y vuelve a consultar el estado persistido', async () => {
+  fake.rpc.mockResolvedValueOnce({ data: [{ id: 1, numero: '01', estado: 'ocupada', capacidad: 2 }] });
+  await mesaService.fetchMesas();
+  fake.rpc.mockResolvedValueOnce({ data: true }).mockResolvedValueOnce({ data: [{ id: 1, numero: '01', estado: 'libre', capacidad: 2 }] });
+  const mesa = await mesaService.liberarMesa('01');
+  expect(fake.rpc).toHaveBeenCalledWith('liberar_mesa_salon', { p_mesa_id: 1 });
+  expect(fake.rpc).toHaveBeenCalledWith('obtener_mesas_con_pedidos');
+  expect(mesa.estado).toBe('libre');
+});
+
 beforeEach(() => {
   fake.rpc.mockReset()
   fake.user.mockReturnValue({ id: 'mesera-1', rol: 'mesera' })
@@ -48,6 +67,7 @@ test('fetchMesas consulta obtener_mesas_con_pedidos y mapea los datos correctame
     numero: '01',
     estado: 'ocupada',
     pedidoId: '10000000-0000-0000-0000-000000000001',
+    estadoCocina: 'nuevo',
     totalAcumulado: 42.9,
     comensales: 2,
     notas: 'Mesa rápida',
@@ -153,5 +173,19 @@ test('fetchActividades ordena de manera estrictamente descendente', async () => 
   const acts = await mesaService.fetchActividades()
   expect(acts[0].id).toBe('2')
   expect(acts[1].id).toBe('1')
+})
+
+test('la vista estricta propaga el fallo de PostgreSQL sin presentar la caché como datos nuevos', async () => {
+  fake.rpc.mockResolvedValueOnce({ error: { message: 'Conexión interrumpida' } })
+  await expect(mesaService.fetchMesas({ strict: true })).rejects.toThrow('Conexión interrumpida')
+})
+
+test('una respuesta vacía del servidor elimina la mesa antigua de la caché', async () => {
+  fake.rpc
+    .mockResolvedValueOnce({ data: [{ id: 1, numero: '01', estado: 'ocupada', capacidad: 2 }] })
+    .mockResolvedValueOnce({ data: [] })
+  await mesaService.fetchMesas()
+  await mesaService.fetchMesas({ strict: true })
+  expect(mesaService.getMesas()).toEqual([])
 })
 

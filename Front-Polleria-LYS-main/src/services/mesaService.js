@@ -4,7 +4,6 @@ import { getCurrentUser } from './authService';
 
 const MESAS_KEY = 'lys_mesas';
 const ACTIVIDADES_KEY = 'lys_actividades';
-const PEDIDOS_KEY = 'lys_pedidos';
 
 let cacheMesas = null;
 
@@ -67,6 +66,7 @@ function mapMesaFromDb(row) {
     comensalesReserva: row.comensales_reserva || null,
     pedidoId: row.pedido_id || null,
     pedidoEstado: row.pedido_estado || null,
+    estadoCocina: ({ pendiente: 'nuevo', en_preparacion: 'en_preparacion', listo: 'listo' })[row.pedido_estado] || null,
     cuentaSolicitada: Boolean(row.cuenta_solicitada),
     comensales: row.comensales || row.capacidad,
     subtotalAcumulado: Number(row.subtotal || 0),
@@ -80,21 +80,22 @@ function mapMesaFromDb(row) {
 /**
  * Consulta las mesas y sus pedidos activos directamente desde PostgreSQL (SCRUM-277).
  */
-export async function fetchMesas() {
+export async function fetchMesas({ strict = false } = {}) {
   try {
     const { db } = getDbClient();
     const res = await db.rpc('obtener_mesas_con_pedidos');
     const data = unwrap(res, 'No se pudo obtener el estado de las mesas desde PostgreSQL.');
     const mesasMapeadas = (Array.isArray(data) ? data : []).map(mapMesaFromDb);
 
-    if (mesasMapeadas.length > 0) {
+    {
       cacheMesas = mesasMapeadas;
       if (typeof window !== 'undefined') {
-        localStorage.setItem(MESAS_KEY, JSON.stringify(mesasMapeadas));
+        try { localStorage.setItem(MESAS_KEY, JSON.stringify(mesasMapeadas)); } catch { /* El servidor sigue siendo la fuente de datos. */ }
       }
     }
     return mesasMapeadas;
   } catch (err) {
+    if (strict) throw err;
     console.warn('Fallo al consultar mesas en PostgreSQL, usando cache local:', err.message);
     return getMesas();
   }
@@ -104,7 +105,7 @@ export async function fetchMesas() {
  * Retorna las mesas sincronizadas (de memoria, de localStorage o semillas).
  */
 export function getMesas() {
-  if (cacheMesas && cacheMesas.length > 0) {
+  if (cacheMesas !== null) {
     return cacheMesas;
   }
 
@@ -255,42 +256,15 @@ export async function solicitarCuenta(pedidoId, mesaNumero) {
  */
 export async function liberarMesa(numero) {
   const mesa = getMesaByNumero(numero);
-  const numNormalizado = String(numero).padStart(2, '0');
-
-  if (mesa?.id) {
-    const { db } = getDbClient();
-    const res = await db.rpc('liberar_mesa_salon', { p_mesa_id: Number(mesa.id) });
-    unwrap(res, 'No se pudo liberar la mesa en el servidor.');
-    await fetchMesas();
-    await fetchActividades();
-    dispatchLocalEvent('lys_mesas_updated');
-    dispatchLocalEvent('lys_actividades_updated');
-    return getMesaByNumero(numero);
-  }
-
-  const mesas = getMesas();
-  const actualizadas = mesas.map((m) => {
-    if (String(m.numero).padStart(2, '0') === numNormalizado) {
-      return {
-        ...m,
-        estado: ESTADOS_MESA.LIBRE,
-        pedidoId: null,
-        pedidoEstado: null,
-        inicioAt: null,
-        totalAcumulado: 0,
-        subtotalAcumulado: 0,
-        horaReserva: null,
-        clienteReserva: null,
-        telefonoReserva: null,
-        comensalesReserva: null,
-        items: [],
-      };
-    }
-    return m;
-  });
-
-  saveMesas(actualizadas);
-  return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
+  const idMesa = mesa?.id || Number(numero);
+  if (!idMesa) throw new Error('La mesa no existe.');
+  const { db } = getDbClient();
+  unwrap(await db.rpc('liberar_mesa_salon', { p_mesa_id: Number(idMesa) }), 'No se pudo liberar la mesa.');
+  await fetchMesas();
+  await fetchActividades();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('lys_actividades_updated');
+  return getMesaByNumero(numero);
 }
 
 export function ocuparMesa(numero, pedidoId, total = 0) {

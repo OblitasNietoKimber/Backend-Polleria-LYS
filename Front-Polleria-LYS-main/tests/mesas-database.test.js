@@ -34,6 +34,7 @@ beforeAll(async () => {
     await db.query('INSERT INTO public.perfiles(id,rol,nombre,apellido,telefono) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE SET rol=$2',
       [users[i], roles[i], `Usuario ${roles[i]}`, 'Prueba', '999888777'])
   }
+  await db.exec(await readFile(new URL('../../migrations/20261016194047_caja-pagos.sql', import.meta.url), 'utf8'))
 }, 30000)
 
 afterAll(() => db.close())
@@ -179,25 +180,17 @@ test('SCRUM-281: registra la solicitud de cuenta para caja', async () => {
   expect(mesa5.cuenta_solicitada).toBe(true)
 })
 
-test('liberar_mesa_salon desocupa la mesa y cierra el pedido activo', async () => {
+test('liberar_mesa_salon desocupa la mesa', async () => {
   const pedidoId = randomUUID()
-  await asUser(1, 'SELECT public.abrir_pedido_salon($1, 6, 2, $2, $3::jsonb)', [
-    pedidoId,
-    '',
-    JSON.stringify([{ id: 1, qty: 1 }]),
-  ])
-  await asUser(1, 'SELECT public.enviar_pedido_cocina($1)', [pedidoId])
+  await asUser(1, 'SELECT public.abrir_pedido_salon($1, 6, 2, $2, $3::jsonb)', [pedidoId, '', '[]'])
 
-  let mesas = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data
-  let mesa6 = mesas.find((m) => m.numero === '06')
-  expect(mesa6.estado).toBe('ocupada')
+  let mesa = (await asUser(1, 'SELECT * FROM public.mesas WHERE id = 6')).rows[0]
+  expect(mesa.estado).toBe('ocupada')
 
   await asUser(1, 'SELECT public.liberar_mesa_salon(6)')
 
-  mesas = (await asUser(1, 'SELECT public.obtener_mesas_con_pedidos() AS data')).rows[0].data
-  mesa6 = mesas.find((m) => m.numero === '06')
-  expect(mesa6.estado).toBe('libre')
-  expect(mesa6.pedido_id).toBeNull()
+  mesa = (await asUser(1, 'SELECT * FROM public.mesas WHERE id = 6')).rows[0]
+  expect(mesa.estado).toBe('libre')
 })
 
 test('reservar_mesa_salon registra la reserva en PostgreSQL y se refleja en obtener_mesas_con_pedidos', async () => {

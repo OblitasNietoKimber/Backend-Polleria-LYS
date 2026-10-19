@@ -46,15 +46,10 @@ BEGIN
 
   v_estado_anterior := v_mesa.estado;
 
-  -- 1. Si hay pedidos activos de salon en esta mesa:
-  -- Si ya fue cobrado en caja (existe pago), pasa a 'entregado'.
-  -- Si aun no fue cobrado en caja, pasa a 'cancelado' (para no violar proteger_pedido_cobrado ni proteger_mesa_sin_pago).
-  UPDATE public.pedidos
-  SET estado = CASE
-    WHEN EXISTS (SELECT 1 FROM public.pagos WHERE pedido_id = public.pedidos.id) THEN 'entregado'
-    ELSE 'cancelado'
-  END
-  WHERE mesa_id = p_mesa_id AND tipo = 'salon' AND estado NOT IN ('entregado', 'cancelado');
+  -- Si tenía un pedido pendiente sin detalles (comanda vacía), cancelarlo
+  UPDATE public.pedidos SET estado = 'cancelado'
+  WHERE mesa_id = p_mesa_id AND tipo = 'salon' AND estado = 'pendiente'
+    AND NOT EXISTS (SELECT 1 FROM public.detalles_pedido WHERE pedido_id = public.pedidos.id);
 
   -- 2. Restaurar la mesa a libre y limpiar cualquier reserva
   UPDATE public.mesas

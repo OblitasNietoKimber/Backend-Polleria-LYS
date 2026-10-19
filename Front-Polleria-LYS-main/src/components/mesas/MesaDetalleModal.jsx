@@ -1,8 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, Calendar, CheckCircle2 } from 'lucide-react';
 import mesaService from '../../services/mesaService';
-import cocinaService from '../../services/cocinaService';
 
 export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   const navigate = useNavigate();
@@ -13,12 +12,9 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   const [comensalesReserva, setComensalesReserva] = useState(() => mesa?.capacidad || 4);
   const [telefonoReserva, setTelefonoReserva] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
+  const [errorOperacion, setErrorOperacion] = useState('');
 
-  const pedidoActivo = useMemo(() => {
-    if (!mesa?.pedidoId) return null;
-    const pedidos = cocinaService.getPedidos();
-    return pedidos.find((p) => p.id === mesa.pedidoId) || null;
-  }, [mesa]);
+  const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.estadoCocina } : null;
 
   if (!mesa) return null;
 
@@ -64,7 +60,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         onClose();
       } catch (err) {
         console.error('Error al liberar mesa:', err);
-        alert('Error al liberar mesa: ' + (err.message || err));
+        setErrorOperacion(err.message || 'No se pudo liberar la mesa.');
       }
     }
   }
@@ -94,7 +90,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         onClose();
       } catch (err) {
         console.error('Error al cancelar reserva:', err);
-        alert('Error al cancelar la reserva: ' + (err.message || err));
+        setErrorOperacion(err.message || 'No se pudo confirmar la cancelación de la reserva.');
       }
     }
   }
@@ -115,6 +111,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         </div>
 
         <div className="mesa-modal-body">
+          {errorOperacion && <p role="alert">{errorOperacion}</p>}
           {estado === 'libre' && !modoReserva && (
             <div className="mesa-empty-state">
               <p className="mesa-empty-text">

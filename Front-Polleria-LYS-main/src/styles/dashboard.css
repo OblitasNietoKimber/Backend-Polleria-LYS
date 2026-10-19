@@ -982,3 +982,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.admin-history-more {
+  display: block;
+  margin: 14px auto 0;
+}
+
+.admin-history-more:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

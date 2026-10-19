@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react'
 import orderService, { getStatusLabel } from '../../services/orderService'
-import { useCatalogResource } from '../../hooks/useCatalogResource'
+import useOrderResource from '../../hooks/useOrderResource'
 
 export default function OrderStateHistory({ orderId }) {
   const [before, setBefore] = useState(null)
   const load = useCallback(() => orderService.getOrderHistory(orderId, { before }), [orderId, before])
-  const { data, loading, error, retry } = useCatalogResource(load, `historial:${orderId}:${before}`)
+  const { data, loading, error, retry } = useOrderResource(load)
   const entries = data || []
   return (
     <section aria-label="Historial de estados" className="order-status-history">
