@@ -267,6 +267,25 @@ export async function liberarMesa(numero) {
   return getMesaByNumero(numero);
 }
 
+/**
+ * Anula una comanda con saldo pendiente por incidente/retiro de cliente y libera la mesa (SCRUM-283).
+ */
+export async function anularComandaYLiberarMesa(numero, motivo = 'Cliente se retiró sin pagar') {
+  const mesa = getMesaByNumero(numero);
+  const idMesa = mesa?.id || Number(numero);
+  if (!idMesa) throw new Error('La mesa no existe.');
+  const { db } = getDbClient();
+  unwrap(await db.rpc('anular_comanda_salon', {
+    p_mesa_id: Number(idMesa),
+    p_motivo: motivo || 'Incidente de salón'
+  }), 'No se pudo anular la comanda y liberar la mesa.');
+  await fetchMesas();
+  await fetchActividades();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('lys_actividades_updated');
+  return getMesaByNumero(numero);
+}
+
 export function ocuparMesa(numero, pedidoId, total = 0) {
   const mesas = getMesas();
   const numNormalizado = String(numero).padStart(2, '0');
@@ -405,6 +424,7 @@ export default {
   enviarPedidoCocina,
   solicitarCuenta,
   liberarMesa,
+  anularComandaYLiberarMesa,
   ocuparMesa,
   reservarMesa,
   getEstadisticasMesas,

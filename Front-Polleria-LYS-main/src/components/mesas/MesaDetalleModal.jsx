@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Calendar, CheckCircle2 } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import mesaService from '../../services/mesaService';
 
 export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
@@ -13,6 +13,10 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   const [telefonoReserva, setTelefonoReserva] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
   const [errorOperacion, setErrorOperacion] = useState('');
+
+  const [modoAnulacion, setModoAnulacion] = useState(false);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('Cliente se retiró sin pagar');
+  const [cargandoAnulacion, setCargandoAnulacion] = useState(false);
 
   const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.estadoCocina } : null;
 
@@ -53,6 +57,12 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
   }
 
   async function handleLiberarMesa() {
+    setErrorOperacion('');
+    if (mesa.pedidoId && Number(totalAcumulado || 0) > 0) {
+      setModoAnulacion(true);
+      return;
+    }
+
     if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
       try {
         await mesaService.liberarMesa(numero);
@@ -60,7 +70,28 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         onClose();
       } catch (err) {
         console.error('Error al liberar mesa:', err);
-        setErrorOperacion(err.message || 'No se pudo liberar la mesa.');
+        if (err.message && err.message.toLowerCase().includes('pago')) {
+          setModoAnulacion(true);
+        } else {
+          setErrorOperacion(err.message || 'No se pudo liberar la mesa.');
+        }
+      }
+    }
+  }
+
+  async function handleConfirmarAnulacion() {
+    setErrorOperacion('');
+    if (window.confirm(`¿Confirmas anular la comanda y liberar la Mesa ${numero}?\nMotivo: "${motivoAnulacion}"`)) {
+      try {
+        setCargandoAnulacion(true);
+        await mesaService.anularComandaYLiberarMesa(numero, motivoAnulacion);
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
+      } catch (err) {
+        console.error('Error al anular y liberar mesa:', err);
+        setErrorOperacion(err.message || 'No se pudo anular la comanda.');
+      } finally {
+        setCargandoAnulacion(false);
       }
     }
   }
@@ -111,7 +142,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         </div>
 
         <div className="mesa-modal-body">
-          {errorOperacion && <p role="alert">{errorOperacion}</p>}
+          {errorOperacion && <p role="alert" className="mesa-reserva-error">{errorOperacion}</p>}
           {estado === 'libre' && !modoReserva && (
             <div className="mesa-empty-state">
               <p className="mesa-empty-text">
@@ -240,17 +271,72 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
                 </div>
               )}
 
-              <div className="mesa-actions-col">
-                <button className="btn-nuevo-pedido mesa-btn-block" onClick={handleIrAPedido}>
-                  Ver / Agregar a la comanda
-                </button>
-                <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta}>
-                  Solicitar cuenta para caja
-                </button>
-                <button type="button" className="mesa-btn-secondary-neutral" onClick={handleLiberarMesa}>
-                  Liberar mesa manualmente
-                </button>
-              </div>
+              {modoAnulacion ? (
+                <div className="mesa-anulacion-box">
+                  <h4 className="mesa-anulacion-title">
+                    <AlertTriangle size={18} />
+                    Liberar mesa con pedido pendiente
+                  </h4>
+                  <p className="mesa-anulacion-desc">
+                    Esta mesa tiene un consumo registrado de <strong>S/ {Number(totalAcumulado || 0).toFixed(2)}</strong>.
+                    Si el cliente pagará, solicite la cuenta para Caja. Si ocurrió un incidente (cliente se retiró, canceló pedido o comanda por error), elija el motivo para anular la comanda y desocupar la mesa:
+                  </p>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label className="mesa-reserva-label">Motivo de anulación / liberación:</label>
+                    <select
+                      value={motivoAnulacion}
+                      onChange={(e) => setMotivoAnulacion(e.target.value)}
+                      className="mesa-reserva-input"
+                    >
+                      <option value="Cliente se retiró sin pagar">Cliente se retiró sin pagar</option>
+                      <option value="Cliente canceló la atención / reclamo">Cliente canceló la atención / reclamo</option>
+                      <option value="Comanda registrada por error">Comanda registrada por error</option>
+                      <option value="Mesa de prueba / limpieza de salón">Mesa de prueba / limpieza de salón</option>
+                      <option value="Otro incidente de atención">Otro incidente de atención</option>
+                    </select>
+                  </div>
+
+                  <div className="mesa-actions-col">
+                    <button
+                      type="button"
+                      className="mesa-btn-danger"
+                      onClick={handleConfirmarAnulacion}
+                      disabled={cargandoAnulacion}
+                    >
+                      {cargandoAnulacion ? 'Anulando...' : 'Anular comanda y liberar mesa'}
+                    </button>
+                    <button
+                      type="button"
+                      className="mesa-btn-secondary-warn"
+                      onClick={handleSolicitarCuenta}
+                      disabled={cargandoAnulacion}
+                    >
+                      Solicitar cuenta para caja (Cobro regular)
+                    </button>
+                    <button
+                      type="button"
+                      className="mesa-btn-secondary-neutral"
+                      onClick={() => setModoAnulacion(false)}
+                      disabled={cargandoAnulacion}
+                    >
+                      Volver
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mesa-actions-col">
+                  <button className="btn-nuevo-pedido mesa-btn-block" onClick={handleIrAPedido}>
+                    Ver / Agregar a la comanda
+                  </button>
+                  <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta}>
+                    Solicitar cuenta para caja
+                  </button>
+                  <button type="button" className="mesa-btn-secondary-neutral" onClick={handleLiberarMesa}>
+                    Liberar mesa manualmente
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

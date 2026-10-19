@@ -162,6 +162,21 @@ test('liberarMesa llama a la RPC liberar_mesa_salon y refresca el estado', async
   expect(fake.rpc).toHaveBeenCalledWith('liberar_mesa_salon', { p_mesa_id: 1 })
 })
 
+test('anularComandaYLiberarMesa llama a la RPC anular_comanda_salon con el motivo y refresca el estado', async () => {
+  fake.rpc.mockImplementation(async (method) => {
+    if (method === 'anular_comanda_salon') return { data: true }
+    if (method === 'obtener_mesas_con_pedidos') return { data: [{ id: 1, numero: '01', estado: 'libre' }] }
+    if (method === 'obtener_actividad_salon') return { data: [] }
+    return { data: null }
+  })
+
+  await mesaService.anularComandaYLiberarMesa('01', 'Cliente se retiró sin pagar')
+  expect(fake.rpc).toHaveBeenCalledWith('anular_comanda_salon', {
+    p_mesa_id: 1,
+    p_motivo: 'Cliente se retiró sin pagar',
+  })
+})
+
 test('fetchActividades ordena de manera estrictamente descendente', async () => {
   fake.rpc.mockResolvedValue({
     data: [
