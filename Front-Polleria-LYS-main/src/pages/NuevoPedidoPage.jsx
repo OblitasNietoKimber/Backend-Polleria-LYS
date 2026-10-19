@@ -136,7 +136,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   function handleGuardarBorrador() {
     if (itemsComanda.length === 0) {
-      alert('Agrega al menos un producto a la comanda antes de guardar un borrador.');
+      setToastMsg('Agrega al menos un producto a la comanda antes de guardar un borrador.');
+      setTimeout(() => setToastMsg(''), 3000);
       return;
     }
     // Guardar borrador local con solicitudId para idempotencia
@@ -175,7 +176,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   async function handleEnviarCocina() {
     if (itemsComanda.length === 0) {
-      alert('La comanda está vacía. Selecciona al menos un producto.');
+      setToastMsg('La comanda está vacía. Selecciona al menos un producto.');
+      setTimeout(() => setToastMsg(''), 3000);
       return;
     }
 
@@ -215,11 +217,15 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         tipoColor: 'rojo',
       });
 
-      alert(`¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`);
-      navigate('/mesas');
+      navigate('/mesas', {
+        state: {
+          toastExito: `¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`
+        }
+      });
     } catch (err) {
       console.error('Error al enviar a cocina:', err);
-      alert('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      setToastMsg('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      setTimeout(() => setToastMsg(''), 4000);
     } finally {
       setEnviando(false);
     }
