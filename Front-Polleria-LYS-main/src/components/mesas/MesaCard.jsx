@@ -15,7 +15,12 @@ export default function MesaCard({ mesa, onClick }) {
   }, [estado, inicioAt]);
 
   const minutos = estado === 'ocupada' ? mesaService.getMinutosOcupada(inicioAt) : 0;
-  const tiempoTexto = minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
+  let tiempoTexto = `${minutos} min`;
+  if (minutos >= 720) {
+    tiempoTexto = '+12h (turno ant.)';
+  } else if (minutos >= 60) {
+    tiempoTexto = `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
+  }
   const montoFormateado = totalAcumulado ? Number(totalAcumulado).toFixed(2) : '0.00';
 
   return (

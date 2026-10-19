@@ -5,8 +5,9 @@ export default function ActividadModal({ actividades = [], onClose }) {
   const [filtroTipo, setFiltroTipo] = useState('todos');
 
   const actividadesFiltradas = useMemo(() => {
-    if (filtroTipo === 'todos') return actividades;
-    return actividades.filter((act) => act.tipo === filtroTipo);
+    const ordenadas = [...actividades].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    if (filtroTipo === 'todos') return ordenadas;
+    return ordenadas.filter((act) => act.tipo === filtroTipo);
   }, [actividades, filtroTipo]);
 
   function renderIcono(tipo) {

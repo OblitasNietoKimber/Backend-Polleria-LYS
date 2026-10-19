@@ -24,7 +24,13 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
 
   const { numero, capacidad, estado, inicioAt, totalAcumulado, horaReserva } = mesa;
   const minutos = mesaService.getMinutosOcupada(inicioAt);
-  const tiempoDetalle = minutos < 60 ? `${minutos} minutos` : `${Math.floor(minutos / 60)}h ${minutos % 60}m (${minutos} min)`;
+  let tiempoDetalle = `${minutos} minutos`;
+  if (minutos >= 720) {
+    const horas = Math.floor(minutos / 60);
+    tiempoDetalle = `Turno anterior (+${horas}h) · Atención prolongada`;
+  } else if (minutos >= 60) {
+    tiempoDetalle = `${Math.floor(minutos / 60)}h ${minutos % 60}m (${minutos} min)`;
+  }
 
   function handleIrAPedido() {
     onClose();
@@ -43,15 +49,6 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
         comensales: comensalesReserva,
         telefono: telefonoReserva.trim(),
       });
-      mesaService.registrarActividad({
-        mesaNumero: numero,
-        tipo: 'reserva',
-        titulo: `Mesa ${numero}`,
-        descripcion: `Reserva confirmada a nombre de ${clienteNombre.trim()}`,
-        ordenCodigo: `${horaReservaInput} hrs`,
-        tipoColor: 'amarillo',
-      });
-      window.dispatchEvent(new Event('storage'));
       if (onMesaUpdated) onMesaUpdated();
       onClose();
     } catch (err) {
@@ -63,14 +60,6 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
     if (window.confirm(`¿Confirmas liberar la Mesa ${numero}?`)) {
       try {
         await mesaService.liberarMesa(numero);
-        mesaService.registrarActividad({
-          mesaNumero: numero,
-          tipo: 'pedido_completado',
-          titulo: `Mesa ${numero}`,
-          descripcion: 'Mesa liberada',
-          ordenCodigo: mesa.pedidoId ? `Orden ${mesa.pedidoId}` : '',
-          tipoColor: 'verde',
-        });
         if (onMesaUpdated) onMesaUpdated();
         onClose();
       } catch (err) {
@@ -97,19 +86,16 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated }) {
     onClose();
   }
 
-  function handleCancelarReserva() {
+  async function handleCancelarReserva() {
     if (window.confirm(`¿Confirmas cancelar la reserva de la Mesa ${numero}?`)) {
-      mesaService.liberarMesa(numero);
-      mesaService.registrarActividad({
-        mesaNumero: numero,
-        tipo: 'reserva',
-        titulo: `Mesa ${numero}`,
-        descripcion: 'Reserva cancelada · Mesa liberada',
-        ordenCodigo: 'Cancelada',
-        tipoColor: 'amarillo',
-      });
-      if (onMesaUpdated) onMesaUpdated();
-      onClose();
+      try {
+        await mesaService.liberarMesa(numero);
+        if (onMesaUpdated) onMesaUpdated();
+        onClose();
+      } catch (err) {
+        console.error('Error al cancelar reserva:', err);
+        alert('Error al cancelar la reserva: ' + (err.message || err));
+      }
     }
   }
 

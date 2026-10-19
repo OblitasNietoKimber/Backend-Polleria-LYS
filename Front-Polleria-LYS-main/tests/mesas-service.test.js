@@ -129,3 +129,29 @@ test('gestiona errores de RPC rechazando la promesa', async () => {
     })
   ).rejects.toThrow('La mesa ya tiene un pedido activo')
 })
+
+test('liberarMesa llama a la RPC liberar_mesa_salon y refresca el estado', async () => {
+  fake.rpc.mockImplementation(async (method) => {
+    if (method === 'liberar_mesa_salon') return { data: true }
+    if (method === 'obtener_mesas_con_pedidos') return { data: [{ id: 1, numero: '01', estado: 'libre' }] }
+    if (method === 'obtener_actividad_salon') return { data: [] }
+    return { data: null }
+  })
+
+  await mesaService.liberarMesa('01')
+  expect(fake.rpc).toHaveBeenCalledWith('liberar_mesa_salon', { p_mesa_id: 1 })
+})
+
+test('fetchActividades ordena de manera estrictamente descendente', async () => {
+  fake.rpc.mockResolvedValue({
+    data: [
+      { id: '1', titulo: 'Antiguo', createdAt: '2026-10-18T10:00:00Z' },
+      { id: '2', titulo: 'Nuevo', createdAt: '2026-10-18T12:00:00Z' },
+    ],
+  })
+
+  const acts = await mesaService.fetchActividades()
+  expect(acts[0].id).toBe('2')
+  expect(acts[1].id).toBe('1')
+})
+

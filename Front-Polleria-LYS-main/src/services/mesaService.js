@@ -255,16 +255,19 @@ export async function solicitarCuenta(pedidoId, mesaNumero) {
  */
 export async function liberarMesa(numero) {
   const mesa = getMesaByNumero(numero);
+  const numNormalizado = String(numero).padStart(2, '0');
+
   if (mesa?.id) {
-    try {
-      const { db } = getDbClient();
-      await db.rpc('liberar_mesa_salon', { p_mesa_id: mesa.id });
-    } catch (err) {
-      console.warn('Error al liberar mesa en PostgreSQL:', err.message);
-    }
+    const { db } = getDbClient();
+    const res = await db.rpc('liberar_mesa_salon', { p_mesa_id: Number(mesa.id) });
+    unwrap(res, 'No se pudo liberar la mesa en el servidor.');
+    await fetchMesas();
+    await fetchActividades();
+    dispatchLocalEvent('lys_mesas_updated');
+    dispatchLocalEvent('lys_actividades_updated');
+    return getMesaByNumero(numero);
   }
 
-  const numNormalizado = String(numero).padStart(2, '0');
   const mesas = getMesas();
   const actualizadas = mesas.map((m) => {
     if (String(m.numero).padStart(2, '0') === numNormalizado) {
@@ -316,7 +319,7 @@ export async function reservarMesa(numero, { cliente, hora, comensales, telefono
   if (!mesa?.id) throw new Error('La mesa no existe.');
   const { db } = getDbClient();
   unwrap(await db.rpc('reservar_mesa_salon', {
-    p_mesa_id: mesa.id,
+    p_mesa_id: Number(mesa.id),
     p_cliente: (cliente || '').trim(),
     p_hora: hora || '20:00',
     p_telefono: (telefono || '').trim(),
@@ -324,7 +327,9 @@ export async function reservarMesa(numero, { cliente, hora, comensales, telefono
   }), 'No se pudo registrar la reserva en el servidor.');
 
   await fetchMesas();
+  await fetchActividades();
   dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('lys_actividades_updated');
   return getMesaByNumero(numero);
 }
 
@@ -353,10 +358,11 @@ export async function fetchActividades() {
     const res = await db.rpc('obtener_actividad_salon');
     const data = unwrap(res, 'No se pudo obtener la actividad desde PostgreSQL.');
     if (Array.isArray(data)) {
+      const ordenadas = [...data].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       if (typeof localStorage !== 'undefined') {
-        try { localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+        try { localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(ordenadas)); } catch { /* ignore */ }
       }
-      return data;
+      return ordenadas;
     }
     return getActividades();
   } catch {
@@ -368,7 +374,8 @@ export function getActividades() {
   inicializar();
   try {
     const raw = localStorage.getItem(ACTIVIDADES_KEY);
-    return raw ? JSON.parse(raw) : SEED_ACTIVIDADES;
+    const lista = raw ? JSON.parse(raw) : SEED_ACTIVIDADES;
+    return (Array.isArray(lista) ? lista : []).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   } catch {
     return SEED_ACTIVIDADES;
   }
@@ -391,7 +398,10 @@ export function registrarActividad({ mesaNumero, tipo, titulo, descripcion, orde
     createdAt: ahora.toISOString(),
   };
 
-  const listaActualizada = [nuevaActividad, ...actividades].slice(0, 20);
+  const listaActualizada = [nuevaActividad, ...actividades]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 25);
+
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(listaActualizada));
@@ -402,6 +412,7 @@ export function registrarActividad({ mesaNumero, tipo, titulo, descripcion, orde
   }
   return nuevaActividad;
 }
+
 
 export function getMinutosOcupada(inicioAt) {
   if (!inicioAt) return 0;
