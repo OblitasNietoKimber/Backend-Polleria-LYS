@@ -8,7 +8,7 @@ Contraseña: q1234567
 
 Mesero:
 Correo: majimer746@goldlicai.com
-Contraseña: majimer746@goldlicai.com
+Contraseña: m1234567
 
 Cocinero:
 Correo: ratenox394@iconcubic.com
