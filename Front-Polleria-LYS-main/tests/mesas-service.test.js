@@ -203,4 +203,3 @@ test('una respuesta vacía del servidor elimina la mesa antigua de la caché', a
   await mesaService.fetchMesas({ strict: true })
   expect(mesaService.getMesas()).toEqual([])
 })
-

@@ -17,7 +17,6 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
   const [modoAnulacion, setModoAnulacion] = useState(false);
   const [motivoAnulacion, setMotivoAnulacion] = useState('Cliente se retiró sin pagar');
   const [cargandoAnulacion, setCargandoAnulacion] = useState(false);
-
   const pedidoActivo = mesa?.pedidoId ? { items: mesa.items, estadoCocina: mesa.estadoCocina } : null;
 
   if (!mesa) return null;
@@ -103,6 +102,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
         setCargandoAnulacion(false);
       }
     }
+
   }
 
   async function handleSolicitarCuenta() {
