@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { UtensilsCrossed } from "lucide-react";
 import dashboardService from "../services/dashboardService";
 import FiltroFechas from "../components/admin/FiltroFechas";
 import MetricasOperativas from "../components/admin/MetricasOperativas";
@@ -73,7 +75,25 @@ export default function DashboardAdminPage() {
             <p>Resumen general de tu restaurante</p>
           </div>
 
-          <FiltroFechas filtros={filtros} onCambiar={cambiarFiltros} onLimpiar={limpiarFiltros} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <Link
+              to="/admin/productos"
+              className="btn-outline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.88rem',
+                padding: '10px 16px',
+                borderRadius: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              <UtensilsCrossed size={16} />
+              <span>Gestionar Productos</span>
+            </Link>
+            <FiltroFechas filtros={filtros} onCambiar={cambiarFiltros} onLimpiar={limpiarFiltros} />
+          </div>
         </section>
 
         {cargando && <p role="status">Consultando ventas…</p>}

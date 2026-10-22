@@ -66,7 +66,10 @@ const handleLogout = async () => {
             <NavLink to="/caja" className={({ isActive }) => `lys-navlink ${isActive ? 'active' : ''}` }> Caja</NavLink>
           )}
           {canAccess(['admin']) && (
-              <NavLink to="/dashboard"className={({ isActive }) =>`lys-navlink ${isActive ? 'active' : ''}`}> Dashboard</NavLink>
+              <NavLink to="/dashboard" className={({ isActive }) =>`lys-navlink ${isActive ? 'active' : ''}`}> Dashboard</NavLink>
+          )}
+          {canAccess(['admin']) && (
+              <NavLink to="/admin/productos" className={({ isActive }) =>`lys-navlink ${isActive ? 'active' : ''}`}> Productos</NavLink>
           )}
           {user ? (
             <div

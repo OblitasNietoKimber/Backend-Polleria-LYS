@@ -1,4 +1,3 @@
-
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import CocinaPage from "./pages/CocinaPage";
@@ -20,11 +19,11 @@ import ResumenPage from './pages/checkout/ResumenPage'
 import ConfirmacionPage from './pages/ConfirmacionPage'
 import CajaPage from "./pages/CajaPage";
 import DashboardAdminPage from "./pages/DashboardAdminPage";
+import AdminProductosPage from "./pages/AdminProductosPage";
 import PedidosPage from './pages/PedidosPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import MesasPage from './pages/MesasPage'
 import NuevoPedidoPage from './pages/NuevoPedidoPage'
-
 
 function App() {
   return (
@@ -46,6 +45,7 @@ function App() {
           <Route path="/confirmacion" element={<ProtectedRoute allowedRoles={['cliente']}><ConfirmacionPage /></ProtectedRoute>} />
           <Route path="/caja" element={<ProtectedRoute allowedRoles={['caja', 'admin']}><CajaPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><DashboardAdminPage /></ProtectedRoute>} />
+          <Route path="/admin/productos" element={<ProtectedRoute allowedRoles={['admin']}><AdminProductosPage /></ProtectedRoute>} />
           <Route path="/pedidos" element={<ProtectedRoute allowedRoles={['cliente']}><PedidosPage /></ProtectedRoute>} />
           <Route path="/pedidos/:id" element={<ProtectedRoute allowedRoles={['cliente']}><OrderDetailPage /></ProtectedRoute>} />
           <Route path="/cocina" element={<ProtectedRoute allowedRoles={['cocina', 'admin']}><CocinaPage /></ProtectedRoute>} />
@@ -53,7 +53,6 @@ function App() {
           <Route path="/mesas" element={<ProtectedRoute allowedRoles={['mesera', 'admin']}><MesasPage /></ProtectedRoute>} />
           <Route path="/mesas/:id/pedido" element={<ProtectedRoute allowedRoles={['mesera', 'admin']}><NuevoPedidoPage /></ProtectedRoute>} />
         </Route>
-        
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -61,6 +60,4 @@ function App() {
   );
 }
 
-
 export default App;
-
