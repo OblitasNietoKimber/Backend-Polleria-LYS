@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 import useMesas from '../hooks/useMesas';
 import MesaCard from '../components/mesas/MesaCard';
 import EstadisticasMesas from '../components/mesas/EstadisticasMesas';
@@ -11,6 +12,23 @@ import '../styles/mesas.css';
 
 export default function MesasPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [toastExito, setToastExito] = useState(() => location.state?.toastExito || null);
+
+  useEffect(() => {
+    if (location.state?.toastExito) {
+      setToastExito(location.state.toastExito);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (toastExito) {
+      const timer = setTimeout(() => setToastExito(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastExito]);
+
   const [zonaSeleccionada, setZonaSeleccionada] = useState('salon_principal');
   const [busqueda, setBusqueda] = useState('');
   const [sidebarActividadColapsado, setSidebarActividadColapsado] = useState(false);
@@ -152,12 +170,31 @@ export default function MesasPage() {
         </main>
       </div>
 
+      {/* Toast de confirmación de comanda */}
+      {toastExito && (
+        <div className="mesas-toast-success" role="status">
+          <div className="mesas-toast-icon">
+            <CheckCircle2 size={18} />
+          </div>
+          <span className="mesas-toast-text">{toastExito}</span>
+          <button
+            type="button"
+            className="mesas-toast-close"
+            onClick={() => setToastExito(null)}
+            aria-label="Cerrar notificación"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Modal de detalle de mesa */}
       {mesaSeleccionada && (
         <MesaDetalleModal
           mesa={mesas.find(mesa => mesa.id === mesaSeleccionada.id) || mesaSeleccionada}
           onClose={() => setMesaSeleccionada(null)}
           onMesaUpdated={recargar}
+          onNotificacion={(msg) => setToastExito(msg)}
         />
       )}
 

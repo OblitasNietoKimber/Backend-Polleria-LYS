@@ -60,6 +60,10 @@ function mapMesaFromDb(row) {
     forma: row.forma,
     zona: row.zona,
     estado: row.estado || ESTADOS_MESA.LIBRE,
+    horaReserva: row.hora_reserva || null,
+    clienteReserva: row.cliente_reserva || null,
+    telefonoReserva: row.telefono_reserva || null,
+    comensalesReserva: row.comensales_reserva || null,
     pedidoId: row.pedido_id || null,
     pedidoEstado: row.pedido_estado || null,
     estadoCocina: ({ pendiente: 'nuevo', en_preparacion: 'en_preparacion', listo: 'listo' })[row.pedido_estado] || null,
@@ -252,11 +256,33 @@ export async function solicitarCuenta(pedidoId, mesaNumero) {
  */
 export async function liberarMesa(numero) {
   const mesa = getMesaByNumero(numero);
-  if (!mesa?.id) throw new Error('La mesa no existe.');
+  const idMesa = mesa?.id || Number(numero);
+  if (!idMesa) throw new Error('La mesa no existe.');
   const { db } = getDbClient();
-  unwrap(await db.rpc('liberar_mesa_salon', { p_mesa_id: mesa.id }), 'No se pudo liberar la mesa.');
+  unwrap(await db.rpc('liberar_mesa_salon', { p_mesa_id: Number(idMesa) }), 'No se pudo liberar la mesa.');
   await fetchMesas();
+  await fetchActividades();
   dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('lys_actividades_updated');
+  return getMesaByNumero(numero);
+}
+
+/**
+ * Anula una comanda con saldo pendiente por incidente/retiro de cliente y libera la mesa (SCRUM-283).
+ */
+export async function anularComandaYLiberarMesa(numero, motivo = 'Cliente se retiró sin pagar') {
+  const mesa = getMesaByNumero(numero);
+  const idMesa = mesa?.id || Number(numero);
+  if (!idMesa) throw new Error('La mesa no existe.');
+  const { db } = getDbClient();
+  unwrap(await db.rpc('anular_comanda_salon', {
+    p_mesa_id: Number(idMesa),
+    p_motivo: motivo || 'Incidente de salón'
+  }), 'No se pudo anular la comanda y liberar la mesa.');
+  await fetchMesas();
+  await fetchActividades();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('lys_actividades_updated');
   return getMesaByNumero(numero);
 }
 
@@ -281,26 +307,23 @@ export function ocuparMesa(numero, pedidoId, total = 0) {
   return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
 }
 
-export function reservarMesa(numero, { cliente, hora, comensales, telefono } = {}) {
-  const mesas = getMesas();
-  const numNormalizado = String(numero).padStart(2, '0');
+export async function reservarMesa(numero, { cliente, hora, comensales, telefono } = {}) {
+  const mesa = getMesaByNumero(numero);
+  if (!mesa?.id) throw new Error('La mesa no existe.');
+  const { db } = getDbClient();
+  unwrap(await db.rpc('reservar_mesa_salon', {
+    p_mesa_id: Number(mesa.id),
+    p_cliente: (cliente || '').trim(),
+    p_hora: hora || '20:00',
+    p_telefono: (telefono || '').trim(),
+    p_comensales: Number(comensales) || mesa.capacidad,
+  }), 'No se pudo registrar la reserva en el servidor.');
 
-  const actualizadas = mesas.map((m) => {
-    if (String(m.numero).padStart(2, '0') === numNormalizado) {
-      return {
-        ...m,
-        estado: ESTADOS_MESA.RESERVADA,
-        horaReserva: hora || '20:00',
-        clienteReserva: (cliente || 'Cliente Reserva').trim(),
-        telefonoReserva: (telefono || '').trim(),
-        comensalesReserva: Number(comensales) || m.capacidad,
-      };
-    }
-    return m;
-  });
-
-  saveMesas(actualizadas);
-  return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
+  await fetchMesas();
+  await fetchActividades();
+  dispatchLocalEvent('lys_mesas_updated');
+  dispatchLocalEvent('lys_actividades_updated');
+  return getMesaByNumero(numero);
 }
 
 export function getEstadisticasMesas(zona = 'salon_principal') {
@@ -322,11 +345,30 @@ export function getEstadisticasMesas(zona = 'salon_principal') {
   };
 }
 
+export async function fetchActividades() {
+  try {
+    const { db } = getDbClient();
+    const res = await db.rpc('obtener_actividad_salon');
+    const data = unwrap(res, 'No se pudo obtener la actividad desde PostgreSQL.');
+    if (Array.isArray(data)) {
+      const ordenadas = [...data].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      if (typeof localStorage !== 'undefined') {
+        try { localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(ordenadas)); } catch { /* ignore */ }
+      }
+      return ordenadas;
+    }
+    return getActividades();
+  } catch {
+    return getActividades();
+  }
+}
+
 export function getActividades() {
   inicializar();
   try {
     const raw = localStorage.getItem(ACTIVIDADES_KEY);
-    return raw ? JSON.parse(raw) : SEED_ACTIVIDADES;
+    const lista = raw ? JSON.parse(raw) : SEED_ACTIVIDADES;
+    return (Array.isArray(lista) ? lista : []).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   } catch {
     return SEED_ACTIVIDADES;
   }
@@ -349,7 +391,10 @@ export function registrarActividad({ mesaNumero, tipo, titulo, descripcion, orde
     createdAt: ahora.toISOString(),
   };
 
-  const listaActualizada = [nuevaActividad, ...actividades].slice(0, 20);
+  const listaActualizada = [nuevaActividad, ...actividades]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 25);
+
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(ACTIVIDADES_KEY, JSON.stringify(listaActualizada));
@@ -361,12 +406,12 @@ export function registrarActividad({ mesaNumero, tipo, titulo, descripcion, orde
   return nuevaActividad;
 }
 
+
 export function getMinutosOcupada(inicioAt) {
   if (!inicioAt) return 0;
   const diffMs = Date.now() - new Date(inicioAt).getTime();
-  const mins = Math.max(0, Math.floor(diffMs / 60000));
-  if (mins > 180) return 35;
-  return mins;
+  if (isNaN(diffMs) || diffMs < 0) return 0;
+  return Math.floor(diffMs / 60000);
 }
 
 export default {
@@ -379,9 +424,11 @@ export default {
   enviarPedidoCocina,
   solicitarCuenta,
   liberarMesa,
+  anularComandaYLiberarMesa,
   ocuparMesa,
   reservarMesa,
   getEstadisticasMesas,
+  fetchActividades,
   getActividades,
   registrarActividad,
   getMinutosOcupada,

@@ -1,11 +1,14 @@
 import { useCallback } from 'react'
-import { Search } from 'lucide-react'
+import { Search, UtensilsCrossed } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useCatalogResource } from '../hooks/useCatalogResource'
 import { getCategories, getProducts, getProduct } from '../services/productService'
+import { CATEGORIES } from '../data/categories'
 import ProductCard from '../components/ProductCard'
 import ProductDetailModal from '../components/ProductDetailModal'
 import '../styles/catalogo.css'
+
+const CATEGORY_ICONS = Object.fromEntries(CATEGORIES.map(({ id, icon }) => [id, icon]))
 
 export default function CatalogoPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -76,16 +79,19 @@ export default function CatalogoPage() {
         >
           Todos
         </button>
-        {(categoryResource.data || []).map((c) => (
+        {(categoryResource.data || []).map((c) => {
+          const CategoryIcon = CATEGORY_ICONS[c.id] || UtensilsCrossed
+          return (
           <button
             key={c.id}
             className={`chip ${activeCategory === c.id ? 'active' : ''}`}
             aria-pressed={activeCategory === c.id}
             onClick={() => updateParams({ categoria: c.id })}
           >
-            <img src={c.image} alt="" className="catalogo-chip-icon" /> {c.label}
+            <CategoryIcon className="catalogo-chip-icon" aria-hidden="true" /> {c.label}
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {productResource.loading ? (

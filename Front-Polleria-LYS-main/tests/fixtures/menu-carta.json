@@ -1,0 +1,991 @@
+[
+  {
+    "slug": "broaster",
+    "category": "broaster",
+    "version": "1792377299",
+    "page": 2,
+    "entries": [
+      {
+        "file": "Alitas_broaster_con_papas_y_ensalada.png",
+        "name": "Alitas broaster con papas y ensalada",
+        "price": 10,
+        "description": "Alitas de pollo broaster crocantes, acompañadas de papas fritas y ensalada.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Alitas_broaster_con_papas_y_ensalada.png"
+      },
+      {
+        "file": "Broaster_de_pollo_con_papas_y_ensalada.png",
+        "name": "Broaster de pollo con papas y ensalada",
+        "price": 14,
+        "description": "Pollo broaster de cobertura crocante con papas fritas y ensalada fresca.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Broaster_de_pollo_con_papas_y_ensalada.png"
+      },
+      {
+        "file": "Pollo_broaster_con_arroz_chaufa_papas_y_ensalada.png",
+        "name": "Pollo broaster con arroz chaufa",
+        "price": 15,
+        "description": "Pollo broaster crocante servido con arroz chaufa, papas fritas y ensalada.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Pollo_broaster_con_arroz_chaufa_papas_y_ensalada.png"
+      },
+      {
+        "file": "Pollo_broaster_con_arroz_blanco_papas_y_ensalada.png",
+        "name": "Pollo broaster con arroz blanco",
+        "price": 14,
+        "description": "Pollo broaster acompañado de arroz blanco, papas fritas y ensalada fresca.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Pollo_broaster_con_arroz_blanco_papas_y_ensalada.png"
+      },
+      {
+        "file": "Salchipapa_con_ensalada.png",
+        "name": "Salchipapa con ensalada",
+        "price": 8,
+        "description": "Salchichas doradas sobre papas fritas, acompañadas de ensalada.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Salchipapa_con_ensalada.png"
+      },
+      {
+        "file": "Salchipapa_especial_con_huevo_frito_y_ensalada.png",
+        "name": "Salchipapa especial",
+        "price": 10,
+        "description": "Salchipapa con papas fritas, huevo frito y ensalada fresca.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Salchipapa_especial_con_huevo_frito_y_ensalada.png"
+      },
+      {
+        "file": "Combo_broaster_1.png",
+        "name": "Combo broaster 1",
+        "price": 16,
+        "description": "Una pieza de pollo broaster con papas fritas, ensalada y gaseosa personal.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Combo_broaster_1.png"
+      },
+      {
+        "file": "Combo_broaster_2.png",
+        "name": "Combo broaster 2",
+        "price": 20,
+        "description": "Dos piezas de pollo broaster con papas fritas, ensalada y gaseosa personal.",
+        "category": "broaster",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377299/Combo_broaster_2.png"
+      }
+    ]
+  },
+  {
+    "slug": "mostros",
+    "category": "mostros",
+    "version": "1792377301",
+    "page": 2,
+    "entries": [
+      {
+        "file": "Mostro.png",
+        "name": "Mostro",
+        "price": 18,
+        "description": "Un cuarto de pollo con arroz chaufa, papas fritas y ensalada.",
+        "category": "mostros",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377301/Mostro.png"
+      },
+      {
+        "file": "Mostrito.png",
+        "name": "Mostrito",
+        "price": 13,
+        "description": "Un octavo de pollo acompañado de arroz chaufa, papas fritas y ensalada.",
+        "category": "mostros",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377301/Mostrito.png"
+      },
+      {
+        "file": "Pollo_loko.png",
+        "name": "Pollo loko",
+        "price": 20,
+        "description": "Un cuarto de pollo con chorizo y plátano frito.",
+        "category": "mostros",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377301/Pollo_loko.png"
+      },
+      {
+        "file": "Sabrosito.png",
+        "name": "Sabrosito",
+        "price": 14,
+        "description": "Un octavo de pollo con arroz chaufa, papas fritas y ensalada fresca.",
+        "category": "mostros",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377301/Sabrosito.png"
+      },
+      {
+        "file": "Combo_extremo.png",
+        "name": "Combo extremo",
+        "price": 22,
+        "description": "Un cuarto de pollo con anticucho, chorizo, papas fritas y ensalada.",
+        "category": "mostros",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377301/Combo_extremo.png"
+      }
+    ]
+  },
+  {
+    "slug": "chifa",
+    "category": "chifa",
+    "version": "1792377309",
+    "page": 3,
+    "entries": [
+      {
+        "file": "Chaufa_de_pollo.png",
+        "name": "Chaufa de pollo",
+        "price": 13,
+        "description": "Arroz chaufa salteado al estilo chifa con trozos de pollo.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Chaufa_de_pollo.png"
+      },
+      {
+        "file": "Chaufa_de_carne_de_res.png",
+        "name": "Chaufa de carne de res",
+        "price": 16,
+        "description": "Arroz chaufa salteado con trozos de carne de res.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Chaufa_de_carne_de_res.png"
+      },
+      {
+        "file": "Chaufa_de_chancho.png",
+        "name": "Chaufa de chancho",
+        "price": 14,
+        "description": "Arroz chaufa salteado con trozos de chancho.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Chaufa_de_chancho.png"
+      },
+      {
+        "file": "Chaufa_salvaje.png",
+        "name": "Chaufa salvaje",
+        "price": 15,
+        "description": "Arroz chaufa con carnes, camarones, huevo y verduras salteadas.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Chaufa_salvaje.png"
+      },
+      {
+        "file": "Pollo_con_verduras_estilo_chifa.png",
+        "name": "Pollo con verduras estilo chifa",
+        "price": 17,
+        "description": "Pollo salteado con verduras, acompañado de arroz blanco y papas fritas.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Pollo_con_verduras_estilo_chifa.png"
+      },
+      {
+        "file": "Aeropuerto.png",
+        "name": "Aeropuerto",
+        "price": 13,
+        "description": "Combinación de arroz chaufa y fideos salteados al estilo chifa.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Aeropuerto.png"
+      },
+      {
+        "file": "Combinado_chifa.png",
+        "name": "Combinado chifa",
+        "price": 17,
+        "description": "Combinado de arroz chaufa y tallarines con acompañamientos al estilo chifa.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Combinado_chifa.png"
+      },
+      {
+        "file": "Tallarin_chifa.png",
+        "name": "Tallarín chifa",
+        "price": 17,
+        "description": "Tallarines salteados con verduras y acompañamientos al estilo chifa.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Tallarin_chifa.png"
+      },
+      {
+        "file": "Tortilla_con_verduras_estilo_chifa.png",
+        "name": "Tortilla con verduras estilo chifa",
+        "price": 15,
+        "description": "Tortilla de verduras con arroz blanco y papas fritas.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Tortilla_con_verduras_estilo_chifa.png"
+      },
+      {
+        "file": "Frejolito_saltado_estilo_chifa.png",
+        "name": "Frejolito saltado estilo chifa",
+        "price": 17,
+        "description": "Frejolitos salteados con carne y verduras, acompañados de arroz blanco y papas fritas.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Frejolito_saltado_estilo_chifa.png"
+      },
+      {
+        "file": "Porcion_de_wantan_frito.png",
+        "name": "Porción de wantán frito",
+        "price": 8,
+        "description": "Porción de wantanes fritos, dorados y crocantes.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Porcion_de_wantan_frito.png"
+      },
+      {
+        "file": "Tipakay.png",
+        "name": "Tipakay",
+        "price": 17,
+        "description": "Pollo crocante en salsa rojiza con arroz blanco y papas fritas.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Tipakay.png"
+      },
+      {
+        "file": "Chijaukay.png",
+        "name": "Chijaukay",
+        "price": 17,
+        "description": "Pollo crocante bañado en salsa chijaukay, con arroz blanco y papas fritas.",
+        "category": "chifa",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377309/Chijaukay.png"
+      }
+    ]
+  },
+  {
+    "slug": "parrillas_mixtas",
+    "category": "parrillas",
+    "version": "1792377283",
+    "page": 5,
+    "entries": [
+      {
+        "file": "Parrilla_personal.png",
+        "name": "Parrilla personal",
+        "price": 40,
+        "description": "Un palito de anticucho, churrasco, chuleta, chorizo y un octavo de pollo, con papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377283/Parrilla_personal.png"
+      },
+      {
+        "file": "Parrilla_para_2.png",
+        "name": "Parrilla para 2",
+        "price": 60,
+        "description": "Anticucho, churrasco, chuleta, chorizo, hot dog, un cuarto de pollo y molleja, con papas fritas, ensalada y jarra de chicha morada o gaseosa de 1 L.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377283/Parrilla_para_2.png"
+      },
+      {
+        "file": "Parrilla_familiar.png",
+        "name": "Parrilla familiar",
+        "price": 90,
+        "description": "Dos palitos de anticucho, churrasco, chuleta, dos chorizos, dos hot dogs, medio pollo y molleja, con papas fritas, ensalada y jarra de chicha morada o gaseosa de 1.5 L.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377283/Parrilla_familiar.png"
+      }
+    ]
+  },
+  {
+    "slug": "mixtos",
+    "category": "parrillas",
+    "version": "1792377284",
+    "page": 6,
+    "entries": [
+      {
+        "file": "Mixto_1.png",
+        "name": "Mixto 1",
+        "price": 25,
+        "description": "Anticucho, chorizo y mollejita a la parrilla, acompañados de papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377284/Mixto_1.png"
+      },
+      {
+        "file": "Mixto_2.png",
+        "name": "Mixto 2",
+        "price": 27,
+        "description": "Anticucho, chorizo y pechuga a la parrilla, con papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377284/Mixto_2.png"
+      },
+      {
+        "file": "Mixto_3.png",
+        "name": "Mixto 3",
+        "price": 27,
+        "description": "Pechuga y bistec a la parrilla, acompañados de papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377284/Mixto_3.png"
+      }
+    ]
+  },
+  {
+    "slug": "parrillas_personales",
+    "category": "parrillas",
+    "version": "1792377288",
+    "page": 6,
+    "entries": [
+      {
+        "file": "Pechuga_al_oregano.png",
+        "name": "Pechuga al orégano",
+        "price": 20,
+        "description": "Pechuga de pollo al orégano con papas fritas y ensalada fresca.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Pechuga_al_oregano.png"
+      },
+      {
+        "file": "Pechuga_especial.png",
+        "name": "Pechuga especial",
+        "price": 27,
+        "description": "Pechuga de pollo dorada con papas fritas y ensalada fresca.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Pechuga_especial.png"
+      },
+      {
+        "file": "Pechuga_a_la_parrilla.png",
+        "name": "Pechuga a la parrilla",
+        "price": 20,
+        "description": "Pechuga de pollo a la parrilla con papas fritas y ensalada fresca.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Pechuga_a_la_parrilla.png"
+      },
+      {
+        "file": "Bistec_a_la_parrilla.png",
+        "name": "Bistec a la parrilla",
+        "price": 20,
+        "description": "Bistec de res a la parrilla con arroz blanco, papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Bistec_a_la_parrilla.png"
+      },
+      {
+        "file": "Churrasco_a_la_parrilla.png",
+        "name": "Churrasco a la parrilla",
+        "price": 22,
+        "description": "Churrasco de res a la parrilla acompañado de papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Churrasco_a_la_parrilla.png"
+      },
+      {
+        "file": "Chuleta_a_la_parrilla.png",
+        "name": "Chuleta a la parrilla",
+        "price": 20,
+        "description": "Chuleta a la parrilla con arroz blanco, papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Chuleta_a_la_parrilla.png"
+      },
+      {
+        "file": "Milanesa.png",
+        "name": "Milanesa",
+        "price": 20,
+        "description": "Milanesa dorada y crocante con papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Milanesa.png"
+      },
+      {
+        "file": "Porcion_de_chorizo.png",
+        "name": "Porción de chorizo",
+        "price": 14,
+        "description": "Chorizos dorados a la parrilla con papas fritas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377288/Porcion_de_chorizo.png"
+      }
+    ]
+  },
+  {
+    "slug": "brochetas",
+    "category": "parrillas",
+    "version": "1792377292",
+    "page": 6,
+    "entries": [
+      {
+        "file": "Anticuchos_dos_palitos_con_papas.png",
+        "name": "Anticuchos con papas",
+        "price": 17,
+        "description": "Dos palitos de anticucho a la parrilla acompañados de papas.",
+        "aliases": [
+          "Anticucho de corazón",
+          "Anticuchos",
+          "Anticuchos dos palitos con papas"
+        ],
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Anticuchos_dos_palitos_con_papas.png"
+      },
+      {
+        "file": "Mollejitas_con_papas_y_ensalada.png",
+        "name": "Mollejitas con papas y ensalada",
+        "price": 17,
+        "description": "Mollejitas doradas a la parrilla con papas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Mollejitas_con_papas_y_ensalada.png"
+      },
+      {
+        "file": "Brochetas_de_pollo_dos_palitos_con_papas_y_ensalada.png",
+        "name": "Brochetas de pollo con papas y ensalada",
+        "price": 17,
+        "description": "Dos palitos de brochetas de pollo a la parrilla con papas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Brochetas_de_pollo_dos_palitos_con_papas_y_ensalada.png"
+      },
+      {
+        "file": "Porcion_de_rachi_con_papas_y_ensalada.png",
+        "name": "Porción de rachi con papas y ensalada",
+        "price": 18,
+        "description": "Porción de rachi a la parrilla con papas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Porcion_de_rachi_con_papas_y_ensalada.png"
+      },
+      {
+        "file": "Anticuchos_y_mollejitas_dos_palitos_papas_choclo_ensalada.png",
+        "name": "Anticuchos y mollejitas",
+        "price": 23,
+        "description": "Dos palitos de anticucho con mollejitas, papas, choclo y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Anticuchos_y_mollejitas_dos_palitos_papas_choclo_ensalada.png"
+      },
+      {
+        "file": "Anticuchos_y_rachi_dos_palitos_papas_ensalada.png",
+        "name": "Anticuchos y rachi",
+        "price": 25,
+        "description": "Dos palitos de anticucho con rachi, papas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Anticuchos_y_rachi_dos_palitos_papas_ensalada.png"
+      },
+      {
+        "file": "Anticucho_rachi_y_chorizo_con_papas_y_ensalada.png",
+        "name": "Anticucho, rachi y chorizo",
+        "price": 26,
+        "description": "Un palito de anticucho con rachi, chorizo, papas y ensalada.",
+        "category": "parrillas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377292/Anticucho_rachi_y_chorizo_con_papas_y_ensalada.png"
+      }
+    ]
+  },
+  {
+    "slug": "criollos",
+    "category": "criollos",
+    "version": "1792377294",
+    "page": 7,
+    "entries": [
+      {
+        "file": "Chicharron_de_chancho.png",
+        "name": "Chicharrón de chancho",
+        "price": 25,
+        "description": "Chicharrón de chancho crocante con yuca y ensalada de cebolla y tomate.",
+        "category": "criollos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377294/Chicharron_de_chancho.png"
+      },
+      {
+        "file": "Trucha_frita.png",
+        "name": "Trucha frita",
+        "price": 20,
+        "description": "Trucha frita dorada con papas fritas y ensalada fresca.",
+        "category": "criollos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377294/Trucha_frita.png"
+      },
+      {
+        "file": "Medio_cuy_chactado.png",
+        "name": "1/2 Cuy chactado",
+        "price": 30,
+        "description": "Medio cuy chactado crocante con papas y ensalada de cebolla y tomate.",
+        "category": "criollos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377294/Medio_cuy_chactado.png"
+      },
+      {
+        "file": "Cuy_entero_chactado.png",
+        "name": "Cuy entero chactado",
+        "price": 60,
+        "description": "Cuy entero chactado con papas fritas y ensalada fresca.",
+        "category": "criollos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377294/Cuy_entero_chactado.png"
+      }
+    ]
+  },
+  {
+    "slug": "alitas",
+    "category": "alitas",
+    "version": "1792377268",
+    "page": 8,
+    "entries": [
+      {
+        "file": "Alitas_BBQ_con_papas_fritas.png",
+        "name": "Alitas BBQ con papas fritas",
+        "price": 18,
+        "description": "Alitas bañadas en salsa BBQ, acompañadas de papas fritas.",
+        "aliases": [
+          "Alitas BBQ (6 und)",
+          "Alitas BBQ"
+        ],
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Alitas_BBQ_con_papas_fritas.png"
+      },
+      {
+        "file": "Alitas_acevichadas_con_papas_fritas.png",
+        "name": "Alitas acevichadas con papas fritas",
+        "price": 18,
+        "description": "Alitas cubiertas con salsa acevichada, acompañadas de papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Alitas_acevichadas_con_papas_fritas.png"
+      },
+      {
+        "file": "Alitas_buffalo_con_papas_fritas.png",
+        "name": "Alitas buffalo con papas fritas",
+        "price": 18,
+        "description": "Alitas con salsa buffalo, acompañadas de papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Alitas_buffalo_con_papas_fritas.png"
+      },
+      {
+        "file": "Alitas_chimichurri_con_papas_fritas.png",
+        "name": "Alitas chimichurri con papas fritas",
+        "price": 18,
+        "description": "Alitas con chimichurri, acompañadas de papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Alitas_chimichurri_con_papas_fritas.png"
+      },
+      {
+        "file": "Alitas_broaster_con_papas_fritas.png",
+        "name": "Alitas broaster con papas fritas",
+        "price": 18,
+        "description": "Alitas broaster crocantes acompañadas de papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Alitas_broaster_con_papas_fritas.png"
+      },
+      {
+        "file": "Duo_de_alitas.png",
+        "name": "Dúo de alitas",
+        "price": 22,
+        "description": "Combinación de dos sabores de alitas, acompañada de papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Duo_de_alitas.png"
+      },
+      {
+        "file": "Trio_de_alitas.png",
+        "name": "Trío de alitas",
+        "price": 27,
+        "description": "Combinación de alitas servidas con papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Trio_de_alitas.png"
+      },
+      {
+        "file": "Festival_de_alitas.png",
+        "name": "Festival de alitas",
+        "price": 40,
+        "description": "Festival de alitas BBQ, acevichadas, picantes y chimichurri, acompañado de papas fritas.",
+        "category": "alitas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377268/Festival_de_alitas.png"
+      }
+    ]
+  },
+  {
+    "slug": "selvaticos",
+    "category": "selvaticos",
+    "version": "1792377271",
+    "page": 9,
+    "entries": [
+      {
+        "file": "Tacacho_y_cecina.png",
+        "name": "Tacacho y cecina",
+        "price": 10,
+        "description": "Tacacho acompañado de cecina dorada.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Tacacho_y_cecina.png"
+      },
+      {
+        "file": "Tacacho_cecina_y_chorizo.png",
+        "name": "Tacacho, cecina y chorizo",
+        "price": 15,
+        "description": "Tacacho servido con cecina y chorizo.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Tacacho_cecina_y_chorizo.png"
+      },
+      {
+        "file": "Dos_tacachos_y_doble_cecina.png",
+        "name": "Dos tacachos y doble cecina",
+        "price": 22,
+        "description": "Dos tacachos acompañados de doble porción de cecina.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Dos_tacachos_y_doble_cecina.png"
+      },
+      {
+        "file": "Doble_tacacho_doble_cecina_y_dos_chorizos.png",
+        "name": "Doble tacacho, doble cecina y dos chorizos",
+        "price": 25,
+        "description": "Dos tacachos con doble cecina y dos chorizos.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Doble_tacacho_doble_cecina_y_dos_chorizos.png"
+      },
+      {
+        "file": "Festival_selvatico_familiar.png",
+        "name": "Festival selvático familiar",
+        "price": 45,
+        "description": "Festival familiar de tacacho, cecina, chorizo, arroz chaufa, plátano y huevo frito.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Festival_selvatico_familiar.png"
+      },
+      {
+        "file": "Festival_selvatico_personal.png",
+        "name": "Festival selvático personal",
+        "price": 25,
+        "description": "Festival personal de tacacho, cecina, chorizo, arroz chaufa, plátano y huevo frito.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Festival_selvatico_personal.png"
+      },
+      {
+        "file": "Chaufa_amazonico_con_cecina_chorizo_y_platano_frito.png",
+        "name": "Chaufa amazónico",
+        "price": 25,
+        "description": "Arroz chaufa amazónico con cecina, chorizo y plátano frito.",
+        "category": "selvaticos",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377271/Chaufa_amazonico_con_cecina_chorizo_y_platano_frito.png"
+      }
+    ]
+  },
+  {
+    "slug": "especialidades",
+    "category": "especialidades",
+    "version": "1792377276",
+    "page": 10,
+    "entries": [
+      {
+        "file": "Lomo_saltado_con_papas_y_arroz_blanco.png",
+        "name": "Lomo saltado",
+        "price": 22,
+        "description": "Lomo de res saltado con cebolla y tomate, acompañado de papas fritas y arroz blanco.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Lomo_saltado_con_papas_y_arroz_blanco.png"
+      },
+      {
+        "file": "Pollo_saltado.png",
+        "name": "Pollo saltado",
+        "price": 20,
+        "description": "Pollo saltado con cebolla y tomate, acompañado de papas fritas y arroz blanco.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Pollo_saltado.png"
+      },
+      {
+        "file": "Tallarin_saltado_de_pollo.png",
+        "name": "Tallarín saltado de pollo",
+        "price": 20,
+        "description": "Tallarines saltados con trozos de pollo y verduras.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Tallarin_saltado_de_pollo.png"
+      },
+      {
+        "file": "Tallarin_saltado_de_carne.png",
+        "name": "Tallarín saltado de carne",
+        "price": 22,
+        "description": "Tallarines saltados con carne de res y verduras.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Tallarin_saltado_de_carne.png"
+      },
+      {
+        "file": "Bistec.png",
+        "name": "Bistec",
+        "price": 22,
+        "description": "Bistec de res con cebolla y tomate, acompañado de papas fritas y arroz blanco.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Bistec.png"
+      },
+      {
+        "file": "Bistec_a_lo_pobre.png",
+        "name": "Bistec a lo pobre",
+        "price": 27,
+        "description": "Bistec de res con plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Bistec_a_lo_pobre.png"
+      },
+      {
+        "file": "Chuleta_a_lo_pobre.png",
+        "name": "Chuleta a lo pobre",
+        "price": 25,
+        "description": "Chuleta acompañada de plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Chuleta_a_lo_pobre.png"
+      },
+      {
+        "file": "Churrasco_a_lo_pobre.png",
+        "name": "Churrasco a lo pobre",
+        "price": 27,
+        "description": "Churrasco de res con plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Churrasco_a_lo_pobre.png"
+      },
+      {
+        "file": "Pechuga_a_lo_pobre.png",
+        "name": "Pechuga a lo pobre",
+        "price": 25,
+        "description": "Pechuga de pollo con plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Pechuga_a_lo_pobre.png"
+      },
+      {
+        "file": "Cuarto_de_pollo_a_lo_pobre.png",
+        "name": "1/4 Pollo a lo pobre",
+        "price": 22,
+        "description": "Un cuarto de pollo acompañado de plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Cuarto_de_pollo_a_lo_pobre.png"
+      },
+      {
+        "file": "Tallarines_verdes_con_churrasco.png",
+        "name": "Tallarines verdes con churrasco",
+        "price": 25,
+        "description": "Tallarines verdes acompañados de churrasco de res.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Tallarines_verdes_con_churrasco.png"
+      },
+      {
+        "file": "Milanesa_a_lo_pobre.png",
+        "name": "Milanesa a lo pobre",
+        "price": 25,
+        "description": "Milanesa crocante con plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Milanesa_a_lo_pobre.png"
+      },
+      {
+        "file": "Pierna_deshuesada_a_lo_pobre.png",
+        "name": "Pierna deshuesada a lo pobre",
+        "price": 25,
+        "description": "Pierna deshuesada con plátano frito, huevo frito, papas y arroz.",
+        "category": "especialidades",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377276/Pierna_deshuesada_a_lo_pobre.png"
+      }
+    ]
+  },
+  {
+    "slug": "sopas",
+    "category": "sopas",
+    "version": "1792377259",
+    "page": 11,
+    "entries": [
+      {
+        "file": "Sopa_a_la_minuta_de_pollo.png",
+        "name": "Sopa a la minuta de pollo",
+        "price": 12,
+        "description": "Sopa a la minuta con pollo deshilachado y fideos.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sopa_a_la_minuta_de_pollo.png"
+      },
+      {
+        "file": "Sopa_a_la_minuta_de_carne.png",
+        "name": "Sopa a la minuta de carne",
+        "price": 12,
+        "description": "Sopa a la minuta con carne, fideos y huevo.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sopa_a_la_minuta_de_carne.png"
+      },
+      {
+        "file": "Sopa_criolla_de_pollo.png",
+        "name": "Sopa criolla de pollo",
+        "price": 12,
+        "description": "Sopa criolla de pollo con fideos y acompañamientos.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sopa_criolla_de_pollo.png"
+      },
+      {
+        "file": "Sopa_criolla_de_carne.png",
+        "name": "Sopa criolla de carne",
+        "price": 12,
+        "description": "Sopa criolla de carne con fideos y acompañamientos.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sopa_criolla_de_carne.png"
+      },
+      {
+        "file": "Sustancia_de_pollo.png",
+        "name": "Sustancia de pollo",
+        "price": 12,
+        "description": "Caldo con pollo, fideos y verduras.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sustancia_de_pollo.png"
+      },
+      {
+        "file": "Sustancia_de_carne.png",
+        "name": "Sustancia de carne",
+        "price": 12,
+        "description": "Caldo con trozos de carne, fideos y verduras.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sustancia_de_carne.png"
+      },
+      {
+        "file": "Dieta_de_pollo.png",
+        "name": "Dieta de pollo",
+        "price": 12,
+        "description": "Caldo de pollo con zanahoria, papa y verduras.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Dieta_de_pollo.png"
+      },
+      {
+        "file": "Sopa_wantan.png",
+        "name": "Sopa wantán",
+        "price": 12,
+        "description": "Sopa con wantanes, fideos y verduras al estilo chifa.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Sopa_wantan.png"
+      },
+      {
+        "file": "Caldo_completo.png",
+        "name": "Caldo completo",
+        "price": 12,
+        "description": "Caldo con presa de pollo, papa, huevo y fideos.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Caldo_completo.png"
+      },
+      {
+        "file": "Caldo_solo.png",
+        "name": "Caldo solo",
+        "price": 8,
+        "description": "Caldo caliente con hierbas, sin los acompañamientos del caldo completo.",
+        "category": "sopas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377259/Caldo_solo.png"
+      }
+    ]
+  },
+  {
+    "slug": "bebidas",
+    "category": "bebidas",
+    "version": "1792377263",
+    "page": 12,
+    "entries": [
+      {
+        "file": "Cafe.png",
+        "name": "Café",
+        "price": 3,
+        "description": "Taza de café caliente.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Cafe.png"
+      },
+      {
+        "file": "Te.png",
+        "name": "Té",
+        "price": 2,
+        "description": "Taza de té caliente.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Te.png"
+      },
+      {
+        "file": "Infusion_de_anis.png",
+        "name": "Infusión de anís",
+        "price": 2,
+        "description": "Infusión caliente de anís.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Infusion_de_anis.png"
+      },
+      {
+        "file": "Manzanilla.png",
+        "name": "Manzanilla",
+        "price": 2,
+        "description": "Infusión caliente de manzanilla.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Manzanilla.png"
+      },
+      {
+        "file": "Gaseosa_personal_botella.png",
+        "name": "Gaseosa personal",
+        "price": 3,
+        "description": "Gaseosa personal en botella.",
+        "priceOnlyIds": [
+          14,
+          16
+        ],
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Gaseosa_personal_botella.png"
+      },
+      {
+        "file": "Gaseosa_gordita_botella.png",
+        "name": "Gaseosa gordita",
+        "price": 5,
+        "description": "Gaseosa en presentación gordita.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Gaseosa_gordita_botella.png"
+      },
+      {
+        "file": "Gaseosa_de_un_litro_botella.png",
+        "name": "Gaseosa de 1 L",
+        "price": 7,
+        "description": "Gaseosa en botella de un litro.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Gaseosa_de_un_litro_botella.png"
+      },
+      {
+        "file": "Gaseosa_de_un_litro_y_medio_botella.png",
+        "name": "Gaseosa de 1.5 L",
+        "price": 10,
+        "description": "Gaseosa en botella de un litro y medio.",
+        "priceOnlyIds": [
+          13,
+          15
+        ],
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Gaseosa_de_un_litro_y_medio_botella.png"
+      },
+      {
+        "file": "Jarra_de_chicha_morada.png",
+        "name": "Jarra de chicha morada",
+        "price": 15,
+        "description": "Jarra de chicha morada refrescante.",
+        "aliases": [
+          "Chicha Morada 1 L"
+        ],
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Jarra_de_chicha_morada.png"
+      },
+      {
+        "file": "Jarra_de_limonada.png",
+        "name": "Jarra de limonada",
+        "price": 12,
+        "description": "Jarra de limonada refrescante.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Jarra_de_limonada.png"
+      },
+      {
+        "file": "Limonada_frozen.png",
+        "name": "Limonada frozen",
+        "price": 15,
+        "description": "Limonada frozen de textura helada.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Limonada_frozen.png"
+      },
+      {
+        "file": "Cerveza_rubia.png",
+        "name": "Cerveza rubia",
+        "price": 9,
+        "description": "Cerveza rubia en botella.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Cerveza_rubia.png"
+      },
+      {
+        "file": "Cerveza_negra.png",
+        "name": "Cerveza negra",
+        "price": 11,
+        "description": "Cerveza negra en botella.",
+        "category": "bebidas",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377263/Cerveza_negra.png"
+      }
+    ]
+  },
+  {
+    "slug": "guarniciones",
+    "category": "guarniciones",
+    "version": "1792377264",
+    "page": 12,
+    "entries": [
+      {
+        "file": "Porcion_de_papas_fritas.png",
+        "name": "Porción de papas fritas",
+        "price": 18,
+        "description": "Porción de papas fritas doradas.",
+        "aliases": [
+          "Papa frita familiar"
+        ],
+        "category": "guarniciones",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377264/Porcion_de_papas_fritas.png"
+      },
+      {
+        "file": "Porcion_de_ensalada.png",
+        "name": "Porción de ensalada",
+        "price": 5,
+        "description": "Porción de ensalada fresca para acompañar tus platos.",
+        "aliases": [
+          "Ensalada familiar"
+        ],
+        "category": "guarniciones",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377264/Porcion_de_ensalada.png"
+      },
+      {
+        "file": "Porcion_de_arroz_blanco.png",
+        "name": "Porción de arroz blanco",
+        "price": 4,
+        "description": "Porción de arroz blanco para acompañar tus platos.",
+        "category": "guarniciones",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377264/Porcion_de_arroz_blanco.png"
+      },
+      {
+        "file": "Porcion_de_arroz_chaufa.png",
+        "name": "Porción de arroz chaufa",
+        "price": 5,
+        "description": "Porción de arroz chaufa para acompañar tus platos.",
+        "aliases": [
+          "Arroz chaufa familiar"
+        ],
+        "category": "guarniciones",
+        "image": "https://res.cloudinary.com/y08rn1qr/image/upload/v1792377264/Porcion_de_arroz_chaufa.png"
+      }
+    ]
+  }
+]

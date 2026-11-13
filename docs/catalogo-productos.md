@@ -3,7 +3,7 @@
 Repositorio: `Backend-Polleria-LYS`. Rama local: `feature/catalogo-productos`.
 Base: `6fd5ab0` de `origin/dev`, que ya incorpora EPIC 1.
 
-Se trasladaron los trece cambios del catálogo del repositorio `Backend-Polleria`, adaptados a los servicios, migraciones y pruebas de este repositorio. Los mensajes usan los prefijos `feat(catalogo)`, `test(catalogo)` y `docs(catalogo)`. Esos trece commits ya se subieron a GitHub. Los tres commits posteriores que corrigen el proyecto InsForge se mantienen locales para revisión; no se han aplicado migraciones remotas.
+Se trasladaron los trece cambios del catálogo del repositorio `Backend-Polleria`, adaptados a los servicios, migraciones y pruebas de este repositorio. Los mensajes usan los prefijos `feat(catalogo)`, `test(catalogo)` y `docs(catalogo)`. Esos trece commits y los tres que corrigen el proyecto InsForge ya se subieron a GitHub. Las migraciones 007 y 008 ya están aplicadas en Backend-Polleria-LYS. La corrección posterior del ejecutor de migraciones y esta actualización documental se mantienen locales, sin push.
 
 ## Funcionamiento
 
@@ -40,13 +40,15 @@ Las migraciones anteriores se mantienen intactas. Se añaden:
 - `007_catalogo_disponibilidad.sql`: permite consultar productos agotados para mostrar su disponibilidad. Los permisos de escritura siguen restringidos al Administrador.
 - `008_productos_identidad.sql`: convierte el ID existente en identidad si aún no lo es, conserva los IDs actuales y sitúa la secuencia después del máximo existente. Da uso de la secuencia al rol autenticado; RLS sigue controlando la inserción. Si ya existe identidad, no la recrea ni reinicia la secuencia.
 
-**Estas migraciones solo están preparadas localmente.** Antes de utilizar creación de productos o mostrar agotados en un entorno que aún tiene el esquema de `dev`, el administrador debe aplicarlas mediante `node scripts/apply-migrations.mjs`, siguiendo el README. Subir código a GitHub no las aplica.
+**Las migraciones 007 y 008 se aplicaron en Backend-Polleria-LYS el 13 de octubre de 2026**, después de la autorización explícita del usuario. Ambas están registradas en `public.schema_migrations` con la firma SHA-256 del contenido versionado. Para otro entorno, usar `node scripts/apply-migrations.mjs` siguiendo el README. Subir código a GitHub no aplica migraciones automáticamente.
 
 La configuración local ahora usa **Backend-Polleria-LYS**, con URL `https://b9zz47j5.us-east.insforge.app` e ID `7783e71f-8c16-4fd9-a2e6-24869bf1ec9f`. `.env.local` contiene su clave anónima pública obtenida mediante la CLI. El archivo administrativo `.insforge/project.json` vincula exclusivamente este repositorio al nuevo proyecto y está ignorado. La clave administrativa no se incluye en el frontend ni en Git.
 
 `scripts/configure-insforge-env.mjs` genera el entorno local después de comprobar el ID y la URL del proyecto vinculado. La aplicación rechaza la antigua URL `mpy5z5dn` y las claves administrativas en variables públicas. Las cuentas, sesiones, roles y pedidos de Backend-LYS no se migran automáticamente: pertenecen a otro proyecto.
 
-La inspección real confirmó que Backend-Polleria-LYS tiene las migraciones 001 a 006 y 17 productos. Su política pública todavía exige disponibilidad y el ID aún no tiene identidad. Aplicar 007 y 008 al backend remoto quedó pendiente: la revisión automática no aprobó esa modificación sin autorización explícita. Las consultas actuales de productos disponibles ya funcionan en el nuevo proyecto; mostrar agotados y crear productos con ID automático requieren esas dos migraciones.
+La inspección real confirmó las ocho migraciones registradas, la política `productos_publicos` con `USING (true)`, el ID con identidad `BY DEFAULT`, el permiso de uso de secuencia para `authenticated` y la política de escritura limitada a `admin`. Se compararon todos los campos de los 17 productos antes y después: ningún producto cambió. La secuencia quedó en 17, lista para generar IDs posteriores. No se crearon usuarios ni se insertaron productos de prueba en el backend.
+
+El ejecutor normaliza CRLF a LF para que Windows y Linux calculen las mismas firmas, comprueba todas las migraciones aplicadas antes de enviar pendientes y verifica el registro después de cada aplicación. La migración y su registro se envían en la misma transacción administrada por InsForge. Una segunda ejecución reconoció las ocho migraciones y no las volvió a aplicar.
 
 ## Commits y tareas
 
@@ -78,6 +80,8 @@ Los commits adicionales son atómicos:
 | test(insforge): verificar la conexión al proyecto correcto | Rechazo de configuración anterior y prueba real de catálogo con solo lecturas |
 | docs(insforge): documentar el cambio de proyecto y las migraciones pendientes | Instrucciones, resultados y límites de la configuración nueva |
 
+Después de aplicar las migraciones se añadieron localmente `fix(migrations): conservar las firmas SQL entre Windows y Linux` y `docs(insforge): registrar la aplicación de las migraciones del catálogo`.
+
 Desde `Front-Polleria-LYS-main`:
 
 ```bash
@@ -92,7 +96,7 @@ npm run dev
 
 Resultados: **28 pruebas de Vitest aprobadas**, **18 de Playwright aprobadas** y **compilación aprobada**. Vitest comprueba consultas, campos, lotes, detalle, filtros, validación, proyecto correcto y permisos en PostgreSQL local con PGlite. Aplica las ocho migraciones de este repositorio, incluida la compatibilidad de identidad con IDs existentes. Playwright incluye las once pruebas de autenticación existentes y las siete del catálogo; simula respuestas de InsForge sin crear cuentas ni enviar correos. Se ejecutó con Microsoft Edge mediante `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
-`npm run test:catalog-read` también pasó contra **Backend-Polleria-LYS real**, usando únicamente su clave pública: verifica categorías, campos del producto, detalle por ID y búsqueda combinada con categoría. Solo hace lecturas; no crea usuarios, no cambia permisos y no inserta ni modifica productos. No confirma todavía la disponibilidad pública de agotados ni la creación con identidad, que dependen de las migraciones pendientes.
+`npm run test:catalog-read` también pasó contra **Backend-Polleria-LYS real** después de aplicar las migraciones, usando únicamente su clave pública: verifica categorías, campos del producto, detalle por ID y búsqueda combinada con categoría. Solo hace lecturas; no crea usuarios, no cambia permisos y no inserta ni modifica productos. La inspección administrativa confirmó la política pública, la identidad y los permisos de secuencia. La creación y las denegaciones por rol se prueban con PGlite; no se realizó una creación de prueba en el backend remoto.
 
 Lint conserva **siete errores y una advertencia preexistentes**, verificados también sobre `origin/dev`. La compilación muestra avisos sobre tamaño del paquete y `crypto` del SDK. La prueba `test:security` del repositorio, que escribe en el backend real, no se ejecutó durante este traslado local.
 

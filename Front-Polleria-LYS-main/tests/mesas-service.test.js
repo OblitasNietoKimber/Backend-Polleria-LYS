@@ -150,12 +150,56 @@ test('gestiona errores de RPC rechazando la promesa', async () => {
   ).rejects.toThrow('La mesa ya tiene un pedido activo')
 })
 
+test('liberarMesa llama a la RPC liberar_mesa_salon y refresca el estado', async () => {
+  fake.rpc.mockImplementation(async (method) => {
+    if (method === 'liberar_mesa_salon') return { data: true }
+    if (method === 'obtener_mesas_con_pedidos') return { data: [{ id: 1, numero: '01', estado: 'libre' }] }
+    if (method === 'obtener_actividad_salon') return { data: [] }
+    return { data: null }
+  })
+
+  await mesaService.liberarMesa('01')
+  expect(fake.rpc).toHaveBeenCalledWith('liberar_mesa_salon', { p_mesa_id: 1 })
+})
+
+test('anularComandaYLiberarMesa llama a la RPC anular_comanda_salon con el motivo y refresca el estado', async () => {
+  fake.rpc.mockImplementation(async (method) => {
+    if (method === 'anular_comanda_salon') return { data: true }
+    if (method === 'obtener_mesas_con_pedidos') return { data: [{ id: 1, numero: '01', estado: 'libre' }] }
+    if (method === 'obtener_actividad_salon') return { data: [] }
+    return { data: null }
+  })
+
+  await mesaService.anularComandaYLiberarMesa('01', 'Cliente se retiró sin pagar')
+  expect(fake.rpc).toHaveBeenCalledWith('anular_comanda_salon', {
+    p_mesa_id: 1,
+    p_motivo: 'Cliente se retiró sin pagar',
+  })
+})
+
+test('fetchActividades ordena de manera estrictamente descendente', async () => {
+  fake.rpc.mockResolvedValue({
+    data: [
+      { id: '1', titulo: 'Antiguo', createdAt: '2026-10-18T10:00:00Z' },
+      { id: '2', titulo: 'Nuevo', createdAt: '2026-10-18T12:00:00Z' },
+    ],
+  })
+
+  const acts = await mesaService.fetchActividades()
+  expect(acts[0].id).toBe('2')
+  expect(acts[1].id).toBe('1')
+})
+
 test('la vista estricta propaga el fallo de PostgreSQL sin presentar la caché como datos nuevos', async () => {
- fake.rpc.mockResolvedValueOnce({error:{message:'Conexión interrumpida'}});
- await expect(mesaService.fetchMesas({strict:true})).rejects.toThrow('Conexión interrumpida');
-});
+  fake.rpc.mockResolvedValueOnce({ error: { message: 'Conexión interrumpida' } })
+  await expect(mesaService.fetchMesas({ strict: true })).rejects.toThrow('Conexión interrumpida')
+})
+
 test('una respuesta vacía del servidor elimina la mesa antigua de la caché', async () => {
- fake.rpc.mockResolvedValueOnce({data:[{id:1,numero:'01',estado:'ocupada',capacidad:2}]}).mockResolvedValueOnce({data:[]});
- await mesaService.fetchMesas();await mesaService.fetchMesas({strict:true});
- expect(mesaService.getMesas()).toEqual([]);
-});
+  fake.rpc
+    .mockResolvedValueOnce({ data: [{ id: 1, numero: '01', estado: 'ocupada', capacidad: 2 }] })
+    .mockResolvedValueOnce({ data: [] })
+  await mesaService.fetchMesas()
+  await mesaService.fetchMesas({ strict: true })
+  expect(mesaService.getMesas()).toEqual([])
+})

@@ -22,7 +22,7 @@ async function backend(page, { role = 'cliente', signedIn = false, verification 
     else if (path.endsWith('/records/perfiles')) { if (request.method() === 'PATCH') profile = { ...profile, ...request.postDataJSON() }; body = profile; }
     else if (path.endsWith('/records/pedidos')) body = [];
     else if (path.endsWith('/public-config')) body = { oAuthProviders: ['google'], requireEmailVerification: true };
-    else if (path.endsWith('/oauth/google')) body = { authUrl: 'http://localhost:5173/auth/callback?insforge_code=fake', provider: 'google' };
+    else if (path.endsWith('/oauth/google')) body = { authUrl: new URL('/auth/callback?insforge_code=fake', page.url()).href, provider: 'google' };
     else if (path.endsWith('/oauth/exchange')) { active = true; body = session; }
     else if (path.endsWith('/exchange-reset-password-token')) body = { token: 'email-proof-token', expiresAt: '2099-01-01T00:00:00Z' };
     else if (path.endsWith('/reset-password')) body = { message: 'Password reset' };

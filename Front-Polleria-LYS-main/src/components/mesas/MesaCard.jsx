@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Clock, Calendar } from 'lucide-react';
 import MesaIlustracion from './MesaIlustracion';
 import mesaService from '../../services/mesaService';
@@ -5,7 +6,21 @@ import mesaService from '../../services/mesaService';
 export default function MesaCard({ mesa, onClick }) {
   const { numero, capacidad, forma, estado, inicioAt, totalAcumulado, horaReserva, clienteReserva } = mesa;
 
+  // Tick local cada 60 s para que el contador de minutos se actualice sin esperar un evento de la DB.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (estado !== 'ocupada') return;
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, [estado, inicioAt]);
+
   const minutos = estado === 'ocupada' ? mesaService.getMinutosOcupada(inicioAt) : 0;
+  let tiempoTexto = `${minutos} min`;
+  if (minutos >= 720) {
+    tiempoTexto = '+12h (turno ant.)';
+  } else if (minutos >= 60) {
+    tiempoTexto = `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
+  }
   const montoFormateado = totalAcumulado ? Number(totalAcumulado).toFixed(2) : '0.00';
 
   return (
@@ -54,7 +69,7 @@ export default function MesaCard({ mesa, onClick }) {
           <div className="mesa-info-ocupada">
             <span className="mesa-tiempo">
               <Clock size={13} className="mesa-inline-icon" />
-              <span>{minutos} min</span>
+              <span>{tiempoTexto}</span>
             </span>
             <span className="mesa-total-soles">
               S/ {montoFormateado}
