@@ -106,3 +106,27 @@ export async function updateProduct(value, product) {
   return productFromRow(unwrap(await database().from('productos').update(values)
     .eq('id', id).select(PRODUCT_COLUMNS).single()))
 }
+
+export async function deleteProduct(value) {
+  const id = productId(value)
+  await requireAdministrator()
+  const { error } = await database().from('productos').delete().eq('id', id)
+  if (error) {
+    if (error.code === '23503' || String(error.message).toLowerCase().includes('foreign key')) {
+      throw new Error('No se puede eliminar este producto porque ya tiene pedidos registrados. Puedes cambiar su disponibilidad a "Agotado" en su lugar.')
+    }
+    throw new Error(error.message || 'No se pudo eliminar el producto.')
+  }
+  return true
+}
+
+export async function toggleProductAvailability(product) {
+  return updateProduct(product.id, {
+    name: product.name,
+    category: product.category,
+    desc: product.desc,
+    image: product.image,
+    price: product.price,
+    available: !product.available,
+  })
+}
