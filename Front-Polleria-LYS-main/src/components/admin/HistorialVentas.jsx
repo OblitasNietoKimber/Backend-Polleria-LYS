@@ -1,4 +1,5 @@
 import { IconoCelular, IconoDocumento, IconoEfectivo, IconoTarjeta } from "../common/Iconos";
+import { formatCodigoPedido } from "../../utils/orderNumber";
 
 const formatoSoles = new Intl.NumberFormat("es-PE", {
   style: "currency",
@@ -43,7 +44,9 @@ export default function HistorialVentas({ ventas = [], haySiguiente = false, car
 
               return (
               <tr key={venta.pagoId || venta.id}>
-                <td className="font-mono admin-strong-cell">{venta.codigo}</td>
+                <td className="font-mono admin-strong-cell" title={venta.codigo || venta.id}>
+                  {formatCodigoPedido(venta.codigo || venta.id)}
+                </td>
                 <td className="admin-strong-cell">{venta.cliente}</td>
                 <td className="admin-muted-cell">{venta.mesa ? `Mesa ${venta.mesa}` : venta.tipo}</td>
                 <td className="font-mono admin-strong-cell">{formatoSoles.format(venta.total)}</td>
