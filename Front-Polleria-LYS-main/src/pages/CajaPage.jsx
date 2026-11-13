@@ -7,6 +7,7 @@ import BuscadorPedidos from "../components/caja/BuscadorPedidos";
 import DetalleVenta from "../components/caja/DetalleVenta";
 import FormularioPago from "../components/caja/FormularioPago";
 import TicketModal from "../components/caja/TicketModal";
+import { formatCodigoPedido } from "../utils/orderNumber";
 import fondo from "../img/fondo.png";
 
 export default function CajaPage() {
@@ -67,7 +68,7 @@ export default function CajaPage() {
   const listaActiva = vista === "pendientes" ? pendientes : cobrados;
 
   const pedidosFiltrados = listaActiva.filter((pedido) =>
-    `${pedido.codigo} ${pedido.mesa || pedido.tipo} ${pedido.cliente}`
+    `${pedido.codigo} ${formatCodigoPedido(pedido.codigo || pedido.id)} ${pedido.mesa || pedido.tipo} ${pedido.cliente}`
       .toLowerCase()
       .includes(busqueda.trim().toLowerCase())
   );
