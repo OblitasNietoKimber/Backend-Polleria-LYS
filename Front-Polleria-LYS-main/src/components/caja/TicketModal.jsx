@@ -1,7 +1,12 @@
 import { Check, Printer, X } from "lucide-react";
+import { formatCodigoPedido } from "../../utils/orderNumber";
 
 export default function TicketModal({ pedido, total, metodo, monto, vuelto, onClose }) {
   if (!pedido) return null;
+
+  const pagoCodigo = pedido.pago?.id && pedido.pago.id.length >= 20
+    ? `#${pedido.pago.id.slice(0, 8).toUpperCase()}`
+    : pedido.pago?.id;
 
   return (
     <div className="cart-backdrop open caja-modal-backdrop" onClick={onClose}>
@@ -20,7 +25,9 @@ export default function TicketModal({ pedido, total, metodo, monto, vuelto, onCl
           <span><Check size={28} strokeWidth={3} /></span>
           <p>Pago completado</p>
           <h2 id="ticket-title">¡Venta registrada!</h2>
-          <small>{pedido.codigo} · {pedido.mesa ? `Mesa ${pedido.mesa}` : pedido.tipo}</small>
+          <small title={pedido.codigo || pedido.id}>
+            {formatCodigoPedido(pedido.codigo || pedido.id)} · {pedido.mesa ? `Mesa ${pedido.mesa}` : pedido.tipo}
+          </small>
         </header>
 
         <div className="caja-receipt">
@@ -38,10 +45,10 @@ export default function TicketModal({ pedido, total, metodo, monto, vuelto, onCl
           </div>
 
           <dl>
-            <div><dt>Operación</dt><dd>{pedido.pago.id}</dd></div>
+            <div><dt>Operación</dt><dd title={pedido.pago?.id}>{pagoCodigo}</dd></div>
             <div><dt>Fecha</dt><dd>{new Date(pedido.pagadoAt).toLocaleString("es-PE", { timeZone: "America/Lima" })}</dd></div>
             <div><dt>Método</dt><dd>{metodo}</dd></div>
-            {pedido.pago.referencia && <div><dt>Referencia</dt><dd>{pedido.pago.referencia}</dd></div>}
+            {pedido.pago?.referencia && <div><dt>Referencia</dt><dd>{pedido.pago.referencia}</dd></div>}
             <div><dt>Recibido</dt><dd>S/ {monto.toFixed(2)}</dd></div>
             {metodo === "Efectivo" && <div><dt>Vuelto</dt><dd>S/ {vuelto.toFixed(2)}</dd></div>}
           </dl>
