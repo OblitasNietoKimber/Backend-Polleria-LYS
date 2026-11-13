@@ -1,24 +1,27 @@
-import { ShoppingCart } from 'lucide-react'
+import { ChevronDown, ShoppingCart } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext'
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import * as authService from '../services/authService';
+
 export default function SiteHeader() {
   const { cartCount, openCart } = useCart()
   const location = useLocation();
   const navigate = useNavigate();
 
-const handleLogout = async () => {
-  try { await authService.logout(); } catch (error) { setLogoutError(error.message); return; }
-  setMenuPath(null);
-  navigate('/login');
-};
+  const handleLogout = async () => {
+    try { await authService.logout(); } catch (error) { setLogoutError(error.message); return; }
+    setMenuPath(null);
+    navigate('/login');
+  };
   const [menuPath, setMenuPath] = useState(null);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
 
   const { user } = useAuth();
   const [logoutError, setLogoutError] = useState('');
   const canAccess = (roles) => Boolean(user && roles.includes(user.rol));
+  const isAdminActive = location.pathname.startsWith('/admin') || location.pathname === '/dashboard';
 
   const initials = user
     ? `${user.nombre?.[0] || ''}${user.apellido?.[0] || ''}`.toUpperCase() || 'U'
@@ -66,7 +69,54 @@ const handleLogout = async () => {
             <NavLink to="/caja" className={({ isActive }) => `lys-navlink ${isActive ? 'active' : ''}` }> Caja</NavLink>
           )}
           {canAccess(['admin']) && (
-              <NavLink to="/dashboard"className={({ isActive }) =>`lys-navlink ${isActive ? 'active' : ''}`}> Dashboard</NavLink>
+            <div
+              className="lys-account lys-admin-dropdown"
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setAdminMenuOpen(false);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setAdminMenuOpen(false);
+                  e.currentTarget.querySelector('button')?.focus();
+                }
+              }}
+            >
+              <button
+                type="button"
+                className={`lys-navlink lys-admin-toggle ${isAdminActive ? 'active' : ''}`}
+                onClick={() => setAdminMenuOpen(prev => !prev)}
+                aria-label="Menú de administración"
+                aria-expanded={adminMenuOpen}
+                aria-controls="lys-admin-dropdown-menu"
+              >
+                Admin <ChevronDown size={14} style={{ marginLeft: 3, transition: 'transform 0.2s', transform: adminMenuOpen ? 'rotate(180deg)' : 'none' }} />
+              </button>
+
+              {adminMenuOpen && (
+                <div
+                  id="lys-admin-dropdown-menu"
+                  className="lys-account-dropdown lys-admin-menu"
+                  style={{ minWidth: '190px', left: 0, right: 'auto' }}
+                >
+                  <NavLink
+                    to="/dashboard"
+                    className={({ isActive }) => `lys-account-link ${isActive ? 'active' : ''}`}
+                    onClick={() => setAdminMenuOpen(false)}
+                  >
+                    Dashboard
+                  </NavLink>
+                  <NavLink
+                    to="/admin/productos"
+                    className={({ isActive }) => `lys-account-link ${isActive ? 'active' : ''}`}
+                    onClick={() => setAdminMenuOpen(false)}
+                  >
+                    Gestión de Productos
+                  </NavLink>
+                </div>
+              )}
+            </div>
           )}
           {user ? (
             <div
@@ -109,13 +159,12 @@ const handleLogout = async () => {
                   </NavLink>
 
                   <button
-            type="button"
-            className="profile-menu-item danger"
-            onClick={handleLogout}
-          >
-            Cerrar sesión
-          </button>
-        
+                    type="button"
+                    className="profile-menu-item danger"
+                    onClick={handleLogout}
+                  >
+                    Cerrar sesión
+                  </button>
                 </div>
               )}
             </div>
