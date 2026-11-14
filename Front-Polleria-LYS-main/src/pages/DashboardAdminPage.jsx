@@ -92,8 +92,7 @@ export default function DashboardAdminPage() {
 
         <section className="admin-double-grid">
           <Ventas7Dias ventas={datos?.ventasPorDia} />
-          <HistorialVentas ventas={historial.ventas} haySiguiente={Boolean(historial.siguiente)}
-            cargandoMas={cargandoMas} onCargarMas={cargarMas} />
+          <HistorialVentas ventas={historial.ventas} />
         </section>
       </main>
     </div>
