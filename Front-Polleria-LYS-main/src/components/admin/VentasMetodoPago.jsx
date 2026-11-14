@@ -3,11 +3,11 @@ import EChart from "./EChart";
 
 export function obtenerColorMetodo(nombre = "") {
   const norm = String(nombre).toLowerCase().trim();
-  if (norm.includes("yape")) return "#742284"; // Morado oficial Yape
-  if (norm.includes("plin")) return "#00D4A0"; // Verde/Turquesa oficial Plin
-  if (norm.includes("efectivo")) return "#2E7D32"; // Verde Efectivo
-  if (norm.includes("tarjeta")) return "#2563EB"; // Azul Tarjeta
-  return "#D97706"; // Ámbar por defecto
+  if (norm.includes("yape")) return "#6A1B9A"; // Morado intenso Yape (no pastel, alto contraste)
+  if (norm.includes("plin")) return "#007A64"; // Turquesa oscuro intenso Plin (no pastel, gran definición)
+  if (norm.includes("efectivo")) return "#15803D"; // Verde bosque sólido Efectivo (no pastel)
+  if (norm.includes("tarjeta")) return "#1D4ED8"; // Azul cobalto sólido Tarjeta (no pastel)
+  return "#B45309"; // Ámbar tostado por defecto
 }
 
 const formatoSoles = new Intl.NumberFormat("es-PE", {
