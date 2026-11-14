@@ -1,4 +1,6 @@
 import { IconoCelular, IconoDocumento, IconoEfectivo, IconoTarjeta } from "../common/Iconos";
+import { formatCodigoPedido } from "../../utils/orderNumber";
+import { obtenerColorMetodo } from "./VentasMetodoPago";
 
 const formatoSoles = new Intl.NumberFormat("es-PE", {
   style: "currency",
@@ -6,12 +8,14 @@ const formatoSoles = new Intl.NumberFormat("es-PE", {
 });
 
 function iconoMetodo(metodo) {
-  if (metodo === "Tarjeta") return <IconoTarjeta size={15} color="var(--char)" />;
-  if (metodo === "Efectivo") return <IconoEfectivo size={15} color="var(--ember)" />;
-  return <IconoCelular size={15} color="#8A2BE2" />;
+  const norm = String(metodo).toLowerCase();
+  const color = obtenerColorMetodo(metodo);
+  if (norm.includes("tarjeta")) return <IconoTarjeta size={15} color={color} />;
+  if (norm.includes("efectivo")) return <IconoEfectivo size={15} color={color} />;
+  return <IconoCelular size={15} color={color} />;
 }
 
-export default function HistorialVentas({ ventas = [], haySiguiente = false, cargandoMas = false, onCargarMas }) {
+export default function HistorialVentas({ ventas = [] }) {
   return (
     <section className="ticket-card admin-history-card">
       <div className="admin-block-title">
@@ -19,7 +23,7 @@ export default function HistorialVentas({ ventas = [], haySiguiente = false, car
         <span className="font-display">Historial de ventas</span>
       </div>
 
-      <div className="admin-table-wrap">
+      <div className="admin-table-wrap" tabIndex={0} aria-label="Historial de ventas con desplazamiento horizontal">
         <table className="admin-history-table">
           <thead>
             <tr>
@@ -40,17 +44,20 @@ export default function HistorialVentas({ ventas = [], haySiguiente = false, car
             ) : ventas.map((venta) => {
               const fechaVenta = new Date(venta.pagadoAt || venta.createdAt);
               const metodo = venta.pago?.metodo || "Sin metodo";
+              const color = obtenerColorMetodo(metodo);
 
               return (
               <tr key={venta.pagoId || venta.id}>
-                <td className="font-mono admin-strong-cell">{venta.codigo}</td>
+                <td className="font-mono admin-strong-cell" title={venta.codigo || venta.id}>
+                  {formatCodigoPedido(venta.codigo || venta.id)}
+                </td>
                 <td className="admin-strong-cell">{venta.cliente}</td>
                 <td className="admin-muted-cell">{venta.mesa ? `Mesa ${venta.mesa}` : venta.tipo}</td>
                 <td className="font-mono admin-strong-cell">{formatoSoles.format(venta.total)}</td>
                 <td>
                   <div className="admin-method-cell">
                     {iconoMetodo(metodo)}
-                    <span>{metodo}</span>
+                    <span style={{ color, fontWeight: 700 }}>{metodo}</span>
                   </div>
                 </td>
                 <td className="font-mono admin-time-cell">
@@ -65,12 +72,6 @@ export default function HistorialVentas({ ventas = [], haySiguiente = false, car
           </tbody>
         </table>
       </div>
-
-      {haySiguiente && (
-        <button type="button" className="admin-filtro-limpiar admin-history-more" onClick={onCargarMas} disabled={cargandoMas}>
-          {cargandoMas ? "Cargando…" : "Ver más ventas"}
-        </button>
-      )}
     </section>
   );
 }

@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 const fake = vi.hoisted(() => ({ from: vi.fn(), currentUser: vi.fn() }))
 vi.mock('../src/lib/insforge', () => ({ insforge: { database: { from: fake.from }, auth: { getCurrentUser: fake.currentUser } }, configurationError: '' }))
-import { getCategories, getProducts, getProduct, createProduct, updateProduct } from '../src/services/productService'
+import { getCategories, getProducts, getProduct, createProduct, updateProduct, deleteProduct, toggleProductAvailability } from '../src/services/productService'
 
 let requests
 let responses
@@ -21,7 +21,9 @@ beforeEach(() => {
       single: () => Promise.resolve(responses.shift()),
       insert: rows => { request.insert = rows; return query },
       update: values => { request.update = values; return query },
+      delete: () => { request.delete = true; return query },
       range: (from, to) => { request.range = [from, to]; return Promise.resolve(responses.shift()) },
+      then: (resolve, reject) => Promise.resolve(responses.shift() || { error: null }).then(resolve, reject),
     }
     return query
   })
@@ -154,4 +156,33 @@ test('propaga los errores al editar un producto inexistente o denegado por Postg
   fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
   responses.push({ data: { rol: 'admin' } }, { error: { message: 'No rows found' } })
   await expect(updateProduct(999, validProduct)).rejects.toThrow('No rows found')
+})
+
+test('el Administrador elimina un producto por su ID', async () => {
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
+  responses.push({ data: { rol: 'admin' } }, { error: null })
+  expect(await deleteProduct('18')).toBe(true)
+  expect(requests[0]).toMatchObject({ table: 'perfiles', eq: ['id', 'admin-id'] })
+  expect(requests[1]).toMatchObject({ table: 'productos', eq: ['id', 18], delete: true })
+})
+
+test('rechaza eliminar un producto con ID inválido o rol insuficiente', async () => {
+  await expect(deleteProduct('abc')).rejects.toThrow('identificador')
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'cliente' } } })
+  responses.push({ data: { rol: 'cliente' } })
+  await expect(deleteProduct(18)).rejects.toThrow('Solo el Administrador')
+})
+
+test('informa amigablemente cuando un producto no puede eliminarse por pedidos asociados', async () => {
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
+  responses.push({ data: { rol: 'admin' } }, { error: { code: '23503', message: 'violates foreign key constraint' } })
+  await expect(deleteProduct(18)).rejects.toThrow('pedidos registrados')
+})
+
+test('toggleProductAvailability invierte la disponibilidad del producto', async () => {
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
+  responses.push({ data: { rol: 'admin' } }, { data: { id: 18, categoria_id: 'pollos', nombre: 'Pollo nuevo', precio: '24.50', disponible: true } })
+  const res = await toggleProductAvailability({ id: 18, name: 'Pollo nuevo', category: 'pollos', desc: 'Desc', price: 24.5, available: false })
+  expect(res.available).toBe(true)
+  expect(requests[1].update.disponible).toBe(true)
 })
