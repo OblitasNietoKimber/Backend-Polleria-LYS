@@ -9,11 +9,10 @@ const formatoSoles = new Intl.NumberFormat("es-PE", {
 
 function iconoMetodo(metodo) {
   const norm = String(metodo).toLowerCase();
-  if (norm.includes("tarjeta")) return <IconoTarjeta size={15} color="#2563EB" />;
-  if (norm.includes("efectivo")) return <IconoEfectivo size={15} color="#2E7D32" />;
-  if (norm.includes("plin")) return <IconoCelular size={15} color="#00D4A0" />;
-  if (norm.includes("yape")) return <IconoCelular size={15} color="#742284" />;
-  return <IconoCelular size={15} color="#8A2BE2" />;
+  const color = obtenerColorMetodo(metodo);
+  if (norm.includes("tarjeta")) return <IconoTarjeta size={15} color={color} />;
+  if (norm.includes("efectivo")) return <IconoEfectivo size={15} color={color} />;
+  return <IconoCelular size={15} color={color} />;
 }
 
 export default function HistorialVentas({ ventas = [] }) {
@@ -58,7 +57,7 @@ export default function HistorialVentas({ ventas = [] }) {
                 <td>
                   <div className="admin-method-cell">
                     {iconoMetodo(metodo)}
-                    <span style={{ color, fontWeight: 600 }}>{metodo}</span>
+                    <span style={{ color, fontWeight: 700 }}>{metodo}</span>
                   </div>
                 </td>
                 <td className="font-mono admin-time-cell">
