@@ -159,7 +159,7 @@ export default function CajaPage() {
   }
 
   return (
-    <div className="lys-root admin-screen caja-page">
+    <div className="lys-root caja-page">
       <main className="caja-main">
         <section className="caja-intro" aria-labelledby="caja-title">
           <div className="caja-heading">
