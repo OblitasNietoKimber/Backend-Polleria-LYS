@@ -26,7 +26,7 @@ function normalizarComprobante(recibo) {
 }
 function normalizarPedido(row) {
   const pago = row.pagos?.[0];
-  if (pago?.comprobante) return normalizarComprobante(pago.comprobante);
+  if (pago?.comprobante) return { ...normalizarComprobante(pago.comprobante), estadoPedido: row.estado };
   return {
     id: row.id, codigo: row.id, tipo: row.tipo, mesa: row.mesas?.numero || null,
     cliente: row.destinatario?.name || (row.mesas ? `Mesa ${row.mesas.numero}` : 'Cliente'),
@@ -74,4 +74,7 @@ export async function registrarCobro(id, { metodo, monto, idempotencia, totalEsp
   if (!recibo?.pago || !recibo.items) throw new Error('El servidor no devolvió un comprobante válido. Reintenta el mismo cobro.');
   return normalizarComprobante(recibo);
 }
-export default { getSelloCambios, getPedidos, getPedidosPendientes, getPedidoPorId, getVentas, calcularTotal, registrarCobro };
+export async function confirmarEntregaDelivery(id) {
+  return unwrap(await database().rpc('confirmar_entrega_delivery', { p_pedido_id: id }));
+}
+export default { confirmarEntregaDelivery, getSelloCambios, getPedidos, getPedidosPendientes, getPedidoPorId, getVentas, calcularTotal, registrarCobro };

@@ -9,7 +9,7 @@ export const ORDER_STATUS_STEPS = [
   { key: 'camino', label: 'En camino' },
   { key: 'entregado', label: 'Entregado' },
 ]
-const STATUS = { pendiente: 'recibido', en_preparacion: 'preparacion', listo: 'listo', entregado: 'entregado', cancelado: 'cancelado' }
+const STATUS = { pendiente: 'recibido', en_preparacion: 'preparacion', listo: 'listo', en_camino: 'camino', entregado: 'entregado', cancelado: 'cancelado' }
 export function getStatusLabel(estado) {
   const key = STATUS[estado]
   return ORDER_STATUS_STEPS.find(step => step.key === key)?.label || (key === 'cancelado' ? 'Cancelado' : estado)

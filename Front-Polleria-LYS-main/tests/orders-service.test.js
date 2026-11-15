@@ -85,3 +85,7 @@ test('conserva los estados del esquema actual y distingue cancelaciones', () => 
   expect(orders.getOrderStatus({ backendStatus: 'en_preparacion' })).toBe('preparacion')
   expect(orders.getOrderStatus({ backendStatus: 'cancelado' })).toBe('cancelado')
 })
+
+test('muestra en camino cuando cocina entrega un delivery al repartidor',()=>{
+ expect(orders.getOrderStatus({backendStatus:'en_camino'})).toBe('camino');
+});

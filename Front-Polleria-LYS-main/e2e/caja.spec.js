@@ -152,3 +152,20 @@ test('separa efectivo y ventas del día en Perú e incluye delivery solo cuando 
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });
+
+test('confirma la entrega de delivery usando el estado actual y conserva el comprobante original',async({page})=>{
+ await backend(page);
+ let estado='en_camino',confirmaciones=0;
+ const comprobante={id:order.id,codigo:order.id,tipo:'delivery',cliente:'Cliente reparto',subtotal:42.9,envio:0,total:42.9,estado:'pagado',estadoPedido:'pendiente',createdAt:order.creado_en,pagadoAt:new Date().toISOString(),items:[{id:1,nombre:'Pollo a la brasa entero',cantidad:1,precio:42.9}],pago:{id:'pago-test',metodo:'efectivo',monto:50,importe:42.9,vuelto:7.1}};
+ await page.route('**/api/database/records/pedidos?**',route=>route.fulfill({headers:{'content-range':'0-0/1'},json:[{...order,tipo:'delivery',estado,estado_pago:'pagado',actualizado_en:new Date().toISOString(),pagos:[{comprobante}]}]}));
+ await page.route('**/api/database/rpc/confirmar_entrega_delivery',async route=>{
+  confirmaciones++;expect(route.request().postDataJSON()).toEqual({p_pedido_id:order.id});
+  await new Promise(resolve=>setTimeout(resolve,200));estado='entregado';await route.fulfill({json:order.id});
+ });
+ await page.goto('/caja');await page.getByRole('tab',{name:'Cobrados 1'}).click();
+ await page.getByRole('button',{name:'Confirmar entrega al cliente',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Confirmando entrega…'})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Confirmar entrega al cliente',exact:true})).toHaveCount(0);
+ expect(confirmaciones).toBe(1);
+ await page.getByRole('button',{name:'Ver comprobante'}).click();await expect(page.getByRole('dialog')).toContainText('S/ 7.10');
+});

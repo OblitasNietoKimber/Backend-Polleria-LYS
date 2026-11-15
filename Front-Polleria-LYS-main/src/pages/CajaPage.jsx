@@ -23,6 +23,7 @@ export default function CajaPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [cobrando, setCobrando] = useState(false);
+  const [entregando, setEntregando] = useState(false);
   const [reintentoPendiente, setReintentoPendiente] = useState(false);
   const intento = useRef(null);
   const bloqueo = useRef(false);
@@ -82,7 +83,7 @@ export default function CajaPage() {
   const montoValido = monto !== "" && /^\d+(\.\d{1,2})?$/.test(monto) && Number.isFinite(montoNumerico) && montoNumerico > 0;
   const puedeCobrar = Boolean(
     pedidoActivo &&
-      pedidoActivo.estado === "pendiente" && total > 0 && !cargando && !cobrando &&
+      pedidoActivo.estado === "pendiente" && total > 0 && !cargando && !cobrando && !entregando &&
       (metodo !== "Efectivo" || (montoValido && montoNumerico >= total))
   );
 
@@ -129,6 +130,24 @@ export default function CajaPage() {
       bloqueo.current = false;
       if (montado.current) setCobrando(false);
     }
+  }
+
+  async function confirmarEntregaDelivery() {
+    if (bloqueo.current || intento.current || !pedidoActivo) return;
+    bloqueo.current = true;
+    ++consulta.current;
+    setEntregando(true);
+    setError('');
+    try {
+      await cajaService.confirmarEntregaDelivery(pedidoActivo.id);
+    } catch (err) {
+      if (montado.current) setError(err.message || 'No se pudo confirmar la entrega.');
+      return;
+    } finally {
+      bloqueo.current = false;
+      if (montado.current) setEntregando(false);
+    }
+    await recargar();
   }
 
   function cerrarTicket() {
@@ -195,10 +214,10 @@ export default function CajaPage() {
 
         {cargando && <p role="status">Consultando pedidos…</p>}
         {error && <div role="alert" className="caja-error">{error}</div>}
-        <button type="button" className="caja-refresh-button" disabled={cobrando || cargando} onClick={revisarCuenta}>
+        <button type="button" className="caja-refresh-button" disabled={entregando || cobrando || cargando} onClick={revisarCuenta}>
           {reintentoPendiente ? "Actualizar y revisar el resultado" : "Actualizar pedidos"}
         </button>
-        <div className="caja-layout" aria-busy={cargando || cobrando}>
+        <div className="caja-layout" aria-busy={cargando || cobrando || entregando}>
           <section className="caja-orders-panel" aria-labelledby="pedidos-title">
             <div className="caja-section-title">
               <div>
@@ -216,7 +235,7 @@ export default function CajaPage() {
                 role="tab"
                 aria-selected={vista === "pendientes"}
                 className={vista === "pendientes" ? "active" : ""}
-                disabled={cobrando || reintentoPendiente}
+                disabled={entregando || cobrando || reintentoPendiente}
                 onClick={() => cambiarVista("pendientes")}
               >
                 Pendientes <span>{pendientes.length}</span>
@@ -226,7 +245,7 @@ export default function CajaPage() {
                 role="tab"
                 aria-selected={vista === "cobrados"}
                 className={vista === "cobrados" ? "active" : ""}
-                disabled={cobrando || reintentoPendiente}
+                disabled={entregando || cobrando || reintentoPendiente}
                 onClick={() => cambiarVista("cobrados")}
               >
                 Cobrados <span>{cobrados.length}</span>
@@ -236,7 +255,7 @@ export default function CajaPage() {
             <ListaPedidos
               pedidos={pedidosFiltrados}
               pedidoSeleccionado={seleccionadoId}
-              disabled={cobrando || reintentoPendiente}
+              disabled={entregando || cobrando || reintentoPendiente}
               onSeleccionar={(id) => {
                 setSeleccionadoId(id);
                 setMonto("");
@@ -247,6 +266,15 @@ export default function CajaPage() {
 
           <section className="caja-payment-panel" aria-label="Cobro del pedido">
             <DetalleVenta pedido={pedidoActivo} />
+            {pedidoActivo?.tipo === 'delivery' && pedidoActivo.estadoPedido === 'en_camino' && (
+              <p role="status">En camino. {pedidoActivo.estado === 'pagado' ? 'Confirma cuando el repartidor entregue al cliente.' : 'Registra el cobro recibido antes de confirmar la entrega al cliente.'}</p>
+            )}
+            {pedidoActivo?.tipo === 'delivery' && pedidoActivo.estadoPedido === 'en_camino' && pedidoActivo.estado === 'pagado' && (
+              <button type="button" className="btn-ember caja-confirm-button" disabled={entregando || cobrando || reintentoPendiente}
+                onClick={confirmarEntregaDelivery}>
+                {entregando ? 'Confirmando entrega…' : 'Confirmar entrega al cliente'}
+              </button>
+            )}
 
             {pedidoActivo?.estado === "pendiente" && (
               <>
@@ -256,7 +284,7 @@ export default function CajaPage() {
                   monto={monto}
                   onMontoChange={setMonto}
                   total={total}
-                  disabled={cobrando || reintentoPendiente}
+                  disabled={entregando || cobrando || reintentoPendiente}
                 />
 
                 {metodo === "Efectivo" && montoValido && (
