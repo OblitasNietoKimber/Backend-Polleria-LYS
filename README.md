@@ -15,6 +15,7 @@ Utiliza las siguientes cuentas para probar cada uno de los roles y permisos del 
 | **Caja** | `yaxal97750@ensproxy.com` | `c1234567` | Módulo de Cobros / Caja y Perfil |
 | **Cocinero** | `ratenox394@iconcubic.com` | `prueba123` | Panel de Pedidos en Cocina y Perfil |
 | **Mesero** | `majimer746@goldlicai.com` | `m1234567` | Toma de Pedidos en Mesas y Perfil |
+| **Cliente / Usuario** | `xisep41755@nbasweeps.com` | `u1234567` | Catálogo, Carrito, Checkout, Mis Pedidos y Perfil |
 
 * **Despliegue en producción:** [https://back-polleria-lys.vercel.app](https://back-polleria-lys.vercel.app)
 
