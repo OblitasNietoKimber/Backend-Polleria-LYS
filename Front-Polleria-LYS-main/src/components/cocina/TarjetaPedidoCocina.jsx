@@ -1,4 +1,4 @@
-import { Clock, Play, ChefHat } from "lucide-react";
+import { Clock, Play, ChefHat, CheckCircle2 } from "lucide-react";
 import { useTiempoTranscurrido } from "../../hooks/useTiempoTranscurrido";
 import { formatCodigoPedido } from "../../utils/orderNumber";
 
@@ -17,6 +17,8 @@ const TIPO_LABEL = {
 export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, actualizando = false }) {
   const { texto: tiempo } = useTiempoTranscurrido(pedido.createdAt, pedido.finalizadoAt);
   const tipo = pedido.tipo || "salon";
+  const pendienteCobro = pedido.estadoPago !== 'pagado' &&
+    (tipo === 'recojo' || (tipo === 'delivery' && pedido.metodoSolicitado !== 'efectivo'));
 
   const usuarioCorto = pedido.cambiadoPor
     ? (pedido.cambiadoPor.length > 15 ? pedido.cambiadoPor.slice(0, 8).toUpperCase() : pedido.cambiadoPor)
@@ -70,7 +72,19 @@ export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, actualiza
           <ChefHat size={14} /> Marcar listo
         </button>
       )}
-      {pedido.estadoCocina === "listo" && <p className="cocina-auditoria">Listo para {pedido.tipo === 'delivery' ? 'reparto' : 'entrega'}. El cobro se registra en caja.</p>}
+      {pedido.estadoCocina === "listo" && (
+        <>
+          <p className="cocina-auditoria">
+            {pendienteCobro ? 'Pendiente de cobro. Confirma el pago en caja antes de entregar.'
+              : tipo === 'delivery' ? 'Entrega al repartidor. El pedido pasará a En camino.'
+                : tipo === 'salon' ? 'Entrega a la mesera. La cuenta se cobra en caja.' : 'Entrega al cliente. Pago confirmado.'}
+          </p>
+          <button className="cocina-btn cocina-btn--entregar" disabled={actualizando || pendienteCobro}
+            onClick={() => onCambiarEstado(pedido, "entregado")}>
+            <CheckCircle2 size={14} /> {actualizando ? 'Entregando…' : 'Entregar'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
