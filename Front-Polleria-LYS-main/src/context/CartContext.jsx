@@ -30,7 +30,10 @@ function readStoredDelivery() {
   if (typeof window === 'undefined') return { deliveryType: 'delivery', form: EMPTY_FORM }
   try {
     const raw = window.localStorage.getItem(DELIVERY_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : { deliveryType: 'delivery', form: EMPTY_FORM }
+    if (!raw) return { deliveryType: 'delivery', form: EMPTY_FORM }
+    const parsed = JSON.parse(raw)
+    const normalizedType = parsed.deliveryType === 'pickup' ? 'recojo' : (parsed.deliveryType || 'delivery')
+    return { deliveryType: normalizedType, form: parsed.form || EMPTY_FORM }
   } catch {
     return { deliveryType: 'delivery', form: EMPTY_FORM }
   }
@@ -63,7 +66,8 @@ export function CartProvider({ children }) {
   const cartError = catalogState.ids === cartIds ? catalogState.error : ''
   const missingCartIds = !cartLoading && cartError ? Object.keys(cart).filter(id => !products[id]) : []
   const [cartOpen, setCartOpen] = useState(false)
-  const [deliveryType, setDeliveryType] = useState(() => readStoredDelivery().deliveryType)
+  const [deliveryType, setDeliveryTypeRaw] = useState(() => readStoredDelivery().deliveryType)
+  const setDeliveryType = (type) => setDeliveryTypeRaw(type === 'pickup' ? 'recojo' : type)
   const [form, setForm] = useState(() => readStoredDelivery().form)
   const [payment, setPayment] = useState(readStoredPayment)
   const [orderNumber, setOrderNumber] = useState(readStoredOrderNumber)
@@ -191,7 +195,7 @@ export function CartProvider({ children }) {
     savePendingOrder(pendingOrder.current);
     confirmation.current = orderService.createOrder({ id: pendingOrder.current.id, ...request })
       .then(saved => {
-        setOrderNumber(saved.id); setCart({}); clearCard(); setCardReceipt(null);
+        setOrderNumber(saved.id); setCart({}); clearCard();
         pendingOrder.current = null; clearPendingOrder();
         return saved.id;
       }).finally(() => { confirmation.current = null; });
