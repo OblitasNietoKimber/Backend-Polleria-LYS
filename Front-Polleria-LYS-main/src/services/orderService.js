@@ -61,8 +61,9 @@ async function getOrderHistory(id, { before } = {}) {
 }
 async function createOrder({ id, items, deliveryType, form, payment }) {
   const { db } = client()
+  const tipoEntrega = deliveryType === 'pickup' ? 'recojo' : deliveryType
   const savedId = unwrap(await db.rpc('crear_pedido_cliente', {
-    solicitud_id: id, tipo_entrega: deliveryType,
+    solicitud_id: id, tipo_entrega: tipoEntrega,
     articulos: items.map(({ product, qty }) => ({ id: product.id, qty })),
     datos_entrega: form, metodo: payment,
   }))
