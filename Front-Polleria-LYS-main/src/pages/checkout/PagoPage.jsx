@@ -10,7 +10,7 @@ import '../../styles/compras.css'
 
 export default function PagoPage() {
   const navigate = useNavigate()
-  const { payment, setPayment, card, updateCardField, total, setCardReceipt } = useCart()
+  const { payment, setPayment, card, updateCardField, total, setCardReceipt, form } = useCart()
   const [cardErrors, setCardErrors] = useState({})
   const [processing, setProcessing] = useState(false)
   const [gatewayError, setGatewayError] = useState('')
@@ -39,14 +39,21 @@ export default function PagoPage() {
       return
     }
 
-    const errors = validateCardForm(card)
+    const cardToValidate = {
+      ...card,
+      name: card.name || form?.name || 'Cliente Pollería LYS',
+    }
+    const errors = validateCardForm(cardToValidate)
     setCardErrors(errors)
-    if (Object.keys(errors).length > 0) return
+    if (Object.keys(errors).length > 0) {
+      setGatewayError('Por favor, revisa y corrige los campos marcados en rojo.')
+      return
+    }
 
     setGatewayError('')
     setProcessing(true)
     try {
-      const receipt = await chargeCard({ ...card, amount: total })
+      const receipt = await chargeCard({ ...cardToValidate, amount: total })
       setCardReceipt(receipt)
       navigate('/checkout/resumen')
     } catch (error) {
@@ -78,6 +85,7 @@ export default function PagoPage() {
         onCardChange={handleCardChange}
         onBack={() => navigate('/checkout/entrega')}
         onContinue={handleContinue}
+        total={total}
       />
     </section>
   )
