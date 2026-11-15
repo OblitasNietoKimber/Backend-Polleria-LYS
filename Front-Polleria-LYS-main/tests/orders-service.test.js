@@ -62,6 +62,12 @@ test('mantiene el contrato RPC y consulta el pedido guardado antes de confirmar'
     articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' }, metodo: 'efectivo' })
   expect(result.total).toBe(86)
 })
+test('normaliza pickup a recojo al invocar crear_pedido_cliente', async () => {
+  fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: { ...saved, tipo: 'recojo' } })
+  await orders.createOrder({ id: saved.id, items: [{ product: { id: 1, price: 0, name: 'Falso' }, qty: 1 }],
+    deliveryType: 'pickup', form: { name: 'Cliente', phone: '987654321' }, payment: 'efectivo' })
+  expect(fake.rpc).toHaveBeenCalledWith('crear_pedido_cliente', expect.objectContaining({ tipo_entrega: 'recojo' }))
+})
 test('no confirma si falla el guardado o la lectura posterior', async () => {
   fake.rpc.mockResolvedValueOnce({ error: { message: 'Producto agotado' } }).mockResolvedValueOnce({ data: saved.id })
   const payload = { id: saved.id, items: [], form: {}, payment: 'efectivo' }
