@@ -373,6 +373,32 @@
   transform: scale(0.94);
 }
 
+.btn-add-item:disabled {
+  background: #E2E8F0;
+  color: #94A3B8;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.plato-card.plato-agotado {
+  opacity: 0.72;
+}
+
+.plato-badge-agotado {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(220, 38, 38, 0.92);
+  color: #FFFFFF;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
 /* Panel Comanda (Ticket) */
 .comanda-panel {
   background: #FFF;

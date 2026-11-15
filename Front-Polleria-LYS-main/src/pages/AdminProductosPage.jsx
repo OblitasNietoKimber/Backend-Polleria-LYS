@@ -22,6 +22,7 @@ import {
 import { money } from '../utils/currency';
 import ProductFormModal from '../components/admin/ProductFormModal';
 import ProductDeleteModal from '../components/admin/ProductDeleteModal';
+import AdminNavTabs from '../components/admin/AdminNavTabs';
 import '../styles/adminProductos.css';
 
 export default function AdminProductosPage() {
@@ -227,6 +228,7 @@ export default function AdminProductosPage() {
   return (
     <div className="lys-root admin-screen">
       <main className="admin-content admin-productos-page">
+        <AdminNavTabs />
         {/* Cabecera de la sección administrativa */}
         <section className="admin-page-head">
           <div>

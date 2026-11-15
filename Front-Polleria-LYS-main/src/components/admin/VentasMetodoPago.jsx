@@ -1,27 +1,38 @@
 import { IconoTarjeta } from "../common/Iconos";
 import EChart from "./EChart";
 
-const colores = ["var(--ember)", "var(--char)", "var(--rust)", "var(--gold)"];
+export function obtenerColorMetodo(nombre = "") {
+  const norm = String(nombre).toLowerCase().trim();
+  if (norm.includes("yape")) return "#6A1B9A"; // Morado intenso Yape (no pastel, alto contraste)
+  if (norm.includes("plin")) return "#007A64"; // Turquesa oscuro intenso Plin (no pastel, gran definición)
+  if (norm.includes("efectivo")) return "#15803D"; // Verde bosque sólido Efectivo (no pastel)
+  if (norm.includes("tarjeta")) return "#1D4ED8"; // Azul cobalto sólido Tarjeta (no pastel)
+  return "#B45309"; // Ámbar tostado por defecto
+}
+
 const formatoSoles = new Intl.NumberFormat("es-PE", {
   style: "currency",
   currency: "PEN",
 });
 
-function normalizarMetodos(metodos) {
+function normalizarMetodos(metodos = []) {
   const totalGeneral = metodos.reduce((acc, item) => acc + item.total, 0);
 
-  return metodos.map((item, index) => ({
-    ...item,
-    colorIndex: index % colores.length,
-    monto: formatoSoles.format(item.total),
-    porcentaje: totalGeneral ? `${Math.round((item.total / totalGeneral) * 100)}%` : "0%",
-  }));
+  return metodos.map((item, index) => {
+    const color = item.color || obtenerColorMetodo(item.nombre);
+    return {
+      ...item,
+      color,
+      colorIndex: index,
+      monto: formatoSoles.format(item.total),
+      porcentaje: totalGeneral ? `${Math.round((item.total / totalGeneral) * 100)}%` : "0%",
+    };
+  });
 }
 
 function crearDonutOption(metodosPago) {
   return {
     animationDuration: 800,
-    color: colores.map((color) => color.replace("var(--ember)", "#E23A32").replace("var(--char)", "#17130F").replace("var(--rust)", "#B32B24").replace("var(--gold)", "#E8A33D")),
     tooltip: {
       trigger: "item",
       confine: true,
@@ -37,7 +48,11 @@ function crearDonutOption(metodosPago) {
         label: { show: false },
         labelLine: { show: false },
         data: metodosPago.length
-          ? metodosPago.map((item) => ({ name: item.nombre, value: item.total }))
+          ? metodosPago.map((item) => ({
+              name: item.nombre,
+              value: item.total,
+              itemStyle: { color: item.color },
+            }))
           : [{ name: "Sin ventas", value: 1, itemStyle: { color: "#E7E2DA" } }],
         emphasis: {
           scale: true,
@@ -83,7 +98,7 @@ export default function VentasMetodoPago({ metodos = [] }) {
           ) : metodosPago.map((item) => (
             <div className="admin-payment-row" key={item.nombre}>
               <div className="admin-payment-left">
-                <span className={`admin-color-dot admin-color-dot-${item.colorIndex}`} />
+                <span className="admin-color-dot" style={{ backgroundColor: item.color }} />
                 <span>{item.nombre}</span>
               </div>
 

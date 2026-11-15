@@ -9,6 +9,8 @@ import HistorialVentas from "../components/admin/HistorialVentas";
 import TarjetasResumen from "../components/admin/TarjetasResumen";
 import Ventas7Dias from "../components/admin/Ventas7Dias";
 import VentasMetodoPago from "../components/admin/VentasMetodoPago";
+import AdminNavTabs from "../components/admin/AdminNavTabs";
+import "../styles/dashboard.css";
 
 export default function DashboardAdminPage() {
   const [filtros, setFiltros] = useState({ fechaInicio: "", fechaFin: "" });
@@ -20,6 +22,7 @@ export default function DashboardAdminPage() {
   const [revision, setRevision] = useState(0);
   const filtrosActuales = useRef(filtros);
   const actualizar = useCallback(() => setRevision(valor => valor + 1), []);
+
   useEffect(() => {
     let activo = true, consultando = false, clave = null;
     filtrosActuales.current = filtros;
@@ -69,6 +72,7 @@ export default function DashboardAdminPage() {
   return (
     <div className="lys-root admin-screen">
       <main className="admin-content">
+        <AdminNavTabs />
         <section className="admin-page-head">
           <div>
             <h1>DASHBOARD</h1>
@@ -108,8 +112,7 @@ export default function DashboardAdminPage() {
 
         <section className="admin-double-grid">
           <Ventas7Dias ventas={datos?.ventasPorDia} />
-          <HistorialVentas ventas={historial.ventas} haySiguiente={Boolean(historial.siguiente)}
-            cargandoMas={cargandoMas} onCargarMas={cargarMas} />
+          <HistorialVentas ventas={historial.ventas} />
         </section>
       </main>
     </div>

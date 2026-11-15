@@ -2,6 +2,7 @@ import { Calendar, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PRODUCTS } from '../../data/products'
 import { money } from '../../utils/currency'
+import { formatCodigoPedido } from '../../utils/orderNumber'
 import OrderStatusBadge from './OrderStatusBadge'
 
 export default function OrderCard({ order }) {
@@ -23,7 +24,9 @@ export default function OrderCard({ order }) {
       </span>
 
       <div className="order-card-info">
-        <span className="order-card-id font-mono">{order.id}</span>
+        <span className="order-card-id font-mono" title={order.id}>
+          {formatCodigoPedido(order.id)}
+        </span>
         <span className="order-card-date">
           <Calendar size={12} /> {date}
         </span>

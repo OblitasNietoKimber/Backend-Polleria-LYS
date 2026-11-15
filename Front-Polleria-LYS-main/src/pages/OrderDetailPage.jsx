@@ -5,6 +5,7 @@ import orderService from '../services/orderService'
 import OrderStateHistory from '../components/orders/OrderStateHistory'
 import useOrderResource from '../hooks/useOrderResource'
 import { money } from '../utils/currency'
+import { formatCodigoPedido } from '../utils/orderNumber'
 import OrderDeliveryInfo from '../components/orders/OrderDeliveryInfo'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge'
 import OrderStatusStepper from '../components/orders/OrderStatusStepper'
@@ -36,7 +37,7 @@ export default function OrderDetailPage() {
   })
 
   function handleCopy() {
-    navigator.clipboard.writeText(order.id).then(() => {
+    navigator.clipboard.writeText(formatCodigoPedido(order.id)).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -50,8 +51,8 @@ export default function OrderDetailPage() {
 
       <div className="order-detail-header">
         <div>
-          <h1 className="font-display order-detail-id">
-            Pedido {order.id}
+          <h1 className="font-display order-detail-id" title={order.id}>
+            {formatCodigoPedido(order.id)}
             <button
               className="copy-id-btn"
               onClick={handleCopy}

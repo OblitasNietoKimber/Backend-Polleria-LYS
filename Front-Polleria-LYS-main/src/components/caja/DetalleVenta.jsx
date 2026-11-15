@@ -1,5 +1,6 @@
 import { CheckCircle2, ReceiptText, UtensilsCrossed } from "lucide-react";
 import cajaService from "../../services/cajaService";
+import { formatCodigoPedido } from "../../utils/orderNumber";
 
 export default function DetalleVenta({ pedido }) {
   if (!pedido) {
@@ -20,7 +21,7 @@ export default function DetalleVenta({ pedido }) {
         <div>
           <span className="caja-eyebrow">Detalle del pedido</span>
           <h2>{pedido.cliente}</h2>
-          <p>{pedido.codigo}</p>
+          <p title={pedido.codigo || pedido.id}>{formatCodigoPedido(pedido.codigo || pedido.id)}</p>
         </div>
         <span className={`caja-detail-status ${pedido.estado}`}>
           {pedido.estado === "pagado" ? <CheckCircle2 size={16} /> : null}

@@ -754,3 +754,60 @@
   font-size: 0.9rem;
   margin: 0;
 }
+
+
+/* Tabs de navegación compartida entre Dashboard y Gestión de Productos */
+.admin-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: #f7ede2;
+  padding: 4px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.admin-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--char, #333);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.admin-nav-tab:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ember, #e63946);
+}
+
+.admin-nav-tab.active {
+  background: #ffffff;
+  color: var(--ember, #e63946);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Desplegable Admin en SiteHeader */
+.lys-admin-dropdown {
+  position: relative;
+}
+
+.lys-admin-dropdown .lys-admin-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+}
+
+.lys-admin-dropdown .lys-admin-menu {
+  left: 0;
+  right: auto;
+  min-width: 200px;
+}

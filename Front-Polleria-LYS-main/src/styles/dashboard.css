@@ -379,6 +379,7 @@
 .admin-products-card {
   width: 100%;
   height: 100%;
+  min-height: 380px;
   border-radius: 8px;
   padding: 16px clamp(14px, 2vw, 22px) 22px;
   display: flex;
@@ -392,6 +393,27 @@
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #d4ccc0 #f1ede7;
+}
+
+.admin-table-wrap::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.admin-table-wrap::-webkit-scrollbar-track {
+  background: #f1ede7;
+  border-radius: 4px;
+}
+
+.admin-table-wrap::-webkit-scrollbar-thumb {
+  background: #d4ccc0;
+  border-radius: 4px;
+}
+
+.admin-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--ember);
 }
 
 .admin-products-table {
@@ -502,7 +524,8 @@
 }
 .admin-payment-card {
   width: 100%;
-  min-height: 310px;
+  height: 100%;
+  min-height: 380px;
   border-radius: 8px;
   padding: 16px clamp(14px, 2vw, 22px) 24px;
   display: flex;
@@ -669,7 +692,8 @@
 }
 .admin-sales-card {
   width: 100%;
-  min-height: 330px;
+  height: 100%;
+  min-height: 380px;
   border-radius: 8px;
   padding: 14px clamp(14px, 2vw, 20px) 20px;
   display: flex;
@@ -737,6 +761,7 @@
 .admin-history-card {
   width: 100%;
   height: 100%;
+  min-height: 380px;
   border-radius: 8px;
   padding: 16px clamp(14px, 2vw, 22px) 22px;
   display: flex;
@@ -746,9 +771,16 @@
   min-width: 0;
 }
 
+.admin-history-card .admin-table-wrap {
+  flex: 1;
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
 .admin-history-table {
   width: 100%;
-  min-width: 500px;
+  min-width: 640px;
   border-collapse: collapse;
   text-align: left;
   font-size: 0.8rem;
