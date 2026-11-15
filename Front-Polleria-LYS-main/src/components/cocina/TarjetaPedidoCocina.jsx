@@ -1,5 +1,6 @@
 import { Clock, Play, ChefHat } from "lucide-react";
 import { useTiempoTranscurrido } from "../../hooks/useTiempoTranscurrido";
+import { formatCodigoPedido } from "../../utils/orderNumber";
 
 const ESTADO_CLASE = {
   nuevo: "cocina-card--nuevo",
@@ -17,10 +18,16 @@ export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, actualiza
   const { texto: tiempo } = useTiempoTranscurrido(pedido.createdAt, pedido.finalizadoAt);
   const tipo = pedido.tipo || "salon";
 
+  const usuarioCorto = pedido.cambiadoPor
+    ? (pedido.cambiadoPor.length > 15 ? pedido.cambiadoPor.slice(0, 8).toUpperCase() : pedido.cambiadoPor)
+    : 'Sin registro';
+
   return (
     <div className={`cocina-card ${ESTADO_CLASE[pedido.estadoCocina] || ""}`}>
       <div className="cocina-card-top">
-        <span className="cocina-codigo">{pedido.id}</span>
+        <span className="cocina-codigo" title={pedido.id}>
+          {formatCodigoPedido(pedido.id)}
+        </span>
         <div className="cocina-card-top-right">
           {pedido.mesa && <span className="cocina-mesa-texto">Mesa {pedido.mesa}</span>}
           <span className={`cocina-tipo-badge cocina-tipo-badge--${tipo}`}>
@@ -47,7 +54,12 @@ export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, actualiza
         ))}
       </ul>
 
-      {pedido.cambiadoEn && <p className="cocina-auditoria">Último cambio: {new Date(pedido.cambiadoEn).toLocaleString('es-PE')} · Usuario: {pedido.cambiadoPor || 'Sin registro'}{pedido.esReconstruido ? ' · Registro reconstruido' : ''}</p>}
+      {pedido.cambiadoEn && (
+        <p className="cocina-auditoria">
+          Último cambio: {new Date(pedido.cambiadoEn).toLocaleString('es-PE')} · Personal: {usuarioCorto}
+          {pedido.esReconstruido ? ' · Registro reconstruido' : ''}
+        </p>
+      )}
       {pedido.estadoCocina === "nuevo" && (
         <button className="cocina-btn cocina-btn--iniciar" disabled={actualizando} onClick={() => onCambiarEstado(pedido, "en_preparacion")}>
           <Play size={14} /> Comenzar
