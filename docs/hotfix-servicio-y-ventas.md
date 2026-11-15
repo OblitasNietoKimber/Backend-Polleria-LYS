@@ -19,7 +19,7 @@ lista la devuelve a `pendiente`. Se mantienen las restricciones de pago y los ro
 
 ## Despliegue
 
-Aplicar `migrations/20261115020000_servicio-directo-seguro.sql` mediante el gestor de
+Aplicar `migrations/20261115030000_servicio-directo-compatible.sql` mediante el gestor de
 migraciones antes de publicar el frontend de esta rama. Requiere las migraciones
 previas de Caja y Cocina. No editar las migraciones anteriores.
 La migración completa debe ejecutarse en una transacción, como hace el gestor existente.
@@ -85,3 +85,17 @@ Validación de la corrección: 251 pruebas correctas. La nueva prueba reproduce 
 fallo original con ventas de salón y delivery ya cobradas, verifica el rollback
 ante un fallo forzado, el reintento con la columna ya creada, la conservación de
 pagos y comprobantes y el bloqueo de cambios a productos cobrados después de instalar.
+
+## Instalaciones sin triggers de notificación
+
+Usar ahora `20261115030000_servicio-directo-compatible.sql`, completo. La versión
+anterior suponía que existía `detalles_cocina_notificar`; algunas bases no lo tienen.
+La versión compatible consulta `pg_trigger` para suspender solo los triggers existentes
+y restaura sus modos originales, incluidos DISABLE, ENABLE REPLICA y ENABLE ALWAYS.
+No depende de los triggers opcionales de notificación para completar la instalación.
+Las dos versiones anteriores se conservan sin cambios para respetar sus checksums.
+El ejecutor usa la versión compatible en lugar de las anteriores si están pendientes.
+
+Validación de compatibilidad: 254 pruebas correctas. Se reproduce también el fallo
+de trigger inexistente y se prueba con notificaciones completas, notificación de
+detalles ausente, ambos triggers de notificación ausentes y modo de réplica.

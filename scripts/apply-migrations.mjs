@@ -31,7 +31,8 @@ for (const file of (await readdir(directory)).filter(name => name.endsWith('.sql
 // Su reemplazo es autosuficiente; conservar el archivo original permite validar
 // instalaciones que sí registraron su checksum, sin modificar migraciones aplicadas.
 const replacements = new Map([
-  ['20261115010000_servicio-directo.sql', '20261115020000_servicio-directo-seguro.sql'],
+  ['20261115010000_servicio-directo.sql', '20261115030000_servicio-directo-compatible.sql'],
+  ['20261115020000_servicio-directo-seguro.sql', '20261115030000_servicio-directo-compatible.sql'],
 ]);
 // Validate every applied fingerprint before submitting any pending migration.
 for (const { file, original, checksum } of migrations) {

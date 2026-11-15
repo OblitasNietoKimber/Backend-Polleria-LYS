@@ -3,7 +3,12 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFile, readdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 
-test('instala y reintenta servicio directo con ventas cobradas sin alterar cuentas ni dejar protecciones desactivadas', async () => {
+test.each([
+ { name: 'con todos los triggers', remove: [], mode: null },
+ { name: 'sin notificación de detalles', remove: ['detalles_cocina_notificar'], mode: null },
+ { name: 'sin notificaciones de cocina', remove: ['detalles_cocina_notificar','pedido_cocina_notificar'], mode: null },
+ { name: 'con notificación configurada en réplica', remove: [], mode: 'REPLICA' },
+])('instala y reintenta servicio directo $name conservando cobros y protecciones', async ({ remove, mode }) => {
  const db = new PGlite();
  try {
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE SCHEMA auth;
@@ -49,6 +54,11 @@ test('instala y reintenta servicio directo con ventas cobradas sin alterar cuent
   paidOrders: (await db.query('SELECT * FROM pedidos WHERE id=ANY($1::uuid[]) ORDER BY id',[[paid,paidDelivery]])).rows,
   lines: (await db.query("SELECT to_jsonb(d) - 'requiere_preparacion' AS row FROM detalles_pedido d ORDER BY id")).rows,
  });
+ for (const name of remove) {
+  const table = name === 'pedido_cocina_notificar' ? 'pedidos' : 'detalles_pedido';
+  await db.exec(`DROP TRIGGER ${name} ON ${table}`);
+ }
+ if (mode) await db.exec(`ALTER TABLE detalles_pedido ENABLE ${mode} TRIGGER detalles_cocina_notificar`);
  const before = await snapshot();
  const enabled = async () => (await db.query("SELECT tgname,tgenabled FROM pg_trigger WHERE tgrelid='detalles_pedido'::regclass AND NOT tgisinternal ORDER BY tgname")).rows;
  const triggers = await enabled();
@@ -57,7 +67,14 @@ test('instala y reintenta servicio directo con ventas cobradas sin alterar cuent
  await expect(db.exec(`DO $old$ BEGIN ${old} END $old$;`)).rejects.toThrow(/pedido cobrado/);
  expect(await hasColumn()).toBe(0);
  expect(await snapshot()).toEqual(before);
- const fixed = await readFile(new URL('../../migrations/20261115020000_servicio-directo-seguro.sql', import.meta.url),'utf8');
+ if (remove.length) {
+  const previous = await readFile(new URL('../../migrations/20261115020000_servicio-directo-seguro.sql', import.meta.url),'utf8');
+  await expect(db.exec(previous)).rejects.toThrow(/does not exist/);
+  expect(await hasColumn()).toBe(0);
+  expect(await enabled()).toEqual(triggers);
+  expect(await snapshot()).toEqual(before);
+ }
+ const fixed = await readFile(new URL('../../migrations/20261115030000_servicio-directo-compatible.sql', import.meta.url),'utf8');
  const forcedError = fixed.replace('\nEND;\n$servicio_directo$;', "\nRAISE EXCEPTION 'fallo_controlado';\nEND;\n$servicio_directo$;");
  await expect(db.exec(forcedError)).rejects.toThrow(/fallo_controlado/);
  expect(await hasColumn()).toBe(0);
