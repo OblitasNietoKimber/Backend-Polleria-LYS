@@ -172,3 +172,21 @@ test('el rol anónimo no puede ejecutar las funciones del dashboard', async () =
     await expect(db.query('SELECT obtener_historial_ventas()')).rejects.toThrow(/permission denied/);
   } finally { await db.exec('RESET ROLE'); }
 });
+
+test('delivery cobrado suma a ventas con cada método; el vuelto y el delivery pendiente no inflan ventas',async()=>{
+  let ventas=0;
+  await pedidoCliente('delivery',[{id:1,qty:1}]);
+  for(const metodo of ['efectivo','tarjeta','yape','plin']) {
+    const id=await pedidoCliente('delivery',[{id:1,qty:1}]);
+    const total=Number((await db.query('SELECT total FROM pedidos WHERE id=$1',[id])).rows[0].total);
+    await asUser(caja,'SELECT registrar_cobro($1,$2,$3,$4,$5,NULL)',[id,metodo,metodo==='efectivo'?100:total,randomUUID(),total]);
+    ventas+=total;
+    const data=await dashboard();
+    expect(data.resumen.dia.totalVentas).toBe(ventas);
+    expect(data.metodosPago.find(p=>p.metodo===metodo).total).toBe(total);
+  }
+  const data=await dashboard();
+  expect(data.resumen.dia.cantidadPedidos).toBe(4);
+  expect(data.pedidosPendientes).toBe(1);
+  expect((await historial()).ventas.every(v=>v.tipo==='delivery')).toBe(true);
+});

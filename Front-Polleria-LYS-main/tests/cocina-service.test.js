@@ -33,9 +33,22 @@ test('propaga el conflicto de concurrencia y los errores de lectura',async()=>{
  fake.query.range.mockResolvedValue({error:{message:'Sin conexión'}});await expect(cocina.getPedidosActivos()).rejects.toThrow(/Sin conexión/);
 });
 test('pagina el historial de listos y entregados y rechaza páginas inválidas',async()=>{
- await cocina.getPedidosFinalizados({page:2});expect(fake.query.in).toHaveBeenCalledWith('estado',['listo','entregado']);expect(fake.query.range).toHaveBeenCalledWith(100,149);
+ await cocina.getPedidosFinalizados({page:2});expect(fake.query.in).toHaveBeenCalledWith('estado',['listo','entregado']);expect(fake.query.range).toHaveBeenCalledWith(0,99);
  await expect(cocina.getPedidosFinalizados({page:-1})).rejects.toThrow(/Página/);
 });
 test.each(['cliente','mesera','caja',null])('el rol %s no consulta ni modifica cocina',async rol=>{
  fake.user.mockReturnValue(rol?{rol}:null);await expect(cocina.getPedidosActivos()).rejects.toThrow(/cocina/);await expect(cocina.cambiarEstado({id:row.id},'listo')).rejects.toThrow(/cocina/);
+});
+
+test('oculta bebidas y postres en pedidos mixtos y omite los de solo servicio directo',async()=>{
+ const bebida={id:'bebida',producto_id:14,nombre_producto:'Agua',cantidad:1,requiere_preparacion:false};
+ fake.query.range.mockResolvedValueOnce({data:[{...row,detalles_pedido:[...row.detalles_pedido,bebida]},{...row,id:'solo-bebida',detalles_pedido:[bebida]}],error:null});
+ const result=await cocina.getPedidosActivos();
+ expect(result).toHaveLength(1);expect(result[0].items).toHaveLength(1);expect(result[0].items[0].nombre).toBe('Nombre vendido');
+});
+test('el historial atraviesa lotes completos de bebidas sin ocultar platos anteriores',async()=>{
+ const directa={...row,detalles_pedido:[{requiere_preparacion:false}]};
+ fake.query.range.mockResolvedValueOnce({data:Array(100).fill(directa),error:null}).mockResolvedValueOnce({data:[row],error:null});
+ expect(await cocina.getPedidosFinalizados()).toHaveLength(1);
+ expect(fake.query.range).toHaveBeenLastCalledWith(100,199);
 });
