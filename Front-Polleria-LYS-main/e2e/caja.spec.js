@@ -131,3 +131,24 @@ test('el administrador ve el cobro persistido en el resumen de ventas', async ({
   await expect(page.locator('.admin-history-table')).toContainText('00000000-0000-0000-0000-000000000041');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lys_pedidos'))[0].id)).toBe('LOCAL-IGNORADO');
 });
+
+test('separa efectivo y ventas del día en Perú e incluye delivery solo cuando está cobrado',async({page})=>{
+ await page.clock.install({time:new Date('2026-11-15T02:00:00Z')});
+ await backend(page);
+ const paid=(id,tipo,metodo,fecha='2026-11-15T01:00:00Z')=>({...order,id,tipo,estado_pago:'pagado',total:'70',pagos:[{id:`pago-${id}`,metodo,monto:'70',recibido:metodo==='efectivo'?'100':'70',vuelto:metodo==='efectivo'?'30':'0',creado_en:fecha}]});
+ const rows=[paid('efectivo','delivery','efectivo'),paid('digital','delivery','yape'),paid('ayer','salon','efectivo','2026-11-13T18:00:00Z'),{...order,id:'pendiente',tipo:'delivery',total:'70'}];
+ await page.route('**/api/database/records/pedidos?*',route=>route.fulfill({status:200,headers:{'content-range':'0-3/4'},contentType:'application/json',body:JSON.stringify(rows)}));
+ await page.goto('/caja');
+ const card=label=>page.locator('.caja-summary-card').filter({has:page.getByText(label,{exact:true})});
+ await expect(card('Ventas del día')).toContainText('S/ 140.00');
+ await expect(card('Efectivo cobrado del día')).toContainText('S/ 70.00');
+ await expect(card('Pedidos cobrados')).toContainText('2');
+ await expect(card('Por cobrar')).toContainText('S/ 70.00');
+ await page.clock.setSystemTime(new Date('2026-11-15T05:00:01Z'));
+ await page.clock.runFor(10000);
+ await expect(card('Ventas del día')).toContainText('S/ 0.00');
+ for(const width of [1280,768,390]) {
+  await page.setViewportSize({width,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+});

@@ -30,3 +30,34 @@ precios, totales, pedidos entregados o cancelados. Los cambios de estado mantien
 el historial y las notificaciones existentes.
 
 Las pruebas usan PostgreSQL local mediante PGlite. No se modificó el backend compartido.
+
+## Ventas y efectivo
+
+Caja separa `Ventas del día` de `Efectivo cobrado del día`. Ambos usan la fecha
+del cobro en `America/Lima`, también cuando el navegador usa otra zona horaria.
+El día se renueva en la consulta periódica aunque no haya nuevos pedidos.
+
+- Salón, delivery y recojo suman a ventas solamente con un pago confirmado.
+- Efectivo suma al indicador de efectivo por el importe neto, sin incluir el vuelto.
+- Tarjeta, Yape y Plin registrados suman a ventas, sin sumarse al efectivo.
+- Los pedidos pendientes siguen en `Por cobrar`.
+
+Este indicador no representa un arqueo ni un saldo de turno: no incluye fondo
+inicial, retiros ni gastos. La aplicación no tiene gestión de esos movimientos.
+El dashboard conserva sus consultas SQL, filtros y actualización existentes;
+las pruebas comprueban delivery con los cuatro métodos y pago con vuelto.
+El checkout y su simulación de tarjeta no cambian en este hotfix.
+
+## Validación local
+
+- 250 pruebas unitarias y de PostgreSQL local correctas (`npm test`).
+- Compilación correcta (`npm run build`).
+- Lint correcto para CajaPage, cocinaService y cajaSummary.
+- Se añadieron pruebas de navegador de comandas mixtas, servicio directo,
+  separación del efectivo y cambio de día en Perú.
+- No pudieron ejecutarse las 26 pruebas de navegador de Caja, Cocina y Dashboard:
+  Chromium no inicia en este entorno (`socket() failed: Operation not permitted`).
+  La verificación visual y de navegador queda pendiente en un entorno habilitado.
+
+Subir la rama no aplica la migración ni publica el frontend. No se ejecutaron
+cobros ni se alteraron datos en el backend compartido.
