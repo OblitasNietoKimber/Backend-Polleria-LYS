@@ -4,7 +4,7 @@ export const ESTADOS_COCINA = { NUEVO: 'nuevo', EN_PREPARACION: 'en_preparacion'
 export const HISTORY_PAGE_SIZE = 50;
 const states = { pendiente: 'nuevo', en_preparacion: 'en_preparacion', listo: 'listo', entregado: 'entregado' };
 const backendStates = { nuevo: 'pendiente', en_preparacion: 'en_preparacion', listo: 'listo' };
-const fields = 'id,tipo,estado,estado_pago,notas,creado_en,actualizado_en,mesas(numero),detalles_pedido(id,producto_id,cantidad,nombre_producto),historial_estados_pedido(id,estado,cambiado_por,cambiado_en,es_reconstruido)';
+const fields = 'id,tipo,estado,estado_pago,notas,creado_en,actualizado_en,mesas(numero),detalles_pedido(id,producto_id,cantidad,nombre_producto,requiere_preparacion),historial_estados_pedido(id,estado,cambiado_por,cambiado_en,es_reconstruido)';
 function database() {
   if (!['cocina','admin'].includes(getCurrentUser()?.rol)) throw new Error('Se requiere una cuenta de cocina o administrador.');
   return requireInsforge().database;
@@ -23,7 +23,7 @@ export function mapPedido(row) {
     finalizadoAt: ready?.cambiado_en || (row.estado === 'entregado' && !last?.es_reconstruido ? last?.cambiado_en : null),
     cambiadoPor: last?.cambiado_por || null, cambiadoEn: last?.cambiado_en || null,
     esReconstruido: Boolean(last?.es_reconstruido),
-    items: (row.detalles_pedido || []).map(item => ({ id: item.id, productoId: item.producto_id,
+    items: (row.detalles_pedido || []).filter(item => item.requiere_preparacion !== false).map(item => ({ id: item.id, productoId: item.producto_id,
       nombre: item.nombre_producto, cantidad: Number(item.cantidad) })) };
 }
 async function getPedidosActivos() {
@@ -31,16 +31,21 @@ async function getPedidosActivos() {
   for (let offset = 0; ; offset += 100) {
     const rows = unwrap(await db.from('pedidos').select(fields).in('estado',['pendiente','en_preparacion','listo'])
       .order('creado_en',{ascending:true}).order('id',{ascending:true}).range(offset,offset+99)) || [];
-    result.push(...rows.filter(row => row.detalles_pedido?.length).map(mapPedido));
+    result.push(...rows.map(mapPedido).filter(pedido => pedido.items.length));
     if (rows.length < 100) return result;
   }
 }
 async function getPedidosFinalizados({ page = 0 } = {}) {
   if (!Number.isSafeInteger(page) || page < 0) throw new Error('Página inválida.');
-  const rows = unwrap(await database().from('pedidos').select(fields).in('estado',['listo','entregado'])
-    .order('actualizado_en',{ascending:false}).order('id',{ascending:false})
-    .range(page*HISTORY_PAGE_SIZE,(page+1)*HISTORY_PAGE_SIZE-1)) || [];
-  return rows.map(mapPedido);
+  const db = database(), result = [], end = (page + 1) * HISTORY_PAGE_SIZE;
+  // Filtrar después de cada lote evita que pedidos de servicio directo corten el historial.
+  for (let offset = 0; ; offset += 100) {
+    const rows = unwrap(await db.from('pedidos').select(fields).in('estado',['listo','entregado'])
+      .order('actualizado_en',{ascending:false}).order('id',{ascending:false})
+      .range(offset,offset+99)) || [];
+    result.push(...rows.map(mapPedido).filter(pedido => pedido.items.length));
+    if (rows.length < 100 || result.length >= end) return result.slice(page * HISTORY_PAGE_SIZE, end);
+  }
 }
 async function cambiarEstado(pedido, nuevoEstado) {
   return unwrap(await database().rpc('cambiar_estado_cocina', { p_pedido_id: pedido.id,

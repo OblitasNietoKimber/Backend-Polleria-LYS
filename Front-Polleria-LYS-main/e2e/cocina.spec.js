@@ -75,3 +75,21 @@ test('actualiza la lista del cliente al recibir un cambio desde cocina',async({p
  backend.row.estado='listo';backend.publish();
  await expect(page.locator('.status-badge')).toHaveText('Listo',{timeout:4000});
 });
+
+test('solo muestra los platos de una comanda mixta',async({page})=>{
+ const backend=fixture();
+ backend.row.detalles_pedido.push({id:2,producto_id:14,cantidad:1,nombre_producto:'Bebida de prueba',requiere_preparacion:false});
+ await backend.install(page);await page.goto('/cocina');
+ await expect(page.getByText('Pollo vendido')).toBeVisible();
+ await expect(page.getByText('Bebida de prueba')).toHaveCount(0);
+});
+test('un pedido de solo bebidas listo no aparece como trabajo de cocina',async({page})=>{
+ const backend=fixture();backend.row.estado='listo';
+ backend.row.detalles_pedido=[{id:2,producto_id:14,cantidad:1,nombre_producto:'Bebida de prueba',requiere_preparacion:false}];
+ await backend.install(page);await page.goto('/cocina');
+ await expect(page.getByRole('heading',{name:'Panel de Cocina',exact:true})).toBeVisible();
+ await expect(page.locator('.cocina-board')).toHaveAttribute('aria-busy','false');
+ await expect(page.getByText('Bebida de prueba')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Comenzar'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Marcar listo'})).toHaveCount(0);
+});

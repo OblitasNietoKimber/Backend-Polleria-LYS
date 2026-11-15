@@ -18,7 +18,7 @@ beforeEach(()=>{
 afterEach(()=>{process.argv=previousArgv;vi.restoreAllMocks();vi.unstubAllEnvs();vi.unstubAllGlobals();});
 test('aplica desde las migraciones de cocina y registra cada checksum atómicamente',async()=>{
  await import('../../scripts/apply-migrations.mjs');const writes=queries.filter(query=>query.startsWith('DO $migration$'));
- expect(writes).toHaveLength(3);expect(writes[0]).toContain('cambiar_estado_cocina');expect(writes[1]).toContain('lys_canales_privados');expect(writes[2]).toContain('obtener_dashboard_admin');
+ expect(writes).toHaveLength(4);expect(writes[0]).toContain('cambiar_estado_cocina');expect(writes[1]).toContain('lys_canales_privados');expect(writes[2]).toContain('obtener_dashboard_admin');expect(writes[3]).toContain('ajustar_estado_servicio');
  expect(writes.some(query=>query.includes('CREATE FUNCTION public.registrar_cobro'))).toBe(false);
  expect(writes.every(query=>query.includes('pg_advisory_xact_lock')&&query.includes('INSERT INTO public.schema_migrations'))).toBe(true);
  expect(queries.join('\n')).not.toContain('20261016194047_caja-pagos.sql');

@@ -135,3 +135,48 @@ test('no se pueden falsificar notificaciones desde SDK ni mediante INSERT',async
   await expect(asUser(0,"SELECT realtime.publish('lys:staff','lys:pedido-actualizado','{}')")).rejects.toThrow(/permission denied/);
  }finally{await db.exec('DROP POLICY test_publicar ON realtime.messages');}
 });
+
+async function directProduct(category) {
+ await db.query("INSERT INTO categorias(id,nombre) VALUES ($1,$1) ON CONFLICT DO NOTHING",[category]);
+ return (await db.query("INSERT INTO productos(categoria_id,nombre,precio,disponible) VALUES ($1,$2,5,true) RETURNING id",[category,`Servicio ${category}`])).rows[0].id;
+}
+const state=async id=>(await db.query('SELECT estado FROM pedidos WHERE id=$1',[id])).rows[0].estado;
+const edit=(id,items)=>asUser(3,'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)',[id,JSON.stringify(items)]);
+test.each(['bebidas','postres'])('solo %s queda listo en salón, recojo y delivery sin preparar ni cobrar',async category=>{
+ const product=await directProduct(category);
+ for(const type of ['salon','recojo','delivery']) {
+  const id=type==='salon'?await salon([{id:product,qty:1}]):await create(type,[{id:product,qty:1}]);
+  expect(await state(id)).toBe('listo');
+  expect((await db.query('SELECT estado_pago FROM pedidos WHERE id=$1',[id])).rows[0].estado_pago).toBe('pendiente');
+  expect((await db.query('SELECT requiere_preparacion FROM detalles_pedido WHERE pedido_id=$1',[id])).rows[0].requiere_preparacion).toBe(false);
+  expect((await db.query('SELECT estado FROM historial_estados_pedido WHERE pedido_id=$1 ORDER BY id',[id])).rows.map(r=>r.estado)).toEqual(['pendiente','listo']);
+  await expect(change(id,'listo','en_preparacion')).rejects.toThrow();
+  if(type==='salon') await pay(id);
+ }
+});
+test('un pedido mixto conserva bebidas e importes pero espera a cocina',async()=>{
+ const drink=await directProduct('bebidas');const id=await create('delivery',[{id:drink,qty:2},{id:1,qty:1}]);
+ expect(await state(id)).toBe('pendiente');
+ const rows=(await db.query('SELECT producto_id,requiere_preparacion FROM detalles_pedido WHERE pedido_id=$1 ORDER BY producto_id',[id])).rows;
+ expect(rows).toHaveLength(2);expect(rows.find(r=>r.producto_id===drink).requiere_preparacion).toBe(false);
+ await change(id,'pendiente','en_preparacion');await change(id,'en_preparacion','listo');
+ await pay(id);expect((await db.query('SELECT monto FROM pagos WHERE pedido_id=$1',[id])).rows[0].monto).toBe((await db.query('SELECT total FROM pedidos WHERE id=$1',[id])).rows[0].total);
+});
+test('editar bebidas no reabre platos listos; agregar un plato sí los devuelve a cocina',async()=>{
+ const drink=await directProduct('bebidas');const id=await salon([{id:1,qty:1}]);
+ await change(id,'pendiente','en_preparacion');await change(id,'en_preparacion','listo');
+ await edit(id,[{id:1,qty:1},{id:drink,qty:2}]);expect(await state(id)).toBe('listo');
+ await edit(id,[{id:1,qty:2},{id:drink,qty:2}]);expect(await state(id)).toBe('pendiente');
+ await edit(id,[{id:drink,qty:1}]);expect(await state(id)).toBe('listo');
+ await edit(id,[{id:drink,qty:3}]);expect(await state(id)).toBe('listo');
+ await edit(id,[]);expect(await state(id)).toBe('pendiente');
+});
+test('agregar comida a un pedido de bebidas lo envía al flujo de preparación',async()=>{
+ const drink=await directProduct('bebidas');const id=await salon([{id:drink,qty:1}]);
+ await edit(id,[{id:drink,qty:1},{id:1,qty:1}]);expect(await state(id)).toBe('pendiente');
+ await asUser(3,'SELECT enviar_pedido_cocina($1)',[id]);expect(await state(id)).toBe('en_preparacion');
+ await edit(id,[{id:drink,qty:1}]);expect(await state(id)).toBe('listo');
+});
+test('el cliente no puede invocar la función interna para falsificar estados',async()=>{
+ const id=await create();await expect(asUser(1,'SELECT ajustar_estado_servicio($1,true)',[id])).rejects.toThrow(/permission denied/);
+});
