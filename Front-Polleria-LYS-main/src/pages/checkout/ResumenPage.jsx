@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import CheckoutSteps from '../../components/CheckoutSteps'
@@ -9,26 +9,36 @@ import '../../styles/compras.css'
 
 export default function ResumenPage() {
   const navigate = useNavigate()
-  const { cartItems, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, confirmOrder, cartLoading, cartError } = useCart()
+  const { cartItems, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, confirmOrder, cartLoading, cartError, orderNumber } = useCart()
   const unavailable = cartItems.some(item => !item.product.available)
+  const isSubmitting = useRef(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   // Si eligió tarjeta pero no completó el cobro (por ejemplo, llegó por atrás
   // o refrescó la página), lo regresamos a Pago en vez de dejarlo confirmar
   // un pedido sin pago autorizado.
   useEffect(() => {
+    if (isSubmitting.current || orderNumber || saving) return
     if (payment === 'tarjeta' && !cardReceipt) {
       navigate('/checkout/pago', { replace: true })
     }
-  }, [payment, cardReceipt, navigate])
+  }, [payment, cardReceipt, navigate, orderNumber, saving])
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   async function handleConfirm() {
-    if (saving) return;
-    setSaving(true); setError('');
-    try { await confirmOrder(); navigate('/confirmacion'); }
-    catch (err) { setError(err.message); }
-    finally { setSaving(false); }
+    if (saving) return
+    setSaving(true)
+    setError('')
+    isSubmitting.current = true
+    try {
+      await confirmOrder()
+      navigate('/confirmacion')
+    } catch (err) {
+      isSubmitting.current = false
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

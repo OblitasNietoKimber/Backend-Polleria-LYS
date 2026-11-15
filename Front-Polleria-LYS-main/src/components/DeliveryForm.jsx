@@ -12,14 +12,16 @@ export default function DeliveryForm({ deliveryType, form, errors, onTypeChange,
       <h2 className="font-display checkout-form-title">Datos de entrega</h2>
       <div className="delivery-type-group">
         <button
+          type="button"
           onClick={() => onTypeChange('delivery')}
           className={`chip delivery-type-chip ${deliveryType === 'delivery' ? 'active' : ''}`}
         >
           <MapPin size={16} /> Delivery
         </button>
         <button
-          onClick={() => onTypeChange('pickup')}
-          className={`chip delivery-type-chip ${deliveryType === 'pickup' ? 'active' : ''}`}
+          type="button"
+          onClick={() => onTypeChange('recojo')}
+          className={`chip delivery-type-chip ${deliveryType === 'recojo' || deliveryType === 'pickup' ? 'active' : ''}`}
         >
           <Store size={16} /> Recojo en tienda
         </button>

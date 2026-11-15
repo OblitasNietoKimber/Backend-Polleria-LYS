@@ -3,7 +3,7 @@ import CardPaymentForm from './CardPaymentForm'
 
 const METHODS = [
   { id: 'efectivo', label: 'Efectivo', desc: 'Pagas al recibir tu pedido.', icon: Wallet },
-  { id: 'tarjeta', label: 'Tarjeta', desc: 'Débito o crédito, contra entrega o en tienda.', icon: CreditCard },
+  { id: 'tarjeta', label: 'Tarjeta (Stripe)', desc: 'Débito o crédito procesado de forma segura con Stripe.', icon: CreditCard },
   { id: 'yape', label: 'Yape / Plin', desc: 'Pago digital mediante QR.', icon: Smartphone },
 ]
 
@@ -17,6 +17,7 @@ export default function PaymentMethod({
   onCardChange,
   onBack,
   onContinue,
+  total = 0,
 }) {
   return (
     <div>
@@ -45,17 +46,27 @@ export default function PaymentMethod({
           processing={processing}
           gatewayError={gatewayError}
           onChange={onCardChange}
+          total={total}
+          onPay={onContinue}
         />
       )}
 
-      <div className="checkout-actions">
-        <button className="btn-outline checkout-actions-back" onClick={onBack} disabled={processing}>
-          Atrás
-        </button>
-        <button className="btn-ember checkout-actions-primary" disabled={!payment || processing} onClick={onContinue}>
-          {processing ? 'Procesando…' : 'Ver resumen'}
-        </button>
-      </div>
+      {payment !== 'tarjeta' ? (
+        <div className="checkout-actions">
+          <button className="btn-outline checkout-actions-back" onClick={onBack} disabled={processing}>
+            Atrás
+          </button>
+          <button className="btn-ember checkout-actions-primary" disabled={!payment || processing} onClick={onContinue}>
+            {processing ? 'Procesando…' : 'Ver resumen'}
+          </button>
+        </div>
+      ) : (
+        <div className="checkout-actions stripe-actions-centered" style={{ maxWidth: '520px', margin: '14px auto 0 auto', justifyContent: 'center' }}>
+          <button className="btn-outline checkout-actions-back" onClick={onBack} disabled={processing}>
+            Atrás
+          </button>
+        </div>
+      )}
     </div>
   )
 }

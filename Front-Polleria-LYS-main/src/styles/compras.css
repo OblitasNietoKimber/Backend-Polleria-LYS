@@ -29,9 +29,18 @@
 }
 
 .checkout-field-error {
-  display: block;
-  color: #B23A2E;
-  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #DC2626;
+  font-size: 0.76rem;
+  font-weight: 500;
+  margin-top: 4px;
+  line-height: 1.25;
+}
+
+.checkout-field-error svg {
+  flex-shrink: 0;
 }
 
 .checkout-actions {
@@ -387,12 +396,23 @@
 }
 
 .card-gateway-error {
-  margin-top: 16px;
-  padding: 10px 12px;
-  background: #FBE7E4;
-  border: 1px solid #E3A79C;
-  color: #8A2E22;
-  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+  color: #B91C1C;
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.card-gateway-error .card-error-icon {
+  flex-shrink: 0;
+  color: #DC2626;
 }
 
 .card-processing {
@@ -424,3 +444,318 @@
 
 .order-confirmation-ticket-number { overflow-wrap: anywhere; }
 .order-confirmation-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; }
+
+.card-stripe-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+  padding: 8px 12px;
+  background: #F8F9FA;
+  border: 1px solid #E9ECEF;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  color: var(--smoke);
+}
+
+.card-stripe-badge strong {
+  color: #635BFF;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Pasarela de pagos moderna estilo Stripe Checkout con Soles y Perú */
+.stripe-checkout-card {
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 16px;
+  padding: clamp(16px, 3.5vw, 24px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  margin: 24px auto 0 auto;
+  width: 100%;
+  max-width: 520px;
+  box-sizing: border-box;
+}
+
+.stripe-input-card-number {
+  padding-right: 122px;
+}
+
+.stripe-checkout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.stripe-checkout-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -0.01em;
+}
+
+.stripe-peru-flag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  line-height: 0;
+}
+
+.stripe-card-box {
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 18px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stripe-card-box:focus-within {
+  border-color: #0D9488;
+  box-shadow: 0 0 0 1px #0D9488;
+}
+
+.stripe-card-box-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 14px;
+}
+
+.stripe-card-icon {
+  color: #0F172A;
+}
+
+.stripe-card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stripe-field-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.stripe-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.stripe-input {
+  width: 100%;
+  height: 46px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 0.94rem;
+  color: #0F172A;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.stripe-input::placeholder {
+  color: #94A3B8;
+  font-size: 0.88rem;
+}
+
+.stripe-input:focus {
+  outline: none;
+  background: #FFFFFF;
+  border-color: #0D9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.stripe-input.err {
+  border-color: #EF4444;
+  background: #FEF2F2;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+}
+
+.stripe-input.err:focus {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+}
+
+.stripe-card-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Marcas de tarjeta dentro del campo de número */
+.stripe-card-brands {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.stripe-brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  opacity: 0.85;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.stripe-brand-logo.active {
+  opacity: 1;
+  transform: scale(1.05);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.logo-generic {
+  gap: 2px;
+  padding: 2px 4px;
+}
+
+.logo-generic .dot {
+  width: 4px;
+  height: 10px;
+  border-radius: 1px;
+}
+
+.logo-generic .dot-green { background: #00A887; }
+.logo-generic .dot-blue { background: #0066FF; }
+.logo-generic .dot-red { background: #E23A32; }
+
+.logo-visa {
+  color: #1A1F71;
+  font-family: sans-serif;
+  font-weight: 900;
+  font-style: italic;
+}
+
+.logo-amex {
+  background: #006FCF;
+  color: #FFFFFF;
+  border-color: #006FCF;
+}
+
+.logo-mc {
+  padding: 0 3px;
+}
+
+.mc-circle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.mc-circle.red {
+  background: #EB001B;
+  margin-right: -4px;
+}
+
+.mc-circle.yellow {
+  background: #F79E1B;
+  opacity: 0.9;
+}
+
+.stripe-cvc-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* Botón Pagar en Soles estilo Stripe */
+.stripe-pay-button {
+  margin-top: 18px;
+  width: 100%;
+  height: 50px;
+  background: #CCFBF1;
+  color: #0F766E;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+
+.stripe-pay-button:hover:not(:disabled) {
+  background: #99F6E4;
+  color: #115E59;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.2);
+}
+
+.stripe-pay-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (max-width: 480px) {
+  .stripe-checkout-card {
+    padding: 16px 14px;
+    margin: 16px auto 0 auto;
+    border-radius: 12px;
+  }
+
+  .stripe-card-box {
+    padding: 14px 12px;
+  }
+
+  .stripe-input {
+    height: 42px;
+    font-size: 0.88rem;
+    padding: 0 10px;
+  }
+
+  .stripe-input-card-number {
+    padding-right: 106px;
+  }
+
+  .stripe-card-brands {
+    gap: 3px;
+    right: 8px;
+  }
+
+  .stripe-brand-logo {
+    height: 18px;
+    padding: 1px 3px;
+    font-size: 0.55rem;
+  }
+
+  .stripe-pay-button {
+    height: 46px;
+    font-size: 0.98rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .stripe-card-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}

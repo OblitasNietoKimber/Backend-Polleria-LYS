@@ -260,7 +260,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         });
       } else {
         // Abrir pedido de salón y ocupar mesa en PostgreSQL con idempotencia (SCRUM-278, SCRUM-282)
-        // El pedido se crea en estado 'pendiente' para ingresar a la columna 'Nuevos pedidos' en Cocina
+        // El servidor distingue platos de cocina y productos de servicio directo.
         pedidoIdFinal = await mesaService.abrirPedidoSalon({
           solicitudId,
           mesaId: mesaActual?.id,
@@ -277,19 +277,19 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         mesaNumero: numeroNormalizado,
         tipo: 'pedido_creado',
         titulo: `Mesa ${numeroNormalizado}`,
-        descripcion: pedidoExistenteId ? 'Comanda actualizada y enviada a cocina' : 'Nuevo pedido enviado a cocina',
+        descripcion: pedidoExistenteId ? 'Comanda actualizada' : 'Nuevo pedido registrado',
         ordenCodigo: `Orden #${pedidoIdFinal}`,
         tipoColor: 'rojo',
       });
 
       navigate('/mesas', {
         state: {
-          toastExito: `¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`
+          toastExito: `¡Pedido de Mesa ${numeroNormalizado} registrado con éxito!`
         }
       });
     } catch (err) {
-      console.error('Error al enviar a cocina:', err);
-      setToastMsg('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      console.error('Error al confirmar la comanda:', err);
+      setToastMsg('Ocurrió un error al confirmar la comanda: ' + (err.message || err));
       setTimeout(() => setToastMsg(''), 4000);
     } finally {
       setEnviando(false);
@@ -612,10 +612,10 @@ function NuevoPedidoForm({ numeroNormalizado }) {
               className="btn-enviar-cocina"
               onClick={handleEnviarCocina}
               disabled={enviando}
-              title="Enviar comanda a la pantalla de cocina"
+              title="Confirmar comanda: los platos pasan a cocina y las bebidas y postres quedan listos para servir"
             >
               <ChefHat size={18} className="np-btn-icon-inline" />
-              {enviando ? 'Enviando...' : 'Enviar a cocina'}
+              {enviando ? 'Confirmando...' : 'Confirmar comanda'}
             </button>
           </div>
         </aside>

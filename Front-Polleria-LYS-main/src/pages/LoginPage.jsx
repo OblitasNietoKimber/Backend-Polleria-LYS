@@ -49,29 +49,19 @@ function LoginPage() {
     setLoading(true);
 
     try {
-  const loggedUser = await authService.login(form);
-  const rol = loggedUser.rol?.toLowerCase();
-
-  const routesByRole = {
-    cliente: '/',
-    mesera: '/mesas',
-    cocina: '/cocina',
-    caja: '/caja',
-    admin: '/dashboard',
-  };
-
-  navigate(routesByRole[rol] || '/profile', { replace: true });
-} catch (err) {
-  if (err.code === 'EMAIL_NOT_VERIFIED') {
-    navigate('/verify-email', { state: { email: form.email.trim().toLowerCase() }, replace: true });
-    return;
-  }
-  setFormError(
-    err.message || 'No se pudo iniciar sesión. Inténtalo nuevamente.'
-  );
-} finally {
-  setLoading(false);
-}
+      await authService.login(form);
+      navigate('/', { replace: true });
+    } catch (err) {
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        navigate('/verify-email', { state: { email: form.email.trim().toLowerCase() }, replace: true });
+        return;
+      }
+      setFormError(
+        err.message || 'No se pudo iniciar sesión. Inténtalo nuevamente.'
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleGoogle() {

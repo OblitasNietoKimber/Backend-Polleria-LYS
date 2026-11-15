@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Banknote, CheckCircle2, Clock3, ShoppingBag } from "lucide-react";
+import { calcularResumenCaja, fechaLima } from '../utils/cajaSummary';
 import { watchOrders } from '../services/orderUpdates';
 import cajaService from "../services/pagoService";
 import ListaPedidos from "../components/caja/ListaPedidos";
@@ -12,6 +13,7 @@ import fondo from "../img/fondo.png";
 
 export default function CajaPage() {
   const [pedidos, setPedidos] = useState([]);
+  const [fechaResumen, setFechaResumen] = useState(() => fechaLima());
   const [seleccionadoId, setSeleccionadoId] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [vista, setVista] = useState("pendientes");
@@ -31,6 +33,7 @@ export default function CajaPage() {
 
   const recargar = useCallback(async (forzar = true) => {
     if (bloqueo.current || (!forzar && consultando.current)) return;
+    setFechaResumen(fechaLima());
     consultando.current = true;
     const version = ++consulta.current;
     try {
@@ -83,18 +86,7 @@ export default function CajaPage() {
       (metodo !== "Efectivo" || (montoValido && montoNumerico >= total))
   );
 
-  const resumen = useMemo(() => {
-    const ventasHoy = cobrados.filter((pedido) => {
-      if (!pedido.pagadoAt) return false;
-      return new Date(pedido.pagadoAt).toDateString() === new Date().toDateString();
-    });
-
-    return {
-      ventas: ventasHoy.reduce((suma, pedido) => suma + cajaService.calcularTotal(pedido), 0),
-      cobrados: ventasHoy.length,
-      porCobrar: pendientes.reduce((suma, pedido) => suma + cajaService.calcularTotal(pedido), 0),
-    };
-  }, [cobrados, pendientes]);
+  const resumen = useMemo(() => calcularResumenCaja(pedidos, fechaResumen), [pedidos, fechaResumen]);
 
   function cambiarVista(nuevaVista) {
     if (bloqueo.current || intento.current) return;
@@ -188,6 +180,10 @@ export default function CajaPage() {
             <div><p>Ventas del día</p><strong>S/ {resumen.ventas.toFixed(2)}</strong></div>
           </article>
           <article className="caja-summary-card">
+            <span className="caja-summary-icon dark"><Banknote size={22} /></span>
+            <div><p>Efectivo cobrado del día</p><strong>S/ {resumen.efectivo.toFixed(2)}</strong></div>
+          </article>
+          <article className="caja-summary-card">
             <span className="caja-summary-icon gold"><CheckCircle2 size={22} /></span>
             <div><p>Pedidos cobrados</p><strong>{resumen.cobrados}</strong></div>
           </article>
@@ -206,7 +202,7 @@ export default function CajaPage() {
           <section className="caja-orders-panel" aria-labelledby="pedidos-title">
             <div className="caja-section-title">
               <div>
-                <span className="caja-eyebrow">Atención en salón</span>
+                <span className="caja-eyebrow">Salón, delivery y recojo</span>
                 <h2 id="pedidos-title">Pedidos</h2>
               </div>
               <ShoppingBag size={21} aria-hidden="true" />
