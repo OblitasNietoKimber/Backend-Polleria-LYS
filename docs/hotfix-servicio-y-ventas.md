@@ -19,7 +19,7 @@ lista la devuelve a `pendiente`. Se mantienen las restricciones de pago y los ro
 
 ## Despliegue
 
-Aplicar `migrations/20261115010000_servicio-directo.sql` mediante el gestor de
+Aplicar `migrations/20261115020000_servicio-directo-seguro.sql` mediante el gestor de
 migraciones antes de publicar el frontend de esta rama. Requiere las migraciones
 previas de Caja y Cocina. No editar las migraciones anteriores.
 La migración completa debe ejecutarse en una transacción, como hace el gestor existente.
@@ -61,3 +61,27 @@ El checkout y su simulación de tarjeta no cambian en este hotfix.
 
 Subir la rama no aplica la migración ni publica el frontend. No se ejecutaron
 cobros ni se alteraron datos en el backend compartido.
+
+## Corrección de instalación con pedidos cobrados
+
+La migración inicial `20261115010000` intentaba clasificar los detalles históricos
+con los triggers de protección de cobros activos y fallaba cuando ya había pagos.
+No es necesario borrar pedidos, detalles, pagos ni historial.
+
+El reemplazo `20261115020000_servicio-directo-seguro.sql` es autosuficiente y se puede
+copiar completo al editor SQL. Funciona con la columna ausente o creada en un intento
+anterior, y admite volver a ejecutarlo. No modifica el archivo de la versión inicial
+ni sus checksums. El ejecutor omite la versión inicial si aún está pendiente y aplica
+el reemplazo, conservando la validación de versiones que ya estaban registradas.
+
+La clasificación se hace bajo bloqueo de escritura y dentro de un único bloque
+atómico. Solo durante esa actualización de metadatos se suspenden los triggers del
+detalle que impedirían clasificar una venta cobrada, recalcularían importes o emitirían
+notificaciones históricas. Se restauran antes de terminar. Si hay un error, PostgreSQL
+revierte el bloque completo y restaura los triggers. No se cambian los datos de pagos,
+comprobantes, productos vendidos, cantidades o importes.
+
+Validación de la corrección: 251 pruebas correctas. La nueva prueba reproduce el
+fallo original con ventas de salón y delivery ya cobradas, verifica el rollback
+ante un fallo forzado, el reintento con la columna ya creada, la conservación de
+pagos y comprobantes y el bloqueo de cambios a productos cobrados después de instalar.
