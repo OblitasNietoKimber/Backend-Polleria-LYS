@@ -1,4 +1,7 @@
-export default function OrderSummary({ items, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, money, onBack, onConfirm, saving = false }) {
+import { AlertTriangle } from 'lucide-react'
+import { formatCodigoPedido } from '../utils/orderNumber'
+
+export default function OrderSummary({ items, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, money, onBack, onConfirm, saving = false, unpaidOrder = null }) {
   return (
     <div>
       <h2 className="font-display checkout-form-title">Resumen de tu compra</h2>
@@ -34,19 +37,32 @@ export default function OrderSummary({ items, subtotal, shipping, total, deliver
         <div>{deliveryType === 'delivery' ? `${form.address}${form.reference ? ` (${form.reference})` : ''}` : 'Recojo en tienda'}</div>
         <div>
           <strong>Pago:</strong>{' '}
-          {payment === 'efectivo' && 'Efectivo'}
-          {payment === 'yape' && 'Yape / Plin'}
+          {payment === 'efectivo' && (deliveryType === 'delivery' ? 'Efectivo (Contra entrega)' : 'Efectivo (Pagar en caja)')}
+          {payment === 'yape' && (deliveryType === 'delivery' ? 'Yape / Plin (Contra entrega)' : 'Yape / Plin (Pagar en caja)')}
           {payment === 'tarjeta' &&
             (cardReceipt
               ? `${cardReceipt.brandLabel} terminada en ${cardReceipt.last4} · Aprobado (${cardReceipt.authCode})`
               : 'Tarjeta')}
         </div>
       </div>
+
+      {unpaidOrder && (
+        <div className="payment-unpaid-warning-banner" role="alert" style={{ margin: '16px 0' }}>
+          <AlertTriangle size={18} className="payment-unpaid-warning-icon" />
+          <div>
+            <strong>Tienes un pedido pendiente de pago ({formatCodigoPedido(unpaidOrder.id)}):</strong>
+            <p>
+              No puedes solicitar otro pedido en {payment === 'efectivo' ? 'efectivo' : 'Yape / Plin'} hasta que se confirme el pago del anterior en {unpaidOrder.tipo === 'delivery' ? 'entrega' : 'caja'}. Regresa al paso anterior y selecciona <strong>Tarjeta</strong> para continuar.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="checkout-actions">
         <button className="btn-outline checkout-actions-back" onClick={onBack}>
           Atrás
         </button>
-        <button className="btn-ember checkout-actions-primary" disabled={saving} onClick={onConfirm}>
+        <button className="btn-ember checkout-actions-primary" disabled={saving || Boolean(unpaidOrder)} onClick={onConfirm}>
           {saving ? 'Guardando...' : 'Confirmar pedido'}
         </button>
       </div>

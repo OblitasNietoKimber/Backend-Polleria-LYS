@@ -72,4 +72,35 @@ async function createOrder({ id, items, deliveryType, form, payment }) {
   return saved
 }
 function getOrderStatus(order) { return STATUS[order.backendStatus] || 'recibido' }
-export default { getOrders, getOrderById, getOrderState, getOrderHistory, createOrder, getOrderStatus }
+export async function getActiveUnpaidOrder() {
+  try {
+    const { db, user } = client()
+    const query = db
+      .from('pedidos')
+      .select('id,estado,estado_pago,metodo_solicitado,tipo,creado_en')
+      .eq('cliente_id', user.id)
+      .neq('estado', 'cancelado')
+      .eq('estado_pago', 'pendiente')
+      .in('metodo_solicitado', ['efectivo', 'yape', 'plin'])
+      .order('creado_en', { ascending: false })
+      .limit(1)
+
+    const res = await query
+    const rows = res?.data || []
+    if (!rows.length) return null
+
+    const row = rows[0]
+    return {
+      id: row.id,
+      backendStatus: row.estado,
+      estadoPago: row.estado_pago,
+      payment: row.metodo_solicitado,
+      tipo: row.tipo,
+      createdAt: row.creado_en,
+    }
+  } catch {
+    return null
+  }
+}
+
+export default { getOrders, getOrderById, getOrderState, getOrderHistory, createOrder, getOrderStatus, getActiveUnpaidOrder }

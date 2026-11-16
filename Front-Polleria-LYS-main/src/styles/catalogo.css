@@ -100,6 +100,14 @@
   letter-spacing: 0.05em;
 }
 
+.product-card-stock-tag {
+  display: block;
+  font-size: 0.72rem;
+  color: #78716C;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
 .product-card-name {
   font-weight: 600;
   font-size: 1.05rem;
@@ -194,6 +202,14 @@
   font-size: 0.7rem;
   color: #B23A2E;
   font-weight: 700;
+}
+
+.product-modal-stock-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: #78716C;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 
 .product-modal-title {

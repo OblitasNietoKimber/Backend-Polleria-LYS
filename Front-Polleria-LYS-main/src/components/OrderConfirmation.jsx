@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
 import { CheckCircle2 } from 'lucide-react'
+import { formatCodigoPedido } from '../utils/orderNumber'
 
 export default function OrderConfirmation({ name, orderNumber, onReset }) {
+  const codigoDisplay = formatCodigoPedido(orderNumber) || orderNumber
+
   return (
     <section className="order-confirmation">
       <CheckCircle2 size={54} color="var(--ember)" strokeWidth={1.5} className="order-confirmation-icon" />
@@ -11,7 +14,7 @@ export default function OrderConfirmation({ name, orderNumber, onReset }) {
       </p>
       <div className="font-mono order-confirmation-ticket">
         <div className="order-confirmation-ticket-label">NÚMERO DE PEDIDO</div>
-        <div className="order-confirmation-ticket-number">{orderNumber}</div>
+        <div className="order-confirmation-ticket-number">{codigoDisplay}</div>
       </div>
       <div className="order-confirmation-actions">
         {orderNumber && <Link className="btn-outline" to={`/pedidos/${orderNumber}`}>Ver mi pedido</Link>}

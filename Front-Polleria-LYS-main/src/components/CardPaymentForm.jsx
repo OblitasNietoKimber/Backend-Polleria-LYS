@@ -191,9 +191,9 @@ export default function CardPaymentForm({
         )}
       </button>
 
-      <div className="card-stripe-badge" aria-label="Pagos procesados por Stripe">
+      <div className="card-stripe-badge" aria-label="Pagos procesados de forma segura">
         <Lock size={12} style={{ marginRight: 6 }} />
-        <span>Pagos procesados de forma segura con <strong>Stripe</strong></span>
+        <span>Pagos encriptados y procesados de forma segura</span>
       </div>
     </div>
   )
