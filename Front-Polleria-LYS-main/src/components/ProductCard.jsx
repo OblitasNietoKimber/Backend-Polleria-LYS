@@ -1,8 +1,12 @@
 import { money } from '../utils/currency'
 import { useCart } from '../context/CartContext'
+import { getProductStock } from '../data/products'
 
 export default function ProductCard({ product, onSelect }) {
-  const { addToCart } = useCart()
+  const { addToCart, cart } = useCart()
+  const maxStock = getProductStock(product)
+  const inCart = cart?.[product.id] || 0
+  const isStockMax = product.available && inCart >= maxStock
 
   function handleAdd(event) {
     event.stopPropagation()
@@ -17,6 +21,11 @@ export default function ProductCard({ product, onSelect }) {
 
       <div className="product-card-body">
         {!product.available && <span className="font-mono product-card-unavailable-tag">NO DISPONIBLE</span>}
+        {product.available && (
+          <span className="font-mono product-card-stock-tag">
+            {isStockMax ? `En carrito: ${inCart}/${maxStock} (Máx)` : `Stock: ${maxStock} disp.`}
+          </span>
+        )}
 
         <div className={`font-display product-card-name ${!product.available ? 'is-unavailable' : ''}`}>
           {product.name}
@@ -30,8 +39,13 @@ export default function ProductCard({ product, onSelect }) {
         <div className="product-card-footer">
           <span className="font-mono product-card-price">{money(product.price)}</span>
 
-          <button className="btn-outline product-card-add-btn" disabled={!product.available} onClick={handleAdd}>
-            {product.available ? 'Agregar' : 'Agotado'}
+          <button
+            className="btn-outline product-card-add-btn"
+            disabled={!product.available || isStockMax}
+            onClick={handleAdd}
+            title={isStockMax ? `Alcanzaste el stock máximo (${maxStock} disp.)` : 'Agregar al carrito'}
+          >
+            {!product.available ? 'Agotado' : isStockMax ? 'Stock máx.' : 'Agregar'}
           </button>
         </div>
       </div>

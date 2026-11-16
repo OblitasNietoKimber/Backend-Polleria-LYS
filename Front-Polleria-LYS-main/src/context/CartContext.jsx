@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { DELIVERY_COST } from '../data/products'
+import { DELIVERY_COST, getProductStock } from '../data/products'
 import { getProduct } from '../services/productService'
 import orderService from '../services/orderService'
 import { getCurrentUser } from '../services/authService'
@@ -74,6 +74,8 @@ export function CartProvider({ children }) {
   const [orderNumber, setOrderNumber] = useState(readStoredOrderNumber)
   const [card, setCard] = useState(EMPTY_CARD)
   const [cardReceipt, setCardReceipt] = useState(null)
+  const [stockAlert, setStockAlert] = useState(null)
+  const clearStockAlert = () => setStockAlert(null)
 
   useEffect(() => {
     let active = true
@@ -143,11 +145,30 @@ export function CartProvider({ children }) {
 
   function addToCart(product, qty = 1) {
     const id = typeof product === 'object' ? product.id : product
+    const itemProduct = typeof product === 'object' ? product : (products[id] || { id })
+    const maxStock = getProductStock(itemProduct)
+    const currentQty = cart[id] || 0
+    const targetQty = currentQty + qty
+
     if (typeof product === 'object') {
-      if (!product.available) return
+      if (!product.available) return false
       setProducts(current => ({ ...current, [id]: product }))
     }
-    setCart((current) => ({ ...current, [id]: (current[id] || 0) + qty }))
+
+    if (targetQty > maxStock) {
+      const productName = itemProduct.name || `Producto #${id}`
+      setStockAlert({
+        id,
+        message: `Solo quedan ${maxStock} unidades disponibles de "${productName}". Ya tienes ${currentQty} en tu carrito.`,
+        maxStock,
+      })
+      setCartOpen(true)
+      return false
+    }
+
+    setStockAlert(null)
+    setCart((current) => ({ ...current, [id]: targetQty }))
+    return true
   }
 
   function removeItem(id) {
@@ -156,15 +177,36 @@ export function CartProvider({ children }) {
       delete next[id]
       return next
     })
+    setStockAlert(cur => (cur?.id === id ? null : cur))
   }
 
   function setQty(id, qty) {
-    setCart((current) => {
-      const next = { ...current }
-      if (qty <= 0) delete next[id]
-      else next[id] = qty
-      return next
-    })
+    if (qty <= 0) {
+      setCart((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+      setStockAlert(cur => (cur?.id === id ? null : cur))
+      return
+    }
+
+    const itemProduct = products[id] || { id }
+    const maxStock = getProductStock(itemProduct)
+
+    if (qty > maxStock) {
+      const productName = itemProduct.name || `Producto #${id}`
+      setStockAlert({
+        id,
+        message: `Solo quedan ${maxStock} unidades disponibles de "${productName}". No es posible seleccionar ${qty}.`,
+        maxStock,
+      })
+      setCart((current) => ({ ...current, [id]: maxStock }))
+      return
+    }
+
+    setStockAlert(cur => (cur?.id === id ? null : cur))
+    setCart((current) => ({ ...current, [id]: qty }))
   }
 
   function updateFormField(field, value) {
@@ -228,6 +270,9 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    cart,
+    stockAlert,
+    clearStockAlert,
     missingCartIds,
     cartLoading,
     cartError,
