@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
 import CocinaPage from "./pages/CocinaPage";
 import HistorialCocinaPage from './pages/HistorialCocinaPage'
@@ -24,6 +24,7 @@ import PedidosPage from './pages/PedidosPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import MesasPage from './pages/MesasPage'
 import NuevoPedidoPage from './pages/NuevoPedidoPage'
+import NotFoundPage from './pages/NotFoundPage'
 
 function App() {
   return (
@@ -52,9 +53,8 @@ function App() {
           <Route path="/cocina/historial" element={<ProtectedRoute allowedRoles={['cocina', 'admin']}><HistorialCocinaPage /></ProtectedRoute>} />
           <Route path="/mesas" element={<ProtectedRoute allowedRoles={['mesera', 'admin']}><MesasPage /></ProtectedRoute>} />
           <Route path="/mesas/:id/pedido" element={<ProtectedRoute allowedRoles={['mesera', 'admin']}><NuevoPedidoPage /></ProtectedRoute>} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
-
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
