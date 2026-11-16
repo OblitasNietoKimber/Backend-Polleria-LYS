@@ -62,6 +62,21 @@ test('mantiene el contrato RPC y consulta el pedido guardado antes de confirmar'
     articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' }, metodo: 'efectivo' })
   expect(result.total).toBe(86)
 })
+test('registra una tarjeta aprobada junto con el pedido', async () => {
+  fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: saved })
+  await orders.createOrder({ id: saved.id, items: [{ product: { id: 1 }, qty: 2 }],
+    deliveryType: 'delivery', form: { name: 'Cliente' }, payment: 'tarjeta',
+    cardReceipt: { success: true, status: 'succeeded', paymentIntentId: 'pi_prueba_123' } })
+  expect(fake.rpc).toHaveBeenCalledWith('crear_pedido_cliente_tarjeta', {
+    solicitud_id: saved.id, tipo_entrega: 'delivery', articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' },
+    referencia_pago: 'pi_prueba_123', idempotencia_pago: saved.id,
+  })
+})
+test('no crea un pedido con tarjeta si el cobro no fue aprobado', async () => {
+  await expect(orders.createOrder({ id: saved.id, items: [], deliveryType: 'delivery', form: {}, payment: 'tarjeta' }))
+    .rejects.toThrow('Confirma el pago con tarjeta')
+  expect(fake.rpc).not.toHaveBeenCalled()
+})
 test('normaliza pickup a recojo al invocar crear_pedido_cliente', async () => {
   fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: { ...saved, tipo: 'recojo' } })
   await orders.createOrder({ id: saved.id, items: [{ product: { id: 1, price: 0, name: 'Falso' }, qty: 1 }],
