@@ -21,11 +21,11 @@ export const PRODUCT_STOCKS = {
   12: 45, // Yuca frita con cremas
 
   // Bebidas
-  13: 80,  // Inca Kola 1.5 L
-  14: 120, // Inca Kola 500 ml
-  15: 70,  // Coca-Cola 1.5 L
-  16: 100, // Coca-Cola 500 ml
-  17: 50,  // Chicha Morada 1 L
+  13: 50, // Inca Kola 1.5 L
+  14: 75, // Inca Kola 500 ml
+  15: 45, // Coca-Cola 1.5 L
+  16: 60, // Coca-Cola 500 ml
+  17: 30, // Chicha Morada 1 L
 };
 
 export function getProductStock(productOrId) {
