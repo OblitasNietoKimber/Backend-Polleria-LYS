@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import CheckoutSteps from '../../components/CheckoutSteps'
@@ -6,6 +6,8 @@ import PaymentMethod from '../../components/PaymentMethod'
 import { useCart } from '../../context/CartContext'
 import { validateCardForm } from '../../utils/cardValidation'
 import { chargeCard } from '../../services/paymentGatewayService'
+import orderService from '../../services/orderService'
+import { formatCodigoPedido } from '../../utils/orderNumber'
 import '../../styles/compras.css'
 
 export default function PagoPage() {
@@ -14,6 +16,18 @@ export default function PagoPage() {
   const [cardErrors, setCardErrors] = useState({})
   const [processing, setProcessing] = useState(false)
   const [gatewayError, setGatewayError] = useState('')
+  const [activeUnpaidOrder, setActiveUnpaidOrder] = useState(null)
+
+  useEffect(() => {
+    orderService.getActiveUnpaidOrder()
+      .then((unpaid) => {
+        setActiveUnpaidOrder(unpaid)
+        if (unpaid && (payment === 'efectivo' || payment === 'yape')) {
+          setPayment('tarjeta')
+        }
+      })
+      .catch(() => setActiveUnpaidOrder(null))
+  }, [])
 
   function handlePaymentChange(method) {
     setPayment(method)
@@ -35,6 +49,12 @@ export default function PagoPage() {
 
   async function handleContinue() {
     if (payment !== 'tarjeta') {
+      if (activeUnpaidOrder) {
+        setGatewayError(
+          `Tienes un pedido en curso pendiente de pago (${formatCodigoPedido(activeUnpaidOrder.id)}). Debes esperar a que se confirme el pago en ${activeUnpaidOrder.tipo === 'delivery' ? 'entrega' : 'caja'} para pedir en efectivo o Yape/Plin. Puedes pagar con Tarjeta para continuar.`
+        )
+        return
+      }
       navigate('/checkout/resumen')
       return
     }
@@ -87,6 +107,7 @@ export default function PagoPage() {
         onBack={() => navigate('/checkout/entrega')}
         onContinue={handleContinue}
         total={total}
+        activeUnpaidOrder={activeUnpaidOrder}
       />
     </section>
   )

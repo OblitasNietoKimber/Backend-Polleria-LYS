@@ -4,6 +4,7 @@ import { getProduct } from '../services/productService'
 import orderService from '../services/orderService'
 import { getCurrentUser } from '../services/authService'
 import { orderSignature, readPendingOrder, savePendingOrder, clearPendingOrder } from '../utils/pendingOrder'
+import { formatCodigoPedido } from '../utils/orderNumber'
 
 const CartContext = createContext(null)
 const CART_STORAGE_KEY = 'lys-cart'
@@ -187,6 +188,18 @@ export function CartProvider({ children }) {
     }
     const user = getCurrentUser();
     if (!user || user.rol !== 'cliente') throw new Error('Debes iniciar sesión como cliente.');
+
+    // Restricción: solo se permite 1 pedido con pago en efectivo o Yape/Plin (contra entrega o recojo en caja)
+    // hasta que el pago de dicho pedido anterior sea confirmado. Con tarjeta opera con normalidad.
+    if (payment !== 'tarjeta') {
+      const activeUnpaid = await orderService.getActiveUnpaidOrder().catch(() => null);
+      if (activeUnpaid) {
+        throw new Error(
+          `Ya tienes un pedido en curso (${formatCodigoPedido(activeUnpaid.id)}) con pago pendiente en ${activeUnpaid.payment === 'efectivo' ? 'efectivo' : 'Yape / Plin'}. Hasta que no se confirme el pago de ese pedido, no puedes realizar otro en efectivo o Yape/Plin. Puedes pagar con Tarjeta para continuar.`
+        );
+      }
+    }
+
     const request = { items: cartItems, deliveryType, form, payment };
     const signature = orderSignature(user.id, request);
     if (pendingOrder.current?.signature !== signature) {

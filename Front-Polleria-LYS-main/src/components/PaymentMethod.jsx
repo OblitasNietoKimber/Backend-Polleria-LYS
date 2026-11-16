@@ -1,5 +1,6 @@
-import { CreditCard, Smartphone, Wallet, CheckCircle2 } from 'lucide-react'
+import { CreditCard, Smartphone, Wallet, CheckCircle2, AlertTriangle } from 'lucide-react'
 import CardPaymentForm from './CardPaymentForm'
+import { formatCodigoPedido } from '../utils/orderNumber'
 
 export default function PaymentMethod({
   deliveryType = 'delivery',
@@ -13,6 +14,7 @@ export default function PaymentMethod({
   onBack,
   onContinue,
   total = 0,
+  activeUnpaidOrder = null,
 }) {
   const isDelivery = deliveryType === 'delivery'
 
@@ -20,16 +22,18 @@ export default function PaymentMethod({
     {
       id: 'efectivo',
       label: 'Efectivo',
-      badge: isDelivery ? 'Contra entrega' : null,
-      desc: isDelivery ? 'Pagas en efectivo al recibir tu pedido en tu puerta.' : 'Pagas en efectivo al recoger tu pedido en tienda.',
+      badge: isDelivery ? 'Contra entrega' : 'Pagar en caja',
+      desc: isDelivery ? 'Pagas en efectivo al recibir tu pedido en tu puerta.' : 'Pagas en caja en efectivo al momento de recoger tu pedido.',
       icon: Wallet,
+      disabled: Boolean(activeUnpaidOrder),
     },
     {
       id: 'yape',
       label: 'Yape / Plin',
-      badge: isDelivery ? 'Contra entrega' : null,
-      desc: isDelivery ? 'Pagas con código QR al repartidor cuando llegue tu pedido.' : 'Pago digital mediante QR en caja.',
+      badge: isDelivery ? 'Contra entrega' : 'Pagar en caja',
+      desc: isDelivery ? 'Pagas con código QR al repartidor cuando llegue tu pedido.' : 'Pagas con código QR en caja al momento de recoger tu pedido.',
       icon: Smartphone,
+      disabled: Boolean(activeUnpaidOrder),
     },
     {
       id: 'tarjeta',
@@ -37,33 +41,57 @@ export default function PaymentMethod({
       badge: null,
       desc: 'Débito o crédito procesado de forma segura.',
       icon: CreditCard,
+      disabled: false,
     },
   ]
 
   return (
     <div>
       <h2 className="font-display checkout-form-title">Método de pago</h2>
+
+      {activeUnpaidOrder && (
+        <div className="payment-unpaid-warning-banner" role="alert">
+          <AlertTriangle size={18} className="payment-unpaid-warning-icon" />
+          <div>
+            <strong>Tienes un pedido pendiente de pago ({formatCodigoPedido(activeUnpaidOrder.id)}):</strong>
+            <p>
+              Hasta que no se confirme que se pagó tu pedido anterior en {activeUnpaidOrder.tipo === 'delivery' ? 'entrega' : 'caja'}, solo puedes realizar pedidos nuevos pagando con <strong>Tarjeta</strong>.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="payment-methods-grid">
-        {methods.map((method) => (
-          <button
-            key={method.id}
-            onClick={() => onChange(method.id)}
-            disabled={processing}
-            className={`payment-method-option ${payment === method.id ? 'active' : ''}`}
-          >
-            <method.icon size={22} color={payment === method.id ? 'var(--ember)' : 'var(--smoke)'} strokeWidth={1.7} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="payment-method-info-title">
-                <span>{method.label}</span>
-                {method.badge && <span className="payment-contraentrega-tag">{method.badge}</span>}
+        {methods.map((method) => {
+          const isBlocked = method.disabled
+          return (
+            <button
+              key={method.id}
+              onClick={() => {
+                if (!isBlocked) onChange(method.id)
+              }}
+              disabled={processing || isBlocked}
+              className={`payment-method-option ${payment === method.id ? 'active' : ''} ${isBlocked ? 'blocked' : ''}`}
+            >
+              <method.icon size={22} color={payment === method.id ? 'var(--ember)' : 'var(--smoke)'} strokeWidth={1.7} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="payment-method-info-title">
+                  <span>{method.label}</span>
+                  {method.badge && (
+                    <span className={`payment-contraentrega-tag ${!isDelivery ? 'payment-caja-tag' : ''}`}>
+                      {method.badge}
+                    </span>
+                  )}
+                  {isBlocked && <span className="payment-blocked-tag">Pago anterior pendiente</span>}
+                </div>
+                <div className="payment-method-info-desc">{method.desc}</div>
               </div>
-              <div className="payment-method-info-desc">{method.desc}</div>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
 
-      {isDelivery && (payment === 'efectivo' || payment === 'yape') && (
+      {!activeUnpaidOrder && isDelivery && (payment === 'efectivo' || payment === 'yape') && (
         <div className="payment-contraentrega-banner">
           <CheckCircle2 size={17} className="payment-contraentrega-banner-icon" />
           <span>
@@ -71,6 +99,18 @@ export default function PaymentMethod({
             {payment === 'efectivo'
               ? 'Ten listo el monto exacto o sencillo en efectivo al momento de recibir tu entrega.'
               : 'El repartidor te mostrará el código QR (Yape o Plin) para escanear y pagar al recibir tu entrega.'}
+          </span>
+        </div>
+      )}
+
+      {!activeUnpaidOrder && !isDelivery && (payment === 'efectivo' || payment === 'yape') && (
+        <div className="payment-contraentrega-banner payment-caja-banner">
+          <CheckCircle2 size={17} className="payment-contraentrega-banner-icon" />
+          <span>
+            <strong>Modalidad Pagar en Caja:</strong>{' '}
+            {payment === 'efectivo'
+              ? 'Acércate a caja con tu número de pedido y paga en efectivo al momento de recoger.'
+              : 'Acércate a caja con tu número de pedido y escanea el código QR de Yape o Plin al momento de recoger.'}
           </span>
         </div>
       )}

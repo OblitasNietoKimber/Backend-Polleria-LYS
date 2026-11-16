@@ -5,6 +5,7 @@ import CheckoutSteps from '../../components/CheckoutSteps'
 import OrderSummary from '../../components/OrderSummary'
 import { useCart } from '../../context/CartContext'
 import { money } from '../../utils/currency'
+import orderService from '../../services/orderService'
 import '../../styles/compras.css'
 
 export default function ResumenPage() {
@@ -14,6 +15,15 @@ export default function ResumenPage() {
   const isSubmitting = useRef(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [unpaidOrder, setUnpaidOrder] = useState(null)
+
+  useEffect(() => {
+    if (payment !== 'tarjeta') {
+      orderService.getActiveUnpaidOrder()
+        .then((unpaid) => setUnpaidOrder(unpaid))
+        .catch(() => setUnpaidOrder(null))
+    }
+  }, [payment])
 
   // Si eligió tarjeta pero no completó el cobro (por ejemplo, llegó por atrás
   // o refrescó la página), lo regresamos a Pago en vez de dejarlo confirmar
@@ -68,7 +78,8 @@ export default function ResumenPage() {
         money={money}
         onBack={() => navigate('/checkout/pago')}
         onConfirm={handleConfirm}
-        saving={saving || cartLoading || Boolean(cartError) || unavailable}
+        saving={saving || cartLoading || Boolean(cartError) || unavailable || Boolean(unpaidOrder)}
+        unpaidOrder={unpaidOrder}
       />
     </section>
   )
