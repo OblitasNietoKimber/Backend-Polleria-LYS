@@ -72,7 +72,14 @@
 
 /* Tarjeta de producto (ProductCard) */
 
+.catalogo-grid > .ticket-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .product-card-media {
+  flex-shrink: 0;
   aspect-ratio: 4 / 3;
   overflow: hidden;
   background: #201C18;
@@ -91,6 +98,9 @@
 
 .product-card-body {
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .product-card-unavailable-tag {
@@ -127,6 +137,7 @@
 }
 
 .product-card-footer {
+  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
