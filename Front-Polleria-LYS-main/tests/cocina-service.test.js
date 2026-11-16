@@ -10,6 +10,29 @@ beforeEach(()=>{
  fake.query.range=vi.fn().mockResolvedValue({data:[row],error:null});fake.rpc.mockResolvedValue({data:row.id,error:null});
 });
 afterEach(()=>vi.unstubAllGlobals());
+test('un backend sin migracion de entregas conserva la preparacion sin simular entregas',async()=>{
+ fake.query.range.mockResolvedValueOnce({error:{code:'PGRST200',message:"Could not find a relationship between 'pedidos' and 'entregas_cocina' in the schema cache"}});
+ const pedidos=await cocina.getPedidosActivos();
+ expect(pedidos).toHaveLength(1);expect(pedidos[0].entregaDisponible).toBe(false);
+ expect(fake.query.select.mock.calls[1][0]).not.toMatch(/entregas_cocina|cocina_entregado_en/);
+ await expect(cocina.cambiarEstado(pedidos[0],'entregado')).rejects.toThrow(/no está habilitada/);
+ expect(fake.rpc).not.toHaveBeenCalled();
+ await cocina.cambiarEstado({...pedidos[0],estadoCocina:'nuevo'},'en_preparacion');
+ expect(fake.rpc).toHaveBeenCalledWith('cambiar_estado_cocina',expect.objectContaining({p_nuevo_estado:'en_preparacion'}));
+});
+test('el historial anterior sigue disponible sin inventar entregas fisicas',async()=>{
+ fake.rpc.mockResolvedValueOnce({error:{code:'PGRST202',message:'Could not find the function public.obtener_historial_entregas_cocina in the schema cache'}});
+ const pedidos=await cocina.getPedidosFinalizados({page:1});
+ expect(pedidos[0]).toMatchObject({esAnterior:true,entregaDisponible:false});
+ expect(pedidos[0].entregadoEn).toBeUndefined();
+ expect(fake.query.in).toHaveBeenCalledWith('estado',['entregado']);
+ expect(fake.query.range).toHaveBeenCalledWith(50,99);
+});
+test('los errores de permisos no activan la compatibilidad ni ocultan el problema',async()=>{
+ fake.query.range.mockResolvedValueOnce({error:{code:'42501',message:'permission denied for table entregas_cocina'}});
+ await expect(cocina.getPedidosActivos()).rejects.toThrow(/permission denied/);
+ expect(fake.query.range).toHaveBeenCalledTimes(1);
+});
 test('consulta los nombres vendidos, notas y responsable del cambio del servidor',async()=>{
  vi.stubGlobal('localStorage',{getItem:()=>{throw new Error('No debe leer pedidos locales');}});
  expect(await cocina.getPedidosActivos()).toEqual([expect.objectContaining({id:row.id,observaciones:'Sin ají',cambiadoPor:'cocinero',estadoCocina:'listo',items:[{id:'detalle',productoId:1,nombre:'Nombre vendido',cantidad:2}]})]);

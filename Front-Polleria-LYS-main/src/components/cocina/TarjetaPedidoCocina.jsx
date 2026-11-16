@@ -1,6 +1,8 @@
 import { Clock, Play, ChefHat, CheckCircle2 } from "lucide-react";
 import { useTiempoTranscurrido } from "../../hooks/useTiempoTranscurrido";
 import { formatCodigoPedido } from "../../utils/orderNumber";
+import {openIncident} from '../../services/atencionService';
+import {IncidentActions} from '../flow/FlowShared';
 
 const ESTADO_CLASE = {
   nuevo: "cocina-card--nuevo",
@@ -14,15 +16,12 @@ const TIPO_LABEL = {
   recojo: "Para llevar",
 };
 
-export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, actualizando = false }) {
+export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, onIncidencia, actualizando = false }) {
   const { texto: tiempo } = useTiempoTranscurrido(pedido.createdAt, pedido.finalizadoAt);
   const tipo = pedido.tipo || "salon";
+  const incidencia=pedido.cuenta&&openIncident(pedido.cuenta);
   const pendienteCobro = pedido.estadoPago !== 'pagado' &&
     (tipo === 'recojo' || (tipo === 'delivery' && pedido.metodoSolicitado !== 'efectivo'));
-
-  const usuarioCorto = pedido.cambiadoPor
-    ? (pedido.cambiadoPor.length > 15 ? pedido.cambiadoPor.slice(0, 8).toUpperCase() : pedido.cambiadoPor)
-    : 'Sin registro';
 
   return (
     <div className={`cocina-card ${ESTADO_CLASE[pedido.estadoCocina] || ""}`}>
@@ -56,35 +55,31 @@ export default function TarjetaPedidoCocina({ pedido, onCambiarEstado, actualiza
         ))}
       </ul>
 
-      {pedido.cambiadoEn && (
-        <p className="cocina-auditoria">
-          Último cambio: {new Date(pedido.cambiadoEn).toLocaleString('es-PE')} · Personal: {usuarioCorto}
-          {pedido.esReconstruido ? ' · Registro reconstruido' : ''}
-        </p>
-      )}
-      {pedido.estadoCocina === "nuevo" && (
+      {!incidencia&&pedido.estadoCocina === "nuevo" && (
         <button className="cocina-btn cocina-btn--iniciar" disabled={actualizando} onClick={() => onCambiarEstado(pedido, "en_preparacion")}>
           <Play size={14} /> Comenzar
         </button>
       )}
-      {pedido.estadoCocina === "en_preparacion" && (
+      {!incidencia&&pedido.estadoCocina === "en_preparacion" && (
         <button className="cocina-btn cocina-btn--listo" disabled={actualizando} onClick={() => onCambiarEstado(pedido, "listo")}>
           <ChefHat size={14} /> Marcar listo
         </button>
       )}
-      {pedido.estadoCocina === "listo" && (
+      {!incidencia&&pedido.estadoCocina === "listo" && (
         <>
           <p className="cocina-auditoria">
             {pendienteCobro ? 'Pendiente de cobro. Confirma el pago en caja antes de entregar.'
               : tipo === 'delivery' ? 'Entrega al repartidor. El pedido pasará a En camino.'
                 : tipo === 'salon' ? 'Entrega a la mesera. La cuenta se cobra en caja.' : 'Entrega al cliente. Pago confirmado.'}
           </p>
-          <button className="cocina-btn cocina-btn--entregar" disabled={actualizando || pendienteCobro}
+          {pedido.entregaDisponible === false && <p role="status">La entrega de cocina aún no está habilitada en el servidor.</p>}
+          <button className="cocina-btn cocina-btn--entregar" disabled={actualizando || pendienteCobro || pedido.entregaDisponible === false}
             onClick={() => onCambiarEstado(pedido, "entregado")}>
             <CheckCircle2 size={14} /> {actualizando ? 'Entregando…' : 'Entregar'}
           </button>
         </>
       )}
+      {incidencia&&<IncidentActions cuenta={pedido.cuenta} flow={{busy:actualizando,act:onIncidencia}}/>}
     </div>
   );
 }

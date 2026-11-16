@@ -28,11 +28,17 @@ Los cambios utilizan las notificaciones existentes y la sonda de pedidos, con el
 
 El historial pagina en el servidor y conserva las entregas anteriores de una comanda ampliada. Los pedidos antiguos cerrados se muestran como registros anteriores, sin inventar una fecha de entrega física. Los pedidos todavía listos requieren una entrega explícita; la migración no los oculta ni marca como entregados automáticamente. Los registros de más de treinta días siguen visibles en su sección.
 
-## Instalación pendiente
+## Instalación
 
-Migración nueva: `migrations/20261115180000_entrega-cocina.sql`. Requiere las migraciones existentes de Caja, Cocina, Seguimiento y Servicio directo compatible. No modifica migraciones previas ni registra pagos o entregas históricas.
+Instalada en el backend `b9zz47j5.us-east.insforge.app` el 15 de noviembre de 2026. La versión `20261115180000_entrega-cocina.sql` quedó registrada en `public.schema_migrations` con checksum `5a55f07cd302b9b728ebd872da73b4b9c7d9915aaa2f97d3f992f6f79dc04d5b`. La instalación se validó primero con rollback y después se ejecutó de forma atómica, comprobando dentro de la transacción que pedidos, pagos, detalles y mesas existentes no cambiaban. Se notificó la recarga del esquema de PostgREST y la consulta real con `entregas_cocina(items)` respondió HTTP 200.
 
-Después de autorizar la publicación e instalación, aplicar la migración antes de desplegar el frontend:
+Los datos anteriores conservan sus estados: no se inventaron entregas históricas. La protección por filas y los permisos de la tabla de entregas están habilitados. El código local conserva el modo compatible para otros entornos todavía sin actualizar. No se hizo commit, push ni despliegue del frontend.
+
+El frontend admite temporalmente el esquema anterior: si faltan la relación de entregas o su columna, carga los pedidos activos sin esos campos y mantiene Comenzar y Marcar listo. Entregar queda deshabilitado con un aviso; no se simulan entregas ni pagos. El historial puede consultar los pedidos entregados anteriores si todavía no existe la RPC nueva, sin atribuirles una fecha de entrega física. Los errores de permisos o conexión siguen mostrándose. Esta compatibilidad no aplica migraciones ni permite probar la persistencia nueva contra un servidor sin actualizar.
+
+Migración: `migrations/20261115180000_entrega-cocina.sql`. Requiere las migraciones existentes de Caja, Cocina, Seguimiento y Servicio directo compatible. No modifica migraciones previas ni registra pagos o entregas históricas.
+
+Para instalarla en otro entorno autorizado, aplicar la migración antes de desplegar el frontend:
 
 ```bash
 node scripts/apply-migrations.mjs --application --from 20261115180000
@@ -42,8 +48,8 @@ El ejecutor utiliza las credenciales administrativas del entorno y registra el c
 
 ## Validación local
 
-290 pruebas locales aprobadas, compilación de producción correcta y lint sin errores en los archivos modificados.
+297 pruebas locales aprobadas, compilación de producción correcta y lint sin errores en los archivos revisados.
 
 Las pruebas de PostgreSQL con PGlite y los servicios cubren pago antes/después de la entrega, permanencia de la mesa ocupada, cobros idempotentes, bloqueo de liberación prematura, cantidades añadidas, historial por entrega, conflictos de versión, permisos, rollback, retiro de recojo pagado y delivery contra entrega. Se conservan las regresiones de ventas e importes.
 
-Las pruebas de navegador se actualizaron para retiro persistente de tarjetas, entrega móvil, errores, seguimiento En camino y confirmación de delivery desde caja. Su ejecución en este entorno quedó bloqueada al iniciar Chromium (`socket() failed: Operation not permitted`); no se consideran aprobadas. No se utilizaron sesiones reales ni se crearon pedidos o pagos en el backend principal.
+Las 27 pruebas de navegador de cocina y caja pasaron con las APIs interceptadas: retiro persistente de tarjetas, entrega móvil, errores, seguimiento En camino, confirmación de delivery desde caja, comprobantes y resumen de ventas. La lectura independiente de la API real también pasó y reconoce la relación nueva. Las pruebas no crearon pedidos, cobros ni entregas reales en el backend principal.

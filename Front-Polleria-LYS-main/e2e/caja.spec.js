@@ -128,7 +128,7 @@ test('el administrador ve el cobro persistido en el resumen de ventas', async ({
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.goto('/dashboard');
   await expect(page.locator('.admin-summary-card').filter({ hasText: 'Ingresos totales' })).toContainText('42.90');
-  await expect(page.locator('.admin-history-table')).toContainText('00000000-0000-0000-0000-000000000041');
+  await expect(page.locator('.admin-history-table')).toContainText('Pedido #00000000');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lys_pedidos'))[0].id)).toBe('LOCAL-IGNORADO');
 });
 

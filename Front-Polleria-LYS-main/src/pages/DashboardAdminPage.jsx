@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { FLOW_PREVIEW } from '../services/atencionService';
+const FlowReturnsSummary = lazy(() => import('../components/flow/FlowReturnsSummary'));
 import { Link } from "react-router-dom";
 import { UtensilsCrossed } from "lucide-react";
 import dashboardService from "../services/dashboardService";
@@ -73,6 +75,7 @@ export default function DashboardAdminPage() {
     <div className="lys-root admin-screen">
       <main className="admin-content">
         <AdminNavTabs />
+        {FLOW_PREVIEW && <Suspense fallback={null}><FlowReturnsSummary filters={filtros} revision={revision}/></Suspense>}
         <section className="admin-page-head">
           <div>
             <h1>DASHBOARD</h1>
@@ -112,7 +115,7 @@ export default function DashboardAdminPage() {
 
         <section className="admin-double-grid">
           <Ventas7Dias ventas={datos?.ventasPorDia} />
-          <HistorialVentas ventas={historial.ventas} />
+          <HistorialVentas ventas={historial.ventas} siguiente={historial.siguiente} cargandoMas={cargandoMas} onCargarMas={cargarMas} />
         </section>
       </main>
     </div>

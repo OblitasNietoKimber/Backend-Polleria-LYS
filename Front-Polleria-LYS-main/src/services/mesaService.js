@@ -1,6 +1,7 @@
 import { SEED_MESAS, SEED_ACTIVIDADES, ESTADOS_MESA } from '../data/mesasData';
 import { requireInsforge } from '../lib/insforge';
 import { getCurrentUser } from './authService';
+import { FLOW_PREVIEW, getFlow, operateFlow, pendingKitchen, openIncident } from './atencionService';
 
 const MESAS_KEY = 'lys_mesas';
 const ACTIVIDADES_KEY = 'lys_actividades';
@@ -84,6 +85,24 @@ function mapMesaFromDb(row) {
  */
 export async function fetchMesas({ strict = false } = {}) {
   try {
+    if(FLOW_PREVIEW){
+      const data=await getFlow();
+      cacheMesas=data.mesas.map(m=>{
+        const atencion=data.atenciones.find(a=>a.mesa_id===m.id);
+        const cuentas=atencion?data.cuentas.filter(p=>p.atencion_id===atencion.id):[];
+        const editable=cuentas.find(p=>p.estado_pago!=='pagado'&&p.estado!=='cancelado');
+        const principal=editable||cuentas[0];
+        const mapped=mapMesaFromDb({...m,estado:atencion?'ocupada':m.estado,pedido_id:principal?.id,pedido_estado:principal?.estado,
+          estado_pago:cuentas.filter(p=>p.estado!=='cancelado').every(p=>p.estado_pago==='pagado')?'pagado':'pendiente',
+          cocina_entregado_en:principal?.cocina_entregado_en,cuenta_solicitada:editable?.cuenta_solicitada,
+          comensales:principal?.comensales,total:cuentas.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.total),0),
+          subtotal:cuentas.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.subtotal),0),notas:editable?.notas||'',creado_en:atencion?.abierta_en,
+          items:(principal?.items||[]).map(i=>({id:i.id,producto_id:i.producto_id,nombre:i.nombre_producto,cantidad:i.cantidad,precio:i.precio_unitario}))});
+        return {...mapped,atencionId:atencion?.id,cuentas,cuentaEditableId:editable?.id||null,
+          versionCuenta:principal?.version_cuenta,puedeCerrar:Boolean(atencion)&&cuentas.every(p=>(p.estado==='cancelado'||p.estado_pago==='pagado'&&!pendingKitchen(p).length)&&!openIncident(p))};
+      });
+      return cacheMesas;
+    }
     const { db } = getDbClient();
     const res = await db.rpc('obtener_mesas_con_pedidos');
     const data = unwrap(res, 'No se pudo obtener el estado de las mesas desde PostgreSQL.');
@@ -156,9 +175,15 @@ export async function abrirPedidoSalon({
   comensales,
   notas = '',
   items = [],
+  atencionId,
 }) {
   const mesa = mesaId ? getMesaById(mesaId) : getMesaByNumero(mesaNumero);
   const idMesa = mesa ? mesa.id : Number(mesaNumero);
+  if(FLOW_PREVIEW){
+    const attention=atencionId??mesa?.atencionId;
+    const result=await operateFlow(attention?'adicional':'abrir',{mesa:idMesa,atencion:attention,comensales:Number(comensales),notas,items:items.map(i=>({id:i.id,qty:i.cantidad}))},solicitudId||undefined);
+    await fetchMesas({strict:true});return result.pedido;
+  }
 
   const payloadArticulos = items.map((it) => ({
     id: it.id,
@@ -187,7 +212,12 @@ export async function abrirPedidoSalon({
 /**
  * Permite agregar productos y observaciones a un pedido de salón abierto (SCRUM-279).
  */
-export async function modificarPedidoSalon({ pedidoId, items = [], notas = null }) {
+export async function modificarPedidoSalon({ pedidoId, items = [], notas = null, version }) {
+  if(FLOW_PREVIEW){
+    if(version===undefined)throw new Error('Falta la versión de la comanda. Vuelve a abrirla desde Mesas.');
+    await operateFlow('editar',{pedido:pedidoId,version,items:items.map(i=>({id:i.id,qty:i.cantidad})),notas});
+    await fetchMesas({strict:true});return true;
+  }
   const payloadArticulos = items.map((it) => ({
     id: it.id,
     qty: it.cantidad,
@@ -229,6 +259,7 @@ export async function enviarPedidoCocina(pedidoId) {
  * Registra la solicitud de cuenta para caja en PostgreSQL (SCRUM-281).
  */
 export async function solicitarCuenta(pedidoId, mesaNumero) {
+  if(FLOW_PREVIEW){const p=(await getFlow()).cuentas.find(p=>p.id===pedidoId);if(!p)throw new Error('La cuenta ya no está disponible');await operateFlow('solicitar',{pedido:pedidoId,version:p.version_cuenta});await fetchMesas({strict:true});return true;}
   const { db } = getDbClient();
   const res = await db.rpc('solicitar_cuenta_salon', {
     p_pedido_id: pedidoId,
@@ -260,6 +291,7 @@ export async function liberarMesa(numero) {
   const mesa = getMesaByNumero(numero);
   const idMesa = mesa?.id || Number(numero);
   if (!idMesa) throw new Error('La mesa no existe.');
+  if(FLOW_PREVIEW){await operateFlow(mesa.atencionId?'cerrar':'cancelar_reserva',{mesa:idMesa,atencion:mesa.atencionId,confirmar_salida:true});await fetchMesas({strict:true});return getMesaByNumero(numero);}
   const { db } = getDbClient();
   unwrap(await db.rpc('liberar_mesa_salon', { p_mesa_id: Number(idMesa) }), 'No se pudo liberar la mesa.');
   await fetchMesas();
@@ -276,6 +308,7 @@ export async function anularComandaYLiberarMesa(numero, motivo = 'Cliente se ret
   const mesa = getMesaByNumero(numero);
   const idMesa = mesa?.id || Number(numero);
   if (!idMesa) throw new Error('La mesa no existe.');
+  if(FLOW_PREVIEW){const p=mesa.cuentas.find(p=>p.id===mesa.pedidoId);if(!p)throw new Error('No hay una cuenta activa');await operateFlow('incidencia',{pedido:p.id,version:p.version_cuenta,motivo});await fetchMesas({strict:true});return getMesaByNumero(numero);}
   const { db } = getDbClient();
   unwrap(await db.rpc('anular_comanda_salon', {
     p_mesa_id: Number(idMesa),
@@ -312,6 +345,7 @@ export function ocuparMesa(numero, pedidoId, total = 0) {
 export async function reservarMesa(numero, { cliente, hora, comensales, telefono } = {}) {
   const mesa = getMesaByNumero(numero);
   if (!mesa?.id) throw new Error('La mesa no existe.');
+  if(FLOW_PREVIEW){await operateFlow('reservar',{mesa:mesa.id,cliente,hora,telefono,comensales:Number(comensales)||mesa.capacidad});await fetchMesas({strict:true});return getMesaByNumero(numero);}
   const { db } = getDbClient();
   unwrap(await db.rpc('reservar_mesa_salon', {
     p_mesa_id: Number(mesa.id),
@@ -349,6 +383,7 @@ export function getEstadisticasMesas(zona = 'salon_principal') {
 
 export async function fetchActividades() {
   try {
+    if(FLOW_PREVIEW)return ((await getFlow()).actividades||[]).map(a=>({id:a.id,mesaNumero:a.mesa_numero,tipo:a.tipo,tipoColor:a.tipo_color,titulo:a.titulo,descripcion:a.descripcion,ordenCodigo:a.orden_codigo,createdAt:a.creado_en}));
     const { db } = getDbClient();
     const res = await db.rpc('obtener_actividad_salon');
     const data = unwrap(res, 'No se pudo obtener la actividad desde PostgreSQL.');

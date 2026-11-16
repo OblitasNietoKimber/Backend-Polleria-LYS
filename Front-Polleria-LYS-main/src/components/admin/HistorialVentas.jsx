@@ -15,7 +15,7 @@ function iconoMetodo(metodo) {
   return <IconoCelular size={15} color={color} />;
 }
 
-export default function HistorialVentas({ ventas = [] }) {
+export default function HistorialVentas({ ventas = [], siguiente = null, cargandoMas = false, onCargarMas }) {
   return (
     <section className="ticket-card admin-history-card">
       <div className="admin-block-title">
@@ -72,6 +72,9 @@ export default function HistorialVentas({ ventas = [] }) {
           </tbody>
         </table>
       </div>
+      {siguiente && onCargarMas && <button type="button" className="btn-outline" disabled={cargandoMas} onClick={onCargarMas}>
+        {cargandoMas ? 'Consultando más ventas…' : 'Ver más ventas'}
+      </button>}
     </section>
   );
 }

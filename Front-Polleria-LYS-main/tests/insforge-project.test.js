@@ -18,3 +18,9 @@ test('no permite claves administrativas, placeholders ni variables ausentes', ()
   }
   expect(getConfigurationError(undefined, 'public-key')).not.toBeNull()
 })
+test('el backend local solo se admite con habilitación explícita y clave pública ficticia', () => {
+  expect(getConfigurationError('http://127.0.0.1:5191', 'local-public-anon')).not.toBeNull()
+  expect(getConfigurationError('http://127.0.0.1:5191', 'local-public-anon', { localPreview: true })).toBeNull()
+  expect(getConfigurationError('http://127.0.0.1:5191', 'ik_private', { localPreview: true })).not.toBeNull()
+  expect(getConfigurationError('http://127.0.0.1:5192', 'local-public-anon', { localPreview: true })).not.toBeNull()
+})

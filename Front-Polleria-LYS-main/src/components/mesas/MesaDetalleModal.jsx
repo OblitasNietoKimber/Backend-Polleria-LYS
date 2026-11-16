@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import mesaService from '../../services/mesaService';
+import {FLOW_PREVIEW} from '../../services/atencionService';
+import AtencionCuentas from './AtencionCuentas';
 
 export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotificacion }) {
   const navigate = useNavigate();
@@ -276,6 +278,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
                 )}
               </div>
 
+              {FLOW_PREVIEW&&mesa.atencionId ? <AtencionCuentas mesa={mesa} onUpdated={onMesaUpdated} onError={setErrorOperacion} onClose={onClose}/> : <>
               {mesa.pedidoId && <p>Cuenta: {mesa.estadoPago === 'pagado' ? 'Pagada · Esperando entrega de cocina' : 'Pendiente de cobro'}</p>}
 
               {(pedidoActivo?.items?.length > 0 || mesa?.items?.length > 0) && (
@@ -357,6 +360,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
                   </button>
                 </div>
               )}
+              </>}
             </div>
           )}
 

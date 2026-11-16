@@ -66,6 +66,22 @@ test('rechazo de concurrencia deja el pedido visible y muestra el error',async({
  const backend=fixture();backend.reject();await backend.install(page);await page.goto('/cocina');
  await page.getByRole('button',{name:'Comenzar'}).click();await expect(page.getByRole('alert')).toContainText('Otro usuario');await expect(page.getByRole('button',{name:'Comenzar'})).toBeEnabled();
 });
+test('sin la migracion de entregas el panel permite preparar y explica el boton deshabilitado',async({page})=>{
+ const backend=fixture();await backend.install(page);
+ await page.route('**/api/database/records/pedidos?*',async route=>{
+  if(new URL(route.request().url()).searchParams.get('select')?.includes('entregas_cocina')) {
+   await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({code:'PGRST200',message:"Could not find a relationship between 'pedidos' and 'entregas_cocina' in the schema cache"})});
+  } else await route.fallback();
+ });
+ await page.goto('/cocina');
+ await expect(page.getByText('Pollo vendido')).toBeVisible();
+ await page.getByRole('button',{name:'Comenzar'}).click();
+ await page.getByRole('button',{name:'Marcar listo'}).click();
+ await expect(page.getByRole('button',{name:'Entregar',exact:true})).toBeDisabled();
+ await expect(page.getByText('La entrega de cocina aún no está habilitada en el servidor.',{exact:true})).toBeVisible();
+ await page.reload();await expect(page.getByText('Pollo vendido')).toBeVisible();
+ expect(backend.calls).toHaveLength(2);
+});
 test('filtra recojo y permite entregar delivery al repartidor',async({page})=>{
  const backend=fixture();backend.row.estado='listo';backend.row.tipo='delivery';await backend.install(page);await page.goto('/cocina');
  await expect(page.getByText(/Entrega al repartidor/)).toBeVisible();await expect(page.getByRole('button',{name:'Entregar',exact:true})).toBeEnabled();
