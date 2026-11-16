@@ -242,7 +242,11 @@ export function CartProvider({ children }) {
       }
     }
 
-    const request = { items: cartItems, deliveryType, form, payment };
+    if (payment === 'tarjeta' && (!cardReceipt?.success || cardReceipt.status !== 'succeeded')) {
+      throw new Error('Confirma el pago con tarjeta antes de crear el pedido.');
+    }
+
+    const request = { items: cartItems, deliveryType, form, payment, cardReceipt: payment === 'tarjeta' ? cardReceipt : null };
     const signature = orderSignature(user.id, request);
     if (pendingOrder.current?.signature !== signature) {
       pendingOrder.current = { id: crypto.randomUUID(), signature };
