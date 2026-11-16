@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapPin, Locate, AlertTriangle, CheckCircle2, RotateCcw, Info } from 'lucide-react'
+import { MapPin, Locate, AlertTriangle, CheckCircle2, Crosshair, Compass, Info } from 'lucide-react'
 import {
   CARABAYLLO_CENTER,
   CARABAYLLO_ZONE_POLYGON,
@@ -13,11 +13,11 @@ import {
 // Icono personalizado de pin para el punto de entrega en estilo Pollería LYS
 const customDeliveryPin = L.divIcon({
   className: 'lys-delivery-pin',
-  iconSize: [34, 44],
-  iconAnchor: [17, 44],
-  popupAnchor: [0, -40],
+  iconSize: [36, 46],
+  iconAnchor: [18, 46],
+  popupAnchor: [0, -42],
   html: `
-    <svg viewBox="0 0 34 44" width="34" height="44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 34 44" width="36" height="46" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M17 1C8.163 1 1 8.163 1 17C1 28.5 17 43 17 43S33 28.5 33 17C33 8.163 25.837 1 17 1Z" fill="#EA580C" stroke="#FFFFFF" stroke-width="2.5" />
       <circle cx="17" cy="17" r="6" fill="#FFFFFF" />
       <circle cx="17" cy="17" r="3" fill="#C2410C" />
@@ -50,13 +50,15 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
         [-12.02, -77.18],
         [-11.60, -76.85],
       ],
-      scrollWheelZoom: false,
+      scrollWheelZoom: true, // Habilitar zoom con la rueda del ratón (scroll)
+      wheelDebounceTime: 60,
+      zoomAnimation: true,
     })
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Pollería LYS Carabayllo',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Pollería LYS',
     }).addTo(map)
 
     // Dibujar polígono con la zona de cobertura de Carabayllo
@@ -153,7 +155,6 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
       setIsOutOfZone(true)
       setStatusMessage('La ubicación seleccionada está fuera de nuestra zona de cobertura en Carabayllo.')
 
-      // Colocar o mover marcador indicando visualmente el fuera de zona
       if (markerRef.current) {
         markerRef.current.setLatLng([selectedPoint.lat, selectedPoint.lng])
       } else if (mapInstance) {
@@ -223,19 +224,33 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
     )
   }
 
-  function handleResetView() {
-    if (mapRef.current) {
+  function handleRecenter() {
+    if (!mapRef.current) return
+    if (isValidPoint(point)) {
+      mapRef.current.setView([point.lat, point.lng], Math.max(mapRef.current.getZoom(), 16), { animate: true })
+      setStatusMessage('Mapa reenfocado en la dirección seleccionada.')
+    } else {
       mapRef.current.setView(CARABAYLLO_CENTER, 14, { animate: true })
-      setStatusMessage('Mapa centrado en el distrito de Carabayllo.')
+      setStatusMessage('Mapa enfocado en la zona de reparto de Carabayllo.')
     }
   }
+
+  const hasPoint = isValidPoint(point)
 
   return (
     <div className="delivery-map-wrapper">
       <div className="delivery-map-header">
         <div className="delivery-map-title-wrap">
-          <MapPin size={18} className="text-ember" />
-          <h3 className="delivery-map-title">Punto de entrega en mapa (Carabayllo)</h3>
+          <div className="delivery-map-icon-box">
+            <MapPin size={18} />
+          </div>
+          <div>
+            <div className="delivery-map-title-row">
+              <h3 className="delivery-map-title">Ubicación de entrega</h3>
+              <span className="delivery-map-district-badge">Zona Carabayllo</span>
+            </div>
+            <p className="delivery-map-subtitle">Toca el mapa o arrastra el pin hasta tu puerta. Scroll para zoom.</p>
+          </div>
         </div>
 
         <div className="delivery-map-toolbar-actions">
@@ -252,49 +267,50 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
           <button
             type="button"
             className="btn-outline delivery-btn-sm"
-            onClick={handleResetView}
-            title="Centrar en Carabayllo"
+            onClick={handleRecenter}
+            title={hasPoint ? 'Volver a enfocar el marcador en tu dirección' : 'Enfocar la zona completa de Carabayllo'}
           >
-            <RotateCcw size={14} />
-            Centrar
+            {hasPoint ? <Crosshair size={14} /> : <Compass size={14} />}
+            {hasPoint ? 'Reenfocar mi punto' : 'Ver zona Carabayllo'}
           </button>
         </div>
       </div>
 
-      <p className="delivery-map-hint">
-        <Info size={13} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />
-        Haz clic en el mapa o arrastra el marcador rojo para afinar la puerta de tu domicilio en Carabayllo.
-      </p>
-
-      {/* Contenedor interactivo de Leaflet */}
-      <div
-        className={`delivery-map-container ${isOutOfZone ? 'map-border-warning' : ''}`}
-        ref={containerRef}
-        role="region"
-        aria-label="Mapa de selección de dirección en Carabayllo"
-      />
+      {/* Tarjeta del mapa con soporte de zoom por scroll */}
+      <div className="delivery-map-canvas-card">
+        <div
+          className={`delivery-map-container ${isOutOfZone ? 'map-border-warning' : ''}`}
+          ref={containerRef}
+          role="region"
+          aria-label="Mapa interactivo de entrega en Carabayllo"
+        />
+        <div className="delivery-map-floating-zoom-hint" aria-hidden="true">
+          <span>Scroll con rueda o dos dedos para zoom</span>
+        </div>
+      </div>
 
       {/* Barra de estado y validación de cobertura */}
       <div className="delivery-map-status-bar">
         {isOutOfZone ? (
           <div className="delivery-status-alert alert-warning" role="alert">
-            <AlertTriangle size={15} />
+            <AlertTriangle size={16} />
             <span>
-              <strong>Fuera de cobertura:</strong> Solo realizamos envíos dentro de Carabayllo. Por favor, selecciona
-              un punto dentro de la zona delimitada.
+              <strong>Fuera de cobertura:</strong> Solo realizamos delivery en el distrito de Carabayllo. Selecciona
+              un punto dentro del área delimitada.
             </span>
           </div>
-        ) : isValidPoint(point) ? (
+        ) : hasPoint ? (
           <div className="delivery-status-alert alert-success" role="status">
-            <CheckCircle2 size={15} />
+            <CheckCircle2 size={16} />
             <span>
-              Ubicación fijada en Carabayllo ({point.lat.toFixed(4)}, {point.lng.toFixed(4)})
+              <strong>Punto fijado en Carabayllo</strong> ({point.lat.toFixed(4)}, {point.lng.toFixed(4)})
               {isReverseGeocoding && ' · Identificando calle…'}
             </span>
           </div>
         ) : (
           <div className="delivery-status-alert alert-neutral" role="status">
-            <span>{statusMessage || 'Zona de reparto activa: Carabayllo, Lima Norte.'}</span>
+            <Info size={15} />
+            <span>{statusMessage || 'Haz clic en el mapa para fijar la entrada de tu domicilio en Carabayllo.'}</span>
           </div>
         )}
       </div>
