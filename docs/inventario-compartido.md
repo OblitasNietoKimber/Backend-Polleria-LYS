@@ -66,11 +66,11 @@ Para retirar exclusivamente esta funcionalidad se proporciona **`docs/revertir-i
 
 ## Validación
 
-- 12 pruebas de PostgreSQL para canales, fracciones compartidas, sobreventa, rollback, reintentos, ediciones, anulaciones, permisos, migración de pedidos pendientes y entregados y retirada del inventario conservando pedidos y pagos.
+- 13 pruebas de PostgreSQL para canales, fracciones compartidas, sobreventa, rollback, reintentos, ediciones, anulaciones, permisos, migración de pedidos pendientes y entregados, integración con cobro por tarjeta y retirada del inventario conservando pedidos y pagos.
 - 3 pruebas de cálculo del límite compartido en carrito y editor.
-- La batería completa de servicios y PostgreSQL pasó con 339 pruebas.
+- Tras integrar los cambios de caja desde `dev`, se verificaron 344 pruebas de servicios y PostgreSQL, incluida la combinación del pago con tarjeta y el descuento de stock sin duplicados.
 - Seis recorridos de navegador con el backend SQL local, incluyendo agotamiento desde mesas y reposición administrativa.
 - Lectura real del catálogo en PC y móvil y del control administrativo, sin generar ventas de prueba en InsForge.
 - Las 65 comprobaciones anteriores de navegador se revisaron; los reintentos de checkout ahora reconocen la misma solicitud pendiente sin duplicar el descuento. Cambiar el contacto no permite generar otra compra en efectivo mientras la primera siga pendiente. Un bloqueo ya no se muestra como «Guardando...».
 
-La implementación es local en código y está activa en el backend compartido. No se hizo commit ni push de estos cambios.
+El inventario está activo en el backend compartido y su código se integra en `dev` junto con los cambios de caja. Actualizar el repositorio no requiere reinstalar la migración de inventario que ya está aplicada.

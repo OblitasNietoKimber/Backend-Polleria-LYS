@@ -61,7 +61,7 @@ async function records(req,res,url,user,body){
  const single=req.headers.accept?.includes('application/vnd.pgrst.object+json');
  reply(res,200,single?(output[0]||null):output);
 }
-const allowedRPC=new Set(['ajustar_inventario','flujo_listar','flujo_sello','flujo_operar','flujo_devoluciones','obtener_historial_entregas_cocina','crear_pedido_cliente','obtener_dashboard_admin','obtener_historial_ventas','confirmar_entrega_delivery','registrar_cobro','cambiar_estado_cocina','entregar_pedido_cocina','obtener_actividad_salon','obtener_mesas_con_pedidos']);
+const allowedRPC=new Set(['ajustar_inventario','flujo_listar','flujo_sello','flujo_operar','flujo_devoluciones','obtener_historial_entregas_cocina','crear_pedido_cliente','crear_pedido_cliente_tarjeta','obtener_dashboard_admin','obtener_historial_ventas','confirmar_entrega_delivery','registrar_cobro','cambiar_estado_cocina','entregar_pedido_cocina','obtener_actividad_salon','obtener_mesas_con_pedidos']);
 const server=http.createServer(async(req,res)=>{
  const origin=req.headers.origin;
  if(origin&&!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(origin))return reply(res,403,{message:'Origen no autorizado'});

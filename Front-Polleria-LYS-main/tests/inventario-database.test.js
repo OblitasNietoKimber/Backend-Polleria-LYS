@@ -92,6 +92,17 @@ test('la migración reserva comandas previas activas y conserva sus importes',as
  }finally{await previous.close();}
 },60000);
 
+test('la integración de tarjeta registra el pago y descuenta stock una sola vez',async()=>{
+ const id=randomUUID(),op=randomUUID();
+ const buy=()=>query('cliente','SELECT public.crear_pedido_cliente_tarjeta($1,$2,$3,$4,$5,$6) AS id',
+  [id,'delivery',[{id:1,qty:2}],{name:'Cliente Tarjeta',phone:'999999999',address:'Av. Prueba 123'},'pi_stock_'+id,op]);
+ await buy();await buy();
+ expect(Number((await stock(1)).stock)).toBe(198);
+ const p=(await list()).cuentas.find(p=>p.id===id);
+ expect(p.estado_pago).toBe('pagado');
+ expect(Number((await db.query('SELECT count(*) FROM public.pagos WHERE pedido_id=$1',[id])).rows[0].count)).toBe(1);
+});
+
 test('retirar el inventario conserva pedidos y pagos posteriores',async()=>{
  const snapshot="SELECT jsonb_build_object('pedidos',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM public.pedidos p),'pagos',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM public.pagos p)) AS data";
  const before=(await db.query(snapshot)).rows[0].data;
