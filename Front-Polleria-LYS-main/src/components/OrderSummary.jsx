@@ -34,8 +34,8 @@ export default function OrderSummary({ items, subtotal, shipping, total, deliver
         <div>{deliveryType === 'delivery' ? `${form.address}${form.reference ? ` (${form.reference})` : ''}` : 'Recojo en tienda'}</div>
         <div>
           <strong>Pago:</strong>{' '}
-          {payment === 'efectivo' && 'Efectivo'}
-          {payment === 'yape' && 'Yape / Plin'}
+          {payment === 'efectivo' && (deliveryType === 'delivery' ? 'Efectivo (Contra entrega)' : 'Efectivo')}
+          {payment === 'yape' && (deliveryType === 'delivery' ? 'Yape / Plin (Contra entrega)' : 'Yape / Plin')}
           {payment === 'tarjeta' &&
             (cardReceipt
               ? `${cardReceipt.brandLabel} terminada en ${cardReceipt.last4} · Aprobado (${cardReceipt.authCode})`

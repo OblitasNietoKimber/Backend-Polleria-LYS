@@ -10,7 +10,7 @@ import '../../styles/compras.css'
 
 export default function PagoPage() {
   const navigate = useNavigate()
-  const { payment, setPayment, card, updateCardField, total, setCardReceipt, form } = useCart()
+  const { deliveryType, payment, setPayment, card, updateCardField, total, setCardReceipt, form } = useCart()
   const [cardErrors, setCardErrors] = useState({})
   const [processing, setProcessing] = useState(false)
   const [gatewayError, setGatewayError] = useState('')
@@ -76,6 +76,7 @@ export default function PagoPage() {
       <CheckoutSteps step={2} />
 
       <PaymentMethod
+        deliveryType={deliveryType}
         payment={payment}
         onChange={handlePaymentChange}
         card={card}
