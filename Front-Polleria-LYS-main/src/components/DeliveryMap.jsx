@@ -18,9 +18,9 @@ const customDeliveryPin = L.divIcon({
   popupAnchor: [0, -42],
   html: `
     <svg viewBox="0 0 34 44" width="36" height="46" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M17 1C8.163 1 1 8.163 1 17C1 28.5 17 43 17 43S33 28.5 33 17C33 8.163 25.837 1 17 1Z" fill="#EA580C" stroke="#FFFFFF" stroke-width="2.5" />
+      <path d="M17 1C8.163 1 1 8.163 1 17C1 28.5 17 43 17 43S33 28.5 33 17C33 8.163 25.837 1 17 1Z" fill="#DC2626" stroke="#FFFFFF" stroke-width="2.5" />
       <circle cx="17" cy="17" r="6" fill="#FFFFFF" />
-      <circle cx="17" cy="17" r="3" fill="#C2410C" />
+      <circle cx="17" cy="17" r="3" fill="#991B1B" />
     </svg>
   `,
 })
@@ -176,8 +176,9 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
     const detected = await reverseGeocodeCarabayllo(selectedPoint.lat, selectedPoint.lng)
     setIsReverseGeocoding(false)
 
-    if (detected && onAddressDetected) {
-      onAddressDetected(detected)
+    const finalAddress = detected || `Carabayllo (${selectedPoint.lat.toFixed(4)}, ${selectedPoint.lng.toFixed(4)})`
+    if (onAddressDetected) {
+      onAddressDetected(finalAddress)
     }
   }
 
@@ -242,7 +243,7 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
       <div className="delivery-map-header">
         <div className="delivery-map-title-wrap">
           <div className="delivery-map-icon-box">
-            <MapPin size={18} />
+            <MapPin size={22} color="#DC2626" />
           </div>
           <div>
             <div className="delivery-map-title-row">
@@ -285,7 +286,7 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
           aria-label="Mapa interactivo de entrega en Carabayllo"
         />
         <div className="delivery-map-floating-zoom-hint" aria-hidden="true">
-          <span>Scroll con rueda o dos dedos para zoom</span>
+          <span>Scroll con rueda para zoom</span>
         </div>
       </div>
 

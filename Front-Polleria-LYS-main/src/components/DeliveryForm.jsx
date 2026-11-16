@@ -46,7 +46,7 @@ export default function DeliveryForm({ deliveryType, form, errors = {}, onTypeCh
           <>
             <div className="checkout-field-group">
               <label className="checkout-field-label">
-                Dirección de entrega (Carabayllo)
+                Dirección de entrega
                 <AddressAutocomplete
                   value={form.address || ''}
                   onChange={(val) => onFormChange('address', val)}
@@ -77,7 +77,7 @@ export default function DeliveryForm({ deliveryType, form, errors = {}, onTypeCh
               point={form.location || null}
               onChange={(loc) => onFormChange('location', loc)}
               onAddressDetected={(detectedAddr) => {
-                if (!form.address || form.address.trim().length < 5) {
+                if (detectedAddr) {
                   onFormChange('address', detectedAddr)
                 }
               }}
