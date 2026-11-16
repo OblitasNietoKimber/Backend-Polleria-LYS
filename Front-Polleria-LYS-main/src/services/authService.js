@@ -47,8 +47,12 @@ async function loadProfile(authUser) {
 async function syncSession() {
   const version = ++revision;
   const { data, error } = await requireInsforge().auth.getCurrentUser();
-  if (error && error.statusCode !== 401) unwrap({ data, error });
-  const user = data?.user ? await loadProfile(data.user) : null;
+  // A missing or mismatched CSRF cookie prevents session restoration. Let the
+  // visitor sign in again; other forbidden responses must still surface.
+  const sessionUnavailable = error?.statusCode === 401 ||
+    (error?.statusCode === 403 && error.message === 'Invalid CSRF token');
+  if (error && !sessionUnavailable) unwrap({ data, error });
+  const user = !error && data?.user ? await loadProfile(data.user) : null;
   if (version === revision) publish({ user, loading: false, error: '' });
   return user;
 }
