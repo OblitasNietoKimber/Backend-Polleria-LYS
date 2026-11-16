@@ -59,14 +59,25 @@ async function getOrderHistory(id, { before } = {}) {
   if (before) query = query.lt('id', before)
   return unwrap(await query.order('id', { ascending: false }).limit(50)) || []
 }
-async function createOrder({ id, items, deliveryType, form, payment }) {
+async function createOrder({ id, items, deliveryType, form, payment, cardReceipt = null }) {
   const { db } = client()
   const tipoEntrega = deliveryType === 'pickup' ? 'recojo' : deliveryType
-  const savedId = unwrap(await db.rpc('crear_pedido_cliente', {
-    solicitud_id: id, tipo_entrega: tipoEntrega,
-    articulos: items.map(({ product, qty }) => ({ id: product.id, qty })),
-    datos_entrega: form, metodo: payment,
-  }))
+  const articulos = items.map(({ product, qty }) => ({ id: product.id, qty }))
+  let savedId
+  if (payment === 'tarjeta') {
+    if (!cardReceipt?.success || cardReceipt.status !== 'succeeded') {
+      throw new Error('Confirma el pago con tarjeta antes de crear el pedido.')
+    }
+    savedId = unwrap(await db.rpc('crear_pedido_cliente_tarjeta', {
+      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: form,
+      referencia_pago: cardReceipt.paymentIntentId || cardReceipt.authCode,
+      idempotencia_pago: id,
+    }))
+  } else {
+    savedId = unwrap(await db.rpc('crear_pedido_cliente', {
+      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: form, metodo: payment,
+    }))
+  }
   const saved = await getOrderById(savedId)
   if (!saved) throw new Error('No se pudo consultar el pedido confirmado. Reintenta con la misma solicitud.')
   return saved
