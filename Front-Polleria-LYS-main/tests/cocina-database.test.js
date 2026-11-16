@@ -87,12 +87,15 @@ test('conserva el envío de meseras y no permite retroceder pedidos de cocina',a
  expect((await db.query('SELECT estado FROM pedidos WHERE id=$1',[id])).rows[0].estado).toBe('listo');
  await expect(change(id,'listo','en_preparacion')).rejects.toThrow(/no permitida/);
 });
-test.each(['pendiente','listo'])('caja sigue cerrando y liberando una mesa desde %s al confirmar su pago',async estado=>{
+test.each(['pendiente','listo'])('caja cobra desde %s y conserva la mesa hasta entregar los platos',async estado=>{
  const id=await salon();if(estado==='listo'){await change(id,'pendiente','en_preparacion');await change(id,'en_preparacion','listo');}
  await pay(id);
- expect((await db.query('SELECT estado,estado_pago FROM pedidos WHERE id=$1',[id])).rows[0]).toEqual({estado:'entregado',estado_pago:'pagado'});
+ expect((await db.query('SELECT estado,estado_pago FROM pedidos WHERE id=$1',[id])).rows[0]).toEqual({estado,estado_pago:'pagado'});
+ expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
+ if(estado==='pendiente') {await change(id,'pendiente','en_preparacion');await change(id,'en_preparacion','listo');}
+ await deliver(id);
+ expect(await state(id)).toBe('entregado');
  expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('libre');
- expect((await db.query("SELECT cambiado_por FROM historial_estados_pedido WHERE pedido_id=$1 AND estado='entregado'",[id])).rows[0].cambiado_por).toBe(users[5]);
 });
 test('no libera una mesa ni entrega desde cocina antes de cobrar',async()=>{
  const id=await salon();await change(id,'pendiente','en_preparacion');await change(id,'en_preparacion','listo');
@@ -100,8 +103,8 @@ test('no libera una mesa ni entrega desde cocina antes de cobrar',async()=>{
  await expect(asUser(3,'SELECT liberar_mesa_salon(1)')).rejects.toThrow(/pago/);
 });
 test('mantiene la protección de pedidos cobrados y permite cancelar una comanda vacía',async()=>{
- const id=await salon();await pay(id);await expect(change(id,'entregado','en_preparacion')).rejects.toThrow(/no permitida/);
- await expect(asUser(3,'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)',[id,JSON.stringify([{id:1,qty:1}])])).rejects.toThrow(/finalizado/);
+ const id=await salon();await ready(id);await pay(id);await deliver(id);await expect(change(id,'entregado','en_preparacion')).rejects.toThrow(/no permitida/);
+ await expect(asUser(3,'SELECT agregar_o_modificar_detalles_salon($1,$2::jsonb)',[id,JSON.stringify([{id:1,qty:1}])])).rejects.toThrow(/cobrado|finalizado/);
  const empty=await salon([]);await asUser(3,'SELECT liberar_mesa_salon(1)');
  expect((await db.query('SELECT estado FROM pedidos WHERE id=$1',[empty])).rows[0].estado).toBe('cancelado');
 });
@@ -179,4 +182,106 @@ test('agregar comida a un pedido de bebidas lo envía al flujo de preparación',
 });
 test('el cliente no puede invocar la función interna para falsificar estados',async()=>{
  const id=await create();await expect(asUser(1,'SELECT ajustar_estado_servicio($1,true)',[id])).rejects.toThrow(/permission denied/);
+});
+
+async function ready(id) {await change(id,'pendiente','en_preparacion');await change(id,'en_preparacion','listo');}
+async function version(id) {return (await db.query('SELECT actualizado_en::text AS version FROM pedidos WHERE id=$1',[id])).rows[0].version;}
+async function deliver(id,stamp,user=0) {return asUser(user,'SELECT entregar_pedido_cocina($1,$2)',[id,stamp || await version(id)]);}
+const kitchenHistory=async (user=0,offset=0)=>(await asUser(user,'SELECT obtener_historial_entregas_cocina(50,$1) AS data',[offset])).rows[0].data;
+test('entregar salón retira la comanda, conserva la cuenta y audita sin cobrar ni liberar',async()=>{
+ const id=await salon();await ready(id);const stamp=await version(id);await deliver(id,stamp);
+ expect((await db.query('SELECT estado,estado_pago,cocina_entregado_en,cocina_entregado_por FROM pedidos WHERE id=$1',[id])).rows[0]).toMatchObject({estado:'listo',estado_pago:'pendiente',cocina_entregado_en:expect.any(Date),cocina_entregado_por:users[0]});
+ expect((await db.query('SELECT * FROM pagos')).rows).toHaveLength(0);
+ expect((await db.query("SELECT id FROM pedidos WHERE cocina_entregado_en IS NULL AND estado IN ('pendiente','en_preparacion','listo')")).rows).toHaveLength(0);
+ expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
+ const history=await kitchenHistory();expect(history).toHaveLength(1);expect(history[0]).toMatchObject({id,entregado_por:users[0],detalles_pedido:[{producto_id:1,cantidad:1}]});
+ const mesas=(await asUser(3,'SELECT obtener_mesas_con_pedidos() AS data')).rows[0].data;
+ expect(mesas.find(m=>m.id===1)).toMatchObject({pedido_id:id,estado_pago:'pendiente',cocina_entregado_en:expect.any(String)});
+ await pay(id);expect(await state(id)).toBe('entregado');expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('libre');
+ // Reintento perdido después de cerrar y reutilizar la mesa.
+ await salon();await deliver(id,stamp);expect((await db.query('SELECT estado FROM mesas WHERE id=1')).rows[0].estado).toBe('ocupada');
+ expect((await db.query('SELECT * FROM entregas_cocina WHERE pedido_id=$1',[id])).rows).toHaveLength(1);
+});
+test('después de entregar solo las cantidades añadidas regresan a cocina y cada entrega queda en historial',async()=>{
+ const drink=await directProduct('bebidas');const id=await salon();await ready(id);await deliver(id);
+ await edit(id,[{id:1,qty:1},{id:drink,qty:2}]);expect(await state(id)).toBe('listo');
+ expect((await db.query('SELECT cocina_entregado_en FROM pedidos WHERE id=$1',[id])).rows[0].cocina_entregado_en).not.toBeNull();
+ await edit(id,[{id:1,qty:3},{id:drink,qty:2}]);expect(await state(id)).toBe('pendiente');
+ await ready(id);await deliver(id);
+ const history=await kitchenHistory();expect(history).toHaveLength(2);
+ expect(history.map(h=>h.detalles_pedido[0].cantidad)).toEqual([2,1]);
+ await expect(edit(id,[{id:1,qty:2}])).rejects.toThrow(/ya entregados/);
+ expect((await kitchenHistory()).length).toBe(2);
+});
+test('rechaza entregar una versión vieja tras editar la comanda o cobrar',async()=>{
+ const id=await salon();await ready(id);const old=await version(id);await edit(id,[{id:1,qty:2}]);
+ await expect(deliver(id,old)).rejects.toThrow(/Otro usuario/);
+ expect((await db.query('SELECT * FROM entregas_cocina')).rows).toHaveLength(0);
+ await ready(id);const beforePay=await version(id);await pay(id);
+ await expect(deliver(id,beforePay)).rejects.toThrow(/Otro usuario/);
+ await deliver(id);expect(await state(id)).toBe('entregado');
+});
+test('bloquea liberar una mesa prepagada mientras cocina prepara o espera entregar',async()=>{
+ const id=await salon();await pay(id);
+ await expect(asUser(3,'SELECT liberar_mesa_salon(1)')).rejects.toThrow(/entrega/);
+ await expect(asUser(3,"UPDATE mesas SET estado='libre' WHERE id=1")).rejects.toThrow(/entrega/);
+ await expect(edit(id,[{id:1,qty:2}])).rejects.toThrow(/cobrado/);
+ await ready(id);await expect(asUser(3,'SELECT liberar_mesa_salon(1)')).rejects.toThrow(/entrega/);
+ await deliver(id);expect(await state(id)).toBe('entregado');
+});
+test('recojo exige pago confirmado y entregarlo no duplica cobros',async()=>{
+ const id=await create();await ready(id);await expect(deliver(id)).rejects.toThrow(/pago en caja/);
+ expect((await db.query('SELECT * FROM entregas_cocina')).rows).toHaveLength(0);
+ await pay(id);const stamp=await version(id);await deliver(id,stamp);await deliver(id,stamp);
+ expect(await state(id)).toBe('entregado');expect((await db.query('SELECT * FROM pagos')).rows).toHaveLength(1);
+});
+test('delivery contra entrega sale en camino sin marcar pagado y caja confirma el destino tras el cobro',async()=>{
+ const id=await create('delivery');await ready(id);await deliver(id);
+ expect((await db.query('SELECT estado,estado_pago FROM pedidos WHERE id=$1',[id])).rows[0]).toEqual({estado:'en_camino',estado_pago:'pendiente'});
+ await expect(asUser(5,'SELECT confirmar_entrega_delivery($1)',[id])).rejects.toThrow(/cobro/);
+ await pay(id);expect(await state(id)).toBe('en_camino');
+ await asUser(5,'SELECT confirmar_entrega_delivery($1)',[id]);await asUser(5,'SELECT confirmar_entrega_delivery($1)',[id]);
+ expect(await state(id)).toBe('entregado');
+ expect((await db.query('SELECT estado FROM historial_estados_pedido WHERE pedido_id=$1 ORDER BY id',[id])).rows.map(h=>h.estado)).toEqual(['pendiente','en_preparacion','listo','en_camino','entregado']);
+});
+test.each(['tarjeta','yape','plin'])('delivery de %s debe confirmar su cobro antes de salir',async metodo=>{
+ const id=await create('delivery');await db.query('UPDATE pedidos SET metodo_solicitado=$2 WHERE id=$1',[id,metodo]);await ready(id);
+ await expect(deliver(id)).rejects.toThrow(/pago en caja/);await pay(id);await deliver(id);expect(await state(id)).toBe('en_camino');
+});
+test.each([1,2,3,5,null])('el usuario %s no puede entregar ni consultar el historial de cocina',async user=>{
+ const id=await salon();await ready(id);await expect(deliver(id,undefined,user)).rejects.toThrow(/cocina|permission denied/);
+ await expect(kitchenHistory(user)).rejects.toThrow(/cocina|permission denied/);
+});
+test('cocina no puede escribir entregas directamente ni confirmar delivery en destino',async()=>{
+ const id=await create('delivery');await ready(id);await deliver(id);
+ await expect(asUser(0,'DELETE FROM entregas_cocina WHERE pedido_id=$1',[id])).rejects.toThrow(/permission denied/);
+ await expect(asUser(0,'SELECT confirmar_entrega_delivery($1)',[id])).rejects.toThrow(/Solo caja/);
+ expect((await asUser(1,'SELECT * FROM entregas_cocina')).rows).toHaveLength(0);
+ expect((await asUser(0,'SELECT * FROM entregas_cocina')).rows).toHaveLength(1);
+});
+test('entregar publica cambios sin incluir datos personales y revierte todo si falla el cierre',async()=>{
+ const id=await salon();await ready(id);await pay(id);await db.exec('DELETE FROM realtime.messages');
+ await db.exec("CREATE FUNCTION fallar_entrega() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Fallo cierre'; END; $$; CREATE TRIGGER zz_fallar BEFORE UPDATE ON mesas FOR EACH ROW EXECUTE FUNCTION fallar_entrega();");
+ try {await expect(deliver(id)).rejects.toThrow(/Fallo cierre/);} finally {await db.exec('DROP TRIGGER zz_fallar ON mesas; DROP FUNCTION fallar_entrega()');}
+ expect((await db.query('SELECT * FROM entregas_cocina')).rows).toHaveLength(0);expect(await state(id)).toBe('listo');
+ await deliver(id);const messages=(await db.query('SELECT payload FROM realtime.messages')).rows;
+ expect(messages.length).toBeGreaterThan(0);expect(messages.every(m=>JSON.stringify(m.payload)===JSON.stringify({pedidoId:id}))).toBe(true);
+});
+
+test('no permite entregar sin preparar, con versión nula o invocando la RPC de estados antigua',async()=>{
+ const id=await salon();await expect(deliver(id)).rejects.toThrow(/no está listo/);
+ await ready(id);await expect(asUser(0,'SELECT entregar_pedido_cocina($1,NULL)',[id])).rejects.toThrow(/Otro usuario/);
+ await expect(change(id,'listo','entregado',4)).rejects.toThrow(/no permitida/);
+ expect((await db.query('SELECT * FROM entregas_cocina')).rows).toHaveLength(0);
+});
+test('conserva pedidos históricos cerrados sin inventar entregas y pagina las entregas nuevas',async()=>{
+ const old=await create();await db.query("UPDATE pedidos SET estado='entregado' WHERE id=$1",[old]);
+ const id=await salon();await ready(id);await deliver(id);
+ const history=await kitchenHistory();expect(history).toHaveLength(2);
+ expect(history.find(h=>h.id===old)).toMatchObject({esAnterior:true});
+ expect(history.find(h=>h.id===old)).not.toHaveProperty('entregado_en');
+ const first=(await asUser(0,'SELECT obtener_historial_entregas_cocina(1,0) AS data')).rows[0].data;
+ const second=(await asUser(0,'SELECT obtener_historial_entregas_cocina(1,1) AS data')).rows[0].data;
+ expect(new Set([...first,...second].map(h=>h.historialId)).size).toBe(2);
+ for(const args of [[0,0],[101,0],[50,-1],[null,0],[50,null]]) await expect(asUser(0,'SELECT obtener_historial_entregas_cocina($1,$2)',args)).rejects.toThrow(/Página/);
 });

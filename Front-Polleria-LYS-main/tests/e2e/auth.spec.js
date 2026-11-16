@@ -2,7 +2,7 @@ import { test, expect } from '../../e2e/fixtures';
 
 const user = { id: '3b8df9ba-9e09-46c1-9b53-e70a2cacaf37', email: 'cliente@example.test', emailVerified: true, profile: { name: 'Cliente Prueba' } };
 const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: user.id, exp: 4102444800 })).toString('base64url')}.test`;
-async function backend(page, { role = 'cliente', signedIn = false, verification = true } = {}) {
+async function backend(page, { role = 'cliente', signedIn = false, verification = true, invalidCsrf = false } = {}) {
   let active = signedIn;
   let profile = { id: user.id, nombre: 'Cliente', apellido: 'Prueba', telefono: '987654321', rol: role, preferencias: { notificacionesEmail: true, notificacionesPromos: true } };
   const calls = [];
@@ -11,7 +11,7 @@ async function backend(page, { role = 'cliente', signedIn = false, verification 
     calls.push({ path, body: request.postDataJSON(), method: request.method() });
     const session = { user, accessToken: token, csrfToken: 'test-csrf' };
     let body; let status = 200;
-    if (path.endsWith('/refresh')) { if (active) body = session; else { status = 401; body = { error: 'INVALID_REFRESH_TOKEN', message: 'No session', statusCode: 401 }; } }
+    if (path.endsWith('/refresh')) { if (active) body = session; else if (invalidCsrf) { status = 403; body = { error: 'FORBIDDEN', message: 'Invalid CSRF token', statusCode: 403 }; } else { status = 401; body = { error: 'INVALID_REFRESH_TOKEN', message: 'No session', statusCode: 401 }; } }
     else if (path.endsWith('/sessions')) {
       if (request.postDataJSON().password === 'Wrong123') { status = 401; body = { error: 'INVALID_CREDENTIALS', message: 'Invalid credentials', statusCode: 401 }; }
       else { active = true; body = session; }
@@ -32,6 +32,18 @@ async function backend(page, { role = 'cliente', signedIn = false, verification 
   });
   return calls;
 }
+
+test('una sesion con CSRF invalido permite volver a iniciar sesion', async ({ page }) => {
+  await backend(page, { invalidCsrf: true });
+  await page.goto('/dashboard');
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel('Correo electrónico', { exact: true }).fill(user.email);
+  await page.getByLabel('Contraseña', { exact: true }).fill('Correct123');
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Mis pedidos', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('link', { name: 'Mis pedidos', exact: true })).toBeVisible();
+});
 
 test('rechaza sesiones falsas y redirige rutas privadas', async ({ page }) => {
   await backend(page);
@@ -94,7 +106,9 @@ test('Google usa callback y perfil del servidor', async ({ page }) => {
   const calls = await backend(page);
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continuar con Google' }).click();
-  await expect(page).toHaveURL(/profile/);
+  await expect(page).toHaveURL(new URL('/', page.url()).href);
+  await page.goto('/profile');
+  await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue('Cliente');
   expect(calls.some(c => c.path.endsWith('/oauth/exchange'))).toBeTruthy();
 });
 for (const [role, allowed, denied] of [['cliente','/pedidos','/dashboard'],['mesera','/mesas','/caja'],['cocina','/cocina','/dashboard'],['caja','/caja','/mesas'],['admin','/dashboard',null]]) {

@@ -17,8 +17,8 @@ export default function MesasPage() {
 
   useEffect(() => {
     if (location.state?.toastExito) {
-      setToastExito(location.state.toastExito);
-      window.history.replaceState({}, document.title);
+      const timer=setTimeout(()=>{setToastExito(location.state.toastExito);window.history.replaceState({},document.title);},0);
+      return()=>clearTimeout(timer);
     }
   }, [location.state]);
 
@@ -31,8 +31,8 @@ export default function MesasPage() {
 
   const [zonaSeleccionada, setZonaSeleccionada] = useState('salon_principal');
   const [busqueda, setBusqueda] = useState('');
-  const [sidebarActividadColapsado, setSidebarActividadColapsado] = useState(false);
-  const [navLateralColapsado, setNavLateralColapsado] = useState(false);
+  const [sidebarActividadColapsado, setSidebarActividadColapsado] = useState(() => window.innerWidth < 900);
+  const [navLateralColapsado, setNavLateralColapsado] = useState(() => window.innerWidth < 900);
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [mostrarModalActividad, setMostrarModalActividad] = useState(false);
 

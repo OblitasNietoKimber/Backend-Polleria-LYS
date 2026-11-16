@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import mesaService from '../../services/mesaService';
+import {FLOW_PREVIEW} from '../../services/atencionService';
+import AtencionCuentas from './AtencionCuentas';
 
 export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotificacion }) {
   const navigate = useNavigate();
@@ -60,6 +62,10 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
 
   async function handleLiberarMesa() {
     setErrorOperacion('');
+    if (mesa.pedidoId && mesa.estadoPago === 'pagado') {
+      setErrorOperacion('La cuenta está pagada. La mesa se liberará al completar la entrega de cocina.');
+      return;
+    }
     if (mesa.pedidoId && Number(totalAcumulado || 0) > 0) {
       setModoAnulacion(true);
       return;
@@ -266,11 +272,14 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
                   <div className="mesa-ocupada-row">
                     <span className="mesa-ocupada-label">Estado en cocina:</span>
                     <span className="mesa-ocupada-estado-cocina">
-                      {pedidoActivo.estadoCocina?.replace('_', ' ') || 'En espera'}
+                      {pedidoActivo.estadoCocina === 'entregado' ? 'Entregado a mesera' : pedidoActivo.estadoCocina?.replace('_', ' ') || 'En espera'}
                     </span>
                   </div>
                 )}
               </div>
+
+              {FLOW_PREVIEW&&mesa.atencionId ? <AtencionCuentas mesa={mesa} onUpdated={onMesaUpdated} onError={setErrorOperacion} onClose={onClose}/> : <>
+              {mesa.pedidoId && <p>Cuenta: {mesa.estadoPago === 'pagado' ? 'Pagada · Esperando entrega de cocina' : 'Pendiente de cobro'}</p>}
 
               {(pedidoActivo?.items?.length > 0 || mesa?.items?.length > 0) && (
                 <div className="mesa-comanda-box">
@@ -340,10 +349,10 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
                 </div>
               ) : (
                 <div className="mesa-actions-col">
-                  <button className="btn-nuevo-pedido mesa-btn-block" onClick={handleIrAPedido}>
+                  <button className="btn-nuevo-pedido mesa-btn-block" onClick={handleIrAPedido} disabled={mesa.estadoPago === 'pagado'}>
                     Ver / Agregar a la comanda
                   </button>
-                  <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta}>
+                  <button type="button" className="mesa-btn-secondary-warn" onClick={handleSolicitarCuenta} disabled={mesa.estadoPago === 'pagado'}>
                     Solicitar cuenta para caja
                   </button>
                   <button type="button" className="mesa-btn-secondary-neutral" onClick={handleLiberarMesa}>
@@ -351,6 +360,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
                   </button>
                 </div>
               )}
+              </>}
             </div>
           )}
 

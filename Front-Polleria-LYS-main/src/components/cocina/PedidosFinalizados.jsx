@@ -18,6 +18,7 @@ function FilaPedido({ pedido }) {
       </div>
       <div className="cocina-finalizado-meta">
         <span>Personal: {usuarioCorto}</span>
+        <span>{pedido.entregadoEn ? `Entregado: ${new Date(pedido.entregadoEn).toLocaleString('es-PE')}` : 'Registro anterior · Entrega sin fecha confirmada'}</span>
         <span className="font-mono cocina-finalizado-duracion">
           {pedido.finalizadoAt ? 'Preparación: ' + duracion : 'Preparación sin fecha confirmada'}
         </span>
@@ -37,7 +38,7 @@ export default function PedidosFinalizados({ pedidos }) {
   return (
     <div className="cocina-finalizados-list">
       {pedidos.map((p) => (
-        <FilaPedido key={p.id} pedido={p} />
+        <FilaPedido key={p.historialId || p.id} pedido={p} />
       ))}
     </div>
   );

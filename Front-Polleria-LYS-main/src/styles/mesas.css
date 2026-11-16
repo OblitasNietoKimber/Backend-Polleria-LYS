@@ -765,6 +765,7 @@
   justify-content: center;
   z-index: 9999;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .mesa-modal-card {
@@ -772,12 +773,19 @@
   border-radius: 16px;
   width: 100%;
   max-width: 440px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
   overflow: hidden;
 }
 
 .mesa-modal-header {
   display: flex;
+  flex-shrink: 0;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
   padding: 18px 22px;
@@ -786,14 +794,40 @@
 
 .mesa-modal-body {
   padding: 20px 22px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  overflow-wrap: anywhere;
 }
 
 .mesa-modal-footer {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   padding: 14px 22px;
   background: #F9FAFB;
   border-top: 1px solid var(--line);
+}
+
+@media (max-width: 480px) {
+  .mesa-modal-backdrop {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .mesa-modal-card {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+  }
+
+  .mesa-modal-header,
+  .mesa-modal-body,
+  .mesa-modal-footer {
+    padding: 14px 16px;
+  }
+
+  .mesa-modal-close-btn {
+    min-height: 44px;
+  }
 }
 
 /* Estado vacío del plano de mesas (MesasPage) */
