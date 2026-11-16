@@ -16,7 +16,16 @@ export default function EntregaPage() {
     if (!form.name.trim()) nextErrors.name = 'Ingresa tu nombre.'
     if (!form.phone.trim()) nextErrors.phone = 'Ingresa un teléfono de contacto.'
     else if (!/^9\d{8}$/.test(form.phone.trim())) nextErrors.phone = 'El teléfono debe tener 9 dígitos y empezar con 9.'
-    if (deliveryType === 'delivery' && !form.address.trim()) nextErrors.address = 'Ingresa tu dirección.'
+    if (deliveryType === 'delivery') {
+      if (!form.address?.trim()) {
+        nextErrors.address = 'Ingresa tu dirección de entrega en Carabayllo.'
+      } else if (form.address.trim().length < 5) {
+        nextErrors.address = 'La dirección debe tener al menos 5 caracteres.'
+      }
+      if (form.location && form.location.outOfZone) {
+        nextErrors.location = 'La ubicación seleccionada está fuera de Carabayllo. Selecciona un punto dentro de la zona delimitada.'
+      }
+    }
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
