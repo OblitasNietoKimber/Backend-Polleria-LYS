@@ -36,7 +36,7 @@ export default function DeliveryForm({ deliveryType, form, errors = {}, onTypeCh
             className={`lys-input ${errors.name ? 'err' : ''}`}
             value={form.name || ''}
             onChange={(event) => onFormChange('name', event.target.value)}
-            placeholder="Ej. María Torres"
+            placeholder="Ej. María Torres López"
             maxLength={50}
           />
           {errors.name && <span className="checkout-field-error">{errors.name}</span>}
