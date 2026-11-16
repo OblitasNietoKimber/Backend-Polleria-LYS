@@ -19,6 +19,7 @@
   "dependencies": {
     "@insforge/sdk": "^1.5.2",
     "echarts": "^6.1.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.38.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
