@@ -10,6 +10,15 @@ import FormularioPago from "../components/caja/FormularioPago";
 import TicketModal from "../components/caja/TicketModal";
 import { formatCodigoPedido } from "../utils/orderNumber";
 import fondo from "../img/fondo.png";
+import {FLOW_PREVIEW,operateFlow,openIncident} from '../services/atencionService';
+import {IncidentActions} from '../components/flow/FlowShared';
+import '../styles/attentionIntegration.css';
+function inView(p,view){
+  if(view==='cobrados')return p.estado==='pagado';
+  if(p.estado!=='pendiente'||p.total<=0)return false;
+  if(!FLOW_PREVIEW)return true;
+  return view==='abiertas'?p.tipo==='salon'&&!p.cuentaSolicitada:p.tipo!=='salon'||p.cuentaSolicitada;
+}
 
 export default function CajaPage() {
   const [pedidos, setPedidos] = useState([]);
@@ -23,7 +32,9 @@ export default function CajaPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [cobrando, setCobrando] = useState(false);
+  const [entregando, setEntregando] = useState(false);
   const [reintentoPendiente, setReintentoPendiente] = useState(false);
+  const [filtroTipo,setFiltroTipo]=useState('todos'),[filtroCocina,setFiltroCocina]=useState('todos'),[fechaCobro,setFechaCobro]=useState(''),[soloReparto,setSoloReparto]=useState(false),[anticipado,setAnticipado]=useState(false);
   const intento = useRef(null);
   const bloqueo = useRef(false);
   const montado = useRef(false);
@@ -44,7 +55,7 @@ export default function CajaPage() {
       if (!montado.current || version !== consulta.current || bloqueo.current) return;
       sello.current = cambios;
       setPedidos(data);
-      setSeleccionadoId(actual => data.some(p => p.id === actual) ? actual : data.find(p => p.estado === "pendiente" && p.total > 0)?.id ?? null);
+      setSeleccionadoId(actual => data.some(p => p.id === actual&&inView(p,vista)) ? actual : data.find(p=>inView(p,vista))?.id ?? null);
       setError("");
     } catch (err) {
       if (montado.current && version === consulta.current) setError(err.message || "No se pudieron consultar los pedidos.");
@@ -52,7 +63,7 @@ export default function CajaPage() {
       if (version === consulta.current) consultando.current = false;
       if (montado.current && version === consulta.current) setCargando(false);
     }
-  }, []);
+  }, [vista]);
 
   useEffect(() => {
     montado.current = true;
@@ -66,14 +77,15 @@ export default function CajaPage() {
     return () => { montado.current = false; stop(); clearTimeout(inicial); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
   }, [recargar]);
 
-  const pendientes = pedidos.filter((pedido) => pedido.estado === "pendiente" && pedido.total > 0);
+  const pendientes = pedidos.filter(p=>inView(p,'pendientes'));
+  const abiertas=FLOW_PREVIEW?pedidos.filter(p=>inView(p,'abiertas')):[];
   const cobrados = pedidos.filter((pedido) => pedido.estado === "pagado");
-  const listaActiva = vista === "pendientes" ? pendientes : cobrados;
+  const listaActiva = vista === "pendientes" ? pendientes : vista==='abiertas'?abiertas:cobrados;
 
   const pedidosFiltrados = listaActiva.filter((pedido) =>
     `${pedido.codigo} ${formatCodigoPedido(pedido.codigo || pedido.id)} ${pedido.mesa || pedido.tipo} ${pedido.cliente}`
       .toLowerCase()
-      .includes(busqueda.trim().toLowerCase())
+      .includes(busqueda.trim().toLowerCase())&&(!FLOW_PREVIEW||((filtroTipo==='todos'||pedido.tipo===filtroTipo)&&(filtroCocina==='todos'||pedido.estadoCocina===filtroCocina)&&(!fechaCobro||vista!=='cobrados'||fechaLima(pedido.pagadoAt)===fechaCobro)&&(!soloReparto||pedido.tipo==='delivery'&&pedido.estadoPedido==='en_camino')))
   );
 
   const pedidoActivo = pedidos.find((pedido) => pedido.id === seleccionadoId) ?? null;
@@ -82,7 +94,8 @@ export default function CajaPage() {
   const montoValido = monto !== "" && /^\d+(\.\d{1,2})?$/.test(monto) && Number.isFinite(montoNumerico) && montoNumerico > 0;
   const puedeCobrar = Boolean(
     pedidoActivo &&
-      pedidoActivo.estado === "pendiente" && total > 0 && !cargando && !cobrando &&
+      pedidoActivo.estado === "pendiente" && total > 0 && !cargando && !cobrando && !entregando &&
+      (!FLOW_PREVIEW||(!openIncident(pedidoActivo.cuenta||{})&&(pedidoActivo.tipo!=='salon'||pedidoActivo.cuentaSolicitada||anticipado)))&&
       (metodo !== "Efectivo" || (montoValido && montoNumerico >= total))
   );
 
@@ -90,11 +103,12 @@ export default function CajaPage() {
 
   function cambiarVista(nuevaVista) {
     if (bloqueo.current || intento.current) return;
-    const nuevaLista = nuevaVista === "pendientes" ? pendientes : cobrados;
+    const nuevaLista = nuevaVista === "pendientes" ? pendientes : nuevaVista==='abiertas'?abiertas:cobrados;
     setVista(nuevaVista);
     setBusqueda("");
     setSeleccionadoId(nuevaLista[0]?.id ?? null);
     setMonto("");
+    setAnticipado(false);setSoloReparto(false);setFechaCobro('');
   }
 
   function cambiarMetodo(nuevoMetodo) {
@@ -112,6 +126,7 @@ export default function CajaPage() {
     intento.current ??= { id: seleccionadoId, data: {
       metodo, monto: metodo === "Efectivo" ? montoNumerico : total,
       idempotencia: crypto.randomUUID(), totalEsperado: total,
+      version:pedidoActivo?.versionCuenta,anticipado,
     } };
     try {
       const pedidoPagado = await cajaService.registrarCobro(intento.current.id, intento.current.data);
@@ -131,6 +146,24 @@ export default function CajaPage() {
     }
   }
 
+  async function confirmarEntregaDelivery() {
+    if (bloqueo.current || intento.current || !pedidoActivo) return;
+    bloqueo.current = true;
+    ++consulta.current;
+    setEntregando(true);
+    setError('');
+    try {
+      await cajaService.confirmarEntregaDelivery(pedidoActivo.id,pedidoActivo.versionCuenta);
+    } catch (err) {
+      if (montado.current) setError(err.message || 'No se pudo confirmar la entrega.');
+      return;
+    } finally {
+      bloqueo.current = false;
+      if (montado.current) setEntregando(false);
+    }
+    await recargar();
+  }
+
   function cerrarTicket() {
     const primerPendiente = pendientes[0];
     setVentaConfirmada(null);
@@ -148,6 +181,13 @@ export default function CajaPage() {
     setMonto("");
     setCargando(true);
     await recargar();
+  }
+  async function gestionarIncidencia(action,cuenta,extra={}){
+    if(bloqueo.current||intento.current)return;bloqueo.current=true;setEntregando(true);setError('');
+    let fallo='';
+    try{return await operateFlow(action,{pedido:cuenta.id,version:cuenta.version_cuenta,...extra});}
+    catch(err){fallo=err.message||'No se pudo registrar la incidencia.';throw err;}
+    finally{await recargar();if(fallo)setError(fallo);bloqueo.current=false;setEntregando(false);}
   }
 
   return (
@@ -195,10 +235,10 @@ export default function CajaPage() {
 
         {cargando && <p role="status">Consultando pedidos…</p>}
         {error && <div role="alert" className="caja-error">{error}</div>}
-        <button type="button" className="caja-refresh-button" disabled={cobrando || cargando} onClick={revisarCuenta}>
+        <button type="button" className="caja-refresh-button" disabled={entregando || cobrando || cargando} onClick={revisarCuenta}>
           {reintentoPendiente ? "Actualizar y revisar el resultado" : "Actualizar pedidos"}
         </button>
-        <div className="caja-layout" aria-busy={cargando || cobrando}>
+        <div className="caja-layout" aria-busy={cargando || cobrando || entregando}>
           <section className="caja-orders-panel" aria-labelledby="pedidos-title">
             <div className="caja-section-title">
               <div>
@@ -216,37 +256,53 @@ export default function CajaPage() {
                 role="tab"
                 aria-selected={vista === "pendientes"}
                 className={vista === "pendientes" ? "active" : ""}
-                disabled={cobrando || reintentoPendiente}
+                disabled={entregando || cobrando || reintentoPendiente}
                 onClick={() => cambiarVista("pendientes")}
               >
-                Pendientes <span>{pendientes.length}</span>
+                {FLOW_PREVIEW?'Por cobrar':'Pendientes'} <span>{pendientes.length}</span>
               </button>
+              {FLOW_PREVIEW&&<button type="button" role="tab" aria-selected={vista==='abiertas'} className={vista==='abiertas'?'active':''} disabled={entregando||cobrando||reintentoPendiente} onClick={()=>cambiarVista('abiertas')}>Cuentas abiertas <span>{abiertas.length}</span></button>}
               <button
                 type="button"
                 role="tab"
                 aria-selected={vista === "cobrados"}
                 className={vista === "cobrados" ? "active" : ""}
-                disabled={cobrando || reintentoPendiente}
+                disabled={entregando || cobrando || reintentoPendiente}
                 onClick={() => cambiarVista("cobrados")}
               >
                 Cobrados <span>{cobrados.length}</span>
               </button>
             </div>
 
+            {FLOW_PREVIEW&&<div className="attention-caja-filters"><label>Tipo de atención<select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)}><option value="todos">Todos</option><option value="salon">Salón</option><option value="recojo">Para llevar</option><option value="delivery">Delivery</option></select></label><label>Estado de cocina<select value={filtroCocina} onChange={e=>setFiltroCocina(e.target.value)}>{['todos','Nuevo','Preparando','Listo','Entregado / servicio directo','Preparación detenida','Anulado'].map(s=><option key={s} value={s}>{s==='todos'?'Todos':s}</option>)}</select></label>{vista==='cobrados'&&<><label>Fecha de cobro<input type="date" value={fechaCobro} onChange={e=>setFechaCobro(e.target.value)}/></label><label className="attention-confirm"><input type="checkbox" checked={soloReparto} onChange={e=>setSoloReparto(e.target.checked)}/>Delivery pendiente de entrega</label></>}</div>}
+
             <ListaPedidos
               pedidos={pedidosFiltrados}
               pedidoSeleccionado={seleccionadoId}
-              disabled={cobrando || reintentoPendiente}
+              disabled={entregando || cobrando || reintentoPendiente}
               onSeleccionar={(id) => {
                 setSeleccionadoId(id);
                 setMonto("");
                 setMetodo("Efectivo");
+                setAnticipado(false);
               }}
             />
           </section>
 
           <section className="caja-payment-panel" aria-label="Cobro del pedido">
             <DetalleVenta pedido={pedidoActivo} />
+            {FLOW_PREVIEW&&pedidoActivo&&<p className="attention-status">Cocina: {pedidoActivo.estadoCocina} · Cuenta: {pedidoActivo.estado==='pagado'?'Pagada':pedidoActivo.cuentaSolicitada?'Solicitada':'Abierta'} · Pago: {pedidoActivo.estado==='pagado'?'Confirmado':'Pendiente'}</p>}
+            {FLOW_PREVIEW&&pedidoActivo?.estado==='pendiente'&&pedidoActivo.tipo==='salon'&&!pedidoActivo.cuentaSolicitada&&<div className="attention-caja-notice"><label className="attention-confirm"><input type="checkbox" checked={anticipado} disabled={cobrando||reintentoPendiente} onChange={e=>setAnticipado(e.target.checked)}/>Confirmo el cobro anticipado.</label><p>La mesa seguirá ocupada y los platos pendientes continuarán en cocina. Los consumos posteriores irán a una cuenta adicional.</p></div>}
+            {FLOW_PREVIEW&&pedidoActivo?.cuenta&&<IncidentActions cuenta={pedidoActivo.cuenta} flow={{busy:entregando||cobrando||reintentoPendiente,act:gestionarIncidencia}}/>}
+            {pedidoActivo?.tipo === 'delivery' && pedidoActivo.estadoPedido === 'en_camino' && (
+              <p role="status">En camino. {pedidoActivo.estado === 'pagado' ? 'Confirma cuando el repartidor entregue al cliente.' : 'Registra el cobro recibido antes de confirmar la entrega al cliente.'}</p>
+            )}
+            {pedidoActivo?.tipo === 'delivery' && pedidoActivo.estadoPedido === 'en_camino' && pedidoActivo.estado === 'pagado' && (
+              <button type="button" className="btn-ember caja-confirm-button" disabled={entregando || cobrando || reintentoPendiente}
+                onClick={confirmarEntregaDelivery}>
+                {entregando ? 'Confirmando entrega…' : 'Confirmar entrega al cliente'}
+              </button>
+            )}
 
             {pedidoActivo?.estado === "pendiente" && (
               <>
@@ -256,7 +312,7 @@ export default function CajaPage() {
                   monto={monto}
                   onMontoChange={setMonto}
                   total={total}
-                  disabled={cobrando || reintentoPendiente}
+                  disabled={entregando || cobrando || reintentoPendiente}
                 />
 
                 {metodo === "Efectivo" && montoValido && (

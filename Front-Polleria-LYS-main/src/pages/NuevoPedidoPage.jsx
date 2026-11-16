@@ -21,6 +21,7 @@ import { PRODUCTS } from '../data/products';
 import { getCategories, getProducts } from '../services/productService';
 import mesaService from '../services/mesaService';
 import * as authService from '../services/authService';
+import {FLOW_PREVIEW} from '../services/atencionService';
 import '../styles/nuevoPedido.css';
 
 function getCategoryIcon(catId) {
@@ -62,7 +63,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   const [busqueda, setBusqueda] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
-  const [itemsComanda, setItemsComanda] = useState(() => mesaActual?.items || []);
+  const [itemsComanda, setItemsComanda] = useState(() => FLOW_PREVIEW&&mesaActual?.atencionId&&!mesaActual?.cuentaEditableId?[]:mesaActual?.items||[]);
   const [observaciones, setObservaciones] = useState(() => mesaActual?.notas || '');
 
   // Verificar si hay un borrador previo guardado para esta mesa
@@ -248,7 +249,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
     setEnviando(true);
     try {
-      const pedidoExistenteId = mesaActual?.pedidoId;
+      const pedidoExistenteId = FLOW_PREVIEW?mesaActual?.cuentaEditableId:mesaActual?.pedidoId;
       let pedidoIdFinal = pedidoExistenteId;
 
       if (pedidoExistenteId) {
@@ -257,12 +258,14 @@ function NuevoPedidoForm({ numeroNormalizado }) {
           pedidoId: pedidoExistenteId,
           items: itemsComanda,
           notas: observaciones.trim(),
+          version: mesaActual?.versionCuenta,
         });
       } else {
         // Abrir pedido de salón y ocupar mesa en PostgreSQL con idempotencia (SCRUM-278, SCRUM-282)
         // El servidor distingue platos de cocina y productos de servicio directo.
         pedidoIdFinal = await mesaService.abrirPedidoSalon({
           solicitudId,
+          atencionId:mesaActual?.atencionId,
           mesaId: mesaActual?.id,
           mesaNumero: numeroNormalizado,
           comensales: Number(comensales),
@@ -627,6 +630,10 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 export default function NuevoPedidoPage() {
   const { id: mesaParam } = useParams();
   const numeroNormalizado = String(mesaParam || '01').padStart(2, '0');
+  const [ready,setReady]=useState(!FLOW_PREVIEW),[error,setError]=useState('');
+  useEffect(()=>{if(!FLOW_PREVIEW)return;let active=true;mesaService.fetchMesas({strict:true}).then(()=>{if(active)setReady(true);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[numeroNormalizado]);
+  if(error)return <p role="alert">{error}</p>;
+  if(!ready)return <p role="status">Consultando la cuenta vigente…</p>;
 
   // El key={numeroNormalizado} asegura que al cambiar de mesa se resetee y cargue la comanda correcta
   return <NuevoPedidoForm key={numeroNormalizado} numeroNormalizado={numeroNormalizado} />;

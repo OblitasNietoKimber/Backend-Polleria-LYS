@@ -63,7 +63,7 @@ for (const type of ['delivery', 'recojo']) {
     expect(confirmations[0].articulos).toEqual([{ id: 1, qty: 1 }])
     expect(confirmations[0]).not.toHaveProperty('total')
     await page.getByRole('link', { name: 'Ver mi pedido' }).click()
-    await expect(page.getByRole('heading', { name: `Pedido ${confirmations[0].solicitud_id}` })).toBeVisible()
+    await expect(page.locator('h1').filter({has:page.getByRole('button',{name:'Copiar número de pedido'})})).toHaveAttribute('title',confirmations[0].solicitud_id)
     await expect(page.getByRole('region', { name: 'Historial de estados' })).toContainText('Recibido')
     await expect(page.locator('.order-item-row.total')).toContainText(type === 'delivery' ? 'S/ 48.90' : 'S/ 42.90')
     expect(await page.evaluate(() => localStorage.getItem('lys-pending-order'))).toBeNull()
@@ -162,6 +162,6 @@ for (const width of [320, 390, 768, 876, 1280]) {
     expect(layout).toEqual({ contained: true, overlaps: false, textVisible: true, overflow: false })
     if (width === 876) await page.screenshot({ path: test.info().outputPath('tarjeta-pedidos.png') })
     await card.click()
-    await expect(page.getByRole('heading', { name: `Pedido ${uuid}` })).toBeVisible()
+    await expect(page.locator('h1.order-detail-id')).toHaveAttribute('title',uuid)
   })
 }

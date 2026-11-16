@@ -1,8 +1,14 @@
 import { insforge, configurationError } from '../lib/insforge';
 import { getCurrentUser } from './authService';
+import {FLOW_PREVIEW,getFlowStamp,operateFlow,kitchenLabel} from './atencionService';
 
 const METODOS = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', yape: 'Yape', plin: 'Plin' };
 const CAMPOS = 'id, tipo, estado, estado_pago, cuenta_solicitada, destinatario, subtotal, envio, total, creado_en, mesas(numero), detalles_pedido(producto_id, cantidad, precio_unitario, nombre_producto), pagos(id, metodo, monto, recibido, vuelto, referencia, creado_en, comprobante)';
+const CAMPOS_ATENCION=CAMPOS.replace('detalles_pedido(producto_id','detalles_pedido(id,requiere_preparacion,producto_id')+',version_cuenta,atencion_id,cocina_cancelada_en,entregas_cocina(items),incidencias_atencion(id,tipo,estado,motivo,importe,referencia,creada_en,resuelta_en)';
+function mapAtencion(row){
+  const cuenta={...row,items:row.detalles_pedido,entregas:row.entregas_cocina,incidencias:row.incidencias_atencion,pago:row.pagos?.[0]};
+  return {...normalizarPedido(row),cuentaSolicitada:row.cuenta_solicitada,versionCuenta:row.version_cuenta,estadoCocina:kitchenLabel(cuenta),cuenta};
+}
 
 function database() {
   if (configurationError) throw new Error(configurationError);
@@ -26,7 +32,7 @@ function normalizarComprobante(recibo) {
 }
 function normalizarPedido(row) {
   const pago = row.pagos?.[0];
-  if (pago?.comprobante) return normalizarComprobante(pago.comprobante);
+  if (pago?.comprobante) return { ...normalizarComprobante(pago.comprobante), estadoPedido: row.estado };
   return {
     id: row.id, codigo: row.id, tipo: row.tipo, mesa: row.mesas?.numero || null,
     cliente: row.destinatario?.name || (row.mesas ? `Mesa ${row.mesas.numero}` : 'Cliente'),
@@ -43,15 +49,16 @@ function normalizarPedido(row) {
 async function consultar(estado = null) {
   const db = database(), pedidos = [], size = 100;
   for (let offset = 0; ; offset += size) {
-    let query = db.from('pedidos').select(CAMPOS).order('creado_en', { ascending: false }).order('id').range(offset, offset + size - 1);
+    let query = db.from('pedidos').select(FLOW_PREVIEW?CAMPOS_ATENCION:CAMPOS).order('creado_en', { ascending: false }).order('id').range(offset, offset + size - 1);
     if (estado) query = query.eq('estado_pago', estado);
     if (estado === 'pendiente') query = query.neq('estado', 'cancelado').gt('total', 0);
     const rows = unwrap(await query) || [];
-    pedidos.push(...rows.map(normalizarPedido));
+    pedidos.push(...rows.map(FLOW_PREVIEW?mapAtencion:normalizarPedido));
     if (rows.length < size) return pedidos;
   }
 }
 export async function getSelloCambios() {
+  if(FLOW_PREVIEW){database();return JSON.stringify(await getFlowStamp());}
   const { data, count, error } = await database().from('pedidos')
     .select('actualizado_en', { count: 'exact' }).order('actualizado_en', { ascending: false }).limit(1);
   if (error) throw new Error(error.message || 'No se pudo comprobar si cambiaron las cuentas.');
@@ -61,17 +68,22 @@ export const getPedidos = () => consultar();
 export const getPedidosPendientes = () => consultar('pendiente');
 export const getVentas = () => consultar('pagado');
 export async function getPedidoPorId(id) {
-  const row = unwrap(await database().from('pedidos').select(CAMPOS).eq('id', id).maybeSingle());
-  return row ? normalizarPedido(row) : null;
+  const row = unwrap(await database().from('pedidos').select(FLOW_PREVIEW?CAMPOS_ATENCION:CAMPOS).eq('id', id).maybeSingle());
+  return row ? (FLOW_PREVIEW?mapAtencion(row):normalizarPedido(row)) : null;
 }
 export function calcularTotal(pedido) { return Number(pedido.total); }
-export async function registrarCobro(id, { metodo, monto, idempotencia, totalEsperado, referencia = null }) {
+export async function registrarCobro(id, { metodo, monto, idempotencia, totalEsperado, referencia = null,version,anticipado=false }) {
   const metodoId = Object.keys(METODOS).find(key => METODOS[key] === metodo) || metodo;
-  const recibo = unwrap(await database().rpc('registrar_cobro', {
+  database();
+  const recibo = FLOW_PREVIEW?await operateFlow('cobrar',{pedido:id,version,metodo:metodoId,recibido:Number(monto),anticipado,referencia},idempotencia):unwrap(await database().rpc('registrar_cobro', {
     p_pedido_id: id, p_metodo: metodoId, p_recibido: Number(monto),
     p_idempotencia: idempotencia, p_total_esperado: Number(totalEsperado), p_referencia: referencia,
   }));
   if (!recibo?.pago || !recibo.items) throw new Error('El servidor no devolvió un comprobante válido. Reintenta el mismo cobro.');
   return normalizarComprobante(recibo);
 }
-export default { getSelloCambios, getPedidos, getPedidosPendientes, getPedidoPorId, getVentas, calcularTotal, registrarCobro };
+export async function confirmarEntregaDelivery(id,version) {
+  if(FLOW_PREVIEW){database();return operateFlow('confirmar_delivery',{pedido:id,version});}
+  return unwrap(await database().rpc('confirmar_entrega_delivery', { p_pedido_id: id }));
+}
+export default { confirmarEntregaDelivery, getSelloCambios, getPedidos, getPedidosPendientes, getPedidoPorId, getVentas, calcularTotal, registrarCobro };

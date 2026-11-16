@@ -35,6 +35,7 @@ export default function ListaPedidos({ pedidos, pedidoSeleccionado, onSelecciona
               <small title={pedido.codigo || pedido.id}>
                 {formatCodigoPedido(pedido.codigo || pedido.id)} · {cantidad} {cantidad === 1 ? "producto" : "productos"}{pedido.cuentaSolicitada ? " · Cuenta solicitada" : ""}
               </small>
+              {pedido.estadoCocina&&<small className="attention-status">Cocina: {pedido.estadoCocina} · Cuenta: {pedido.estado==='pagado'?'Pagada':pedido.cuentaSolicitada?'Solicitada':'Abierta'}</small>}
             </span>
             <span className="caja-item-amount">S/ {total.toFixed(2)}</span>
             <span className={`caja-status ${pedido.estado}`}>

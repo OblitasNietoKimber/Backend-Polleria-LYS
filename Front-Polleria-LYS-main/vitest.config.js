@@ -1,3 +1,3 @@
 import { defineConfig } from 'vitest/config'
 
-export default defineConfig({ test: { include: ['tests/*.test.js'] } })
+export default defineConfig({ define: { 'import.meta.env.VITE_FLUJO_ATENCIONES': JSON.stringify('false') }, test: { include: ['tests/*.test.js'] } })

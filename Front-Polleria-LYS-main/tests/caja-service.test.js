@@ -54,3 +54,9 @@ test('un rol ajeno a caja no consulta ni registra cobros', async () => {
   await expect(pagos.registrarCobro('uuid', {})).rejects.toThrow('caja');
   expect(rpc).not.toHaveBeenCalled();
 });
+
+test('mantiene el estado operativo actual aunque el comprobante se emitiera antes de salir a reparto',async()=>{
+ query.maybeSingle.mockResolvedValue({data:{...row,tipo:'delivery',estado:'en_camino',pagos:[{comprobante:{...recibo,estadoPedido:'pendiente'}}]},error:null});
+ const pedido=await pagos.getPedidoPorId('uuid');expect(pedido.estadoPedido).toBe('en_camino');expect(pedido.total).toBe(42.9);
+ await pagos.confirmarEntregaDelivery('uuid');expect(rpc).toHaveBeenCalledWith('confirmar_entrega_delivery',{p_pedido_id:'uuid'});
+});
