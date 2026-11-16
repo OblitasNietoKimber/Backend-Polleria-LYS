@@ -1,7 +1,12 @@
 import { AlertTriangle } from 'lucide-react'
 import { formatCodigoPedido } from '../utils/orderNumber'
 
-export default function OrderSummary({ items, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, money, onBack, onConfirm, saving = false, unpaidOrder = null }) {
+export default function OrderSummary({ items, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, money, onBack, onConfirm, saving = false, blocked = false, unpaidOrder = null }) {
+  // Desglosar el impuesto incluido en productos y envío sin alterar el cobro.
+  const totalCentimos = Math.round(total * 100)
+  const baseCentimos = Math.round(totalCentimos / 1.18)
+  const igv = (totalCentimos - baseCentimos) / 100
+
   return (
     <div>
       <h2 className="font-display checkout-form-title">Resumen de tu compra</h2>
@@ -27,6 +32,17 @@ export default function OrderSummary({ items, subtotal, shipping, total, deliver
           <div className="font-mono order-ticket-total">
             <span>TOTAL</span>
             <span>{money(total)}</span>
+          </div>
+          <div className="order-ticket-tax-breakdown">
+            <p className="order-ticket-tax-note">El total incluye IGV. Desglose:</p>
+            <div className="font-mono order-ticket-summary-row">
+              <span>Importe sin IGV</span>
+              <span>{money(baseCentimos / 100)}</span>
+            </div>
+            <div className="font-mono order-ticket-summary-row">
+              <span>IGV (18%) incluido</span>
+              <span>{money(igv)}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -62,7 +78,7 @@ export default function OrderSummary({ items, subtotal, shipping, total, deliver
         <button className="btn-outline checkout-actions-back" onClick={onBack}>
           Atrás
         </button>
-        <button className="btn-ember checkout-actions-primary" disabled={saving || Boolean(unpaidOrder)} onClick={onConfirm}>
+        <button className="btn-ember checkout-actions-primary" disabled={saving || blocked || Boolean(unpaidOrder)} onClick={onConfirm}>
           {saving ? 'Guardando...' : 'Confirmar pedido'}
         </button>
       </div>

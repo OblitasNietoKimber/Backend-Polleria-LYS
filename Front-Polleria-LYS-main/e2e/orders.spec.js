@@ -23,7 +23,7 @@ async function backend(page, { type = 'delivery', failFirst = false, failRead = 
     if (path.endsWith('/auth/refresh')) response = { user: identity, accessToken: token, csrfToken: 'test' }
     else if (path.endsWith('/auth/public-config')) response = { oAuthProviders: [], requireEmailVerification: true }
     else if (path.endsWith('/records/perfiles')) response = { id: identity.id, nombre: 'Cliente', apellido: 'Prueba', telefono: form.phone, rol: 'cliente', preferencias: {} }
-    else if (path.endsWith('/records/productos')) response = { id: 1, categoria_id: 'pollos', nombre: 'Pollo a la Brasa', precio: '42.90', descripcion: '', disponible: true }
+    else if (path.endsWith('/records/productos_catalogo')) response = { id: 1, categoria_id: 'pollos', nombre: 'Pollo a la Brasa', precio: '42.90', descripcion: '', stock: 50, disponible: true }
     else if (path.includes('/rpc/crear_pedido_cliente')) {
       const body = req.postDataJSON(); confirmations.push(body)
       saved = { ...fixture, id: body.solicitud_id, tipo: body.tipo_entrega, destinatario: body.datos_entrega,
@@ -84,7 +84,7 @@ for (const failure of ['respuesta', 'lectura']) {
     expect(confirmations[0].solicitud_id).toBe(confirmations[1].solicitud_id)
   })
 }
-test('cambiar el contacto después de un fallo crea otra solicitud', async ({ page }) => {
+test('cambiar el contacto tras confirmar sin respuesta no elude el pedido pendiente', async ({ page }) => {
   const { confirmations } = await backend(page, { failFirst: true })
   await page.goto('/checkout/resumen')
   await page.getByRole('button', { name: /Confirmar pedido/ }).click()
@@ -95,10 +95,11 @@ test('cambiar el contacto después de un fallo crea otra solicitud', async ({ pa
     localStorage.setItem('lys-checkout-delivery', JSON.stringify(state))
   })
   await page.reload()
-  await page.getByRole('button', { name: /Confirmar pedido/ }).click()
-  await expect(page.getByText('¡Pedido confirmado!')).toBeVisible()
-  expect(confirmations[0].solicitud_id).not.toBe(confirmations[1].solicitud_id)
+  await expect(page.getByRole('alert')).toContainText('pendiente de pago')
+  await expect(page.getByRole('button', { name: /Confirmar pedido/ })).toBeDisabled()
+  expect(confirmations).toHaveLength(1)
 })
+
 test('no muestra un pedido ajeno ni consulta su historial si no está disponible', async ({ page }) => {
   const { queries } = await backend(page, { foreign: true })
   await page.goto(`/pedidos/${uuid}`)

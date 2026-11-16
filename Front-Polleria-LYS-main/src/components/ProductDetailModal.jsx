@@ -5,11 +5,12 @@ import { useCart } from '../context/CartContext'
 import { getProductStock } from '../data/products'
 
 export default function ProductDetailModal({ product, onClose }) {
-  const { addToCart, cart } = useCart()
+  const { addToCart, cart, getAvailableStock } = useCart()
 
   if (!product) return null
 
-  const maxStock = getProductStock(product)
+  const maxStock = getAvailableStock ? getAvailableStock(product) : getProductStock(product)
+  const soldOut = !product.available || getProductStock(product) === 0
   const inCart = cart?.[product.id] || 0
   const isStockMax = product.available && inCart >= maxStock
 
@@ -32,7 +33,7 @@ export default function ProductDetailModal({ product, onClose }) {
           />
         </div>
         <div className="product-modal-body">
-          {!product.available && <span className="font-mono product-modal-unavailable-tag">NO DISPONIBLE</span>}
+          {soldOut && <span className="font-mono product-modal-unavailable-tag">NO DISPONIBLE</span>}
           {product.available && (
             <span className="font-mono product-modal-stock-tag">
               {isStockMax ? `Alcanzaste el máximo (${inCart}/${maxStock} disp.)` : `Stock: ${maxStock} disponibles`}
@@ -42,8 +43,8 @@ export default function ProductDetailModal({ product, onClose }) {
           <p className="product-modal-desc">{product.desc}</p>
           <div className="product-modal-footer">
             <span className="font-mono product-modal-price">{money(product.price)}</span>
-            <button className="btn-ember" disabled={!product.available || isStockMax} onClick={handleAdd}>
-              {!product.available ? 'Agotado' : isStockMax ? 'Stock máximo' : 'Agregar al carrito'}
+            <button className="btn-ember" disabled={soldOut || isStockMax} onClick={handleAdd}>
+              {soldOut ? 'Agotado' : isStockMax ? 'Stock máximo' : 'Agregar al carrito'}
             </button>
           </div>
         </div>

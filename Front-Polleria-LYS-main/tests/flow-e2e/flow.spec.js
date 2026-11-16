@@ -69,3 +69,28 @@ test('perder la respuesta después de cobrar permite recuperar el comprobante si
  await c.getByRole('button',{name:'Reintentar el mismo cobro',exact:true}).click();await expect(c.getByRole('dialog')).toBeVisible();
  p=(await snapshot(a)).cuentas.find(p=>p.id===pedido);expect(p.pago.id).toBe(original.id);await adminCtx.close();await cashCtx.close();
 });
+
+test('stock compartido se descuenta desde mesas, bloquea el catálogo y administración repone',async({browser})=>{
+ const ac=await browser.newContext(),mc=await browser.newContext(),cc=await browser.newContext();
+ const a=await ac.newPage(),m=await mc.newPage(),c=await cc.newPage();
+ await login(a,'admin');await login(m,'mesera');
+ await a.evaluate(async()=>{
+  const {getProduct}=await import('/src/services/productService.js');const {requireInsforge}=await import('/src/lib/insforge.js');
+  const p=await getProduct(1);if(p.inventoryAvailable!==1){const {error}=await requireInsforge().database.rpc('ajustar_inventario',{p_producto_id:1,p_cantidad:1-p.inventoryAvailable,p_motivo:'Conteo inicial de prueba aislada',p_operacion:crypto.randomUUID()});if(error)throw error;}
+ });
+ await m.goto('/mesas/15/pedido');
+ const whole=m.locator('.plato-card').filter({has:m.getByText('Pollo a la brasa entero',{exact:true})});
+ await whole.getByRole('button').click();
+ await expect(m.locator('.plato-card').filter({has:m.getByText('1/2 Pollo a la brasa',{exact:true})}).getByRole('button')).toBeDisabled();
+ await m.getByRole('button',{name:'Confirmar comanda',exact:true}).click();await expect(m).toHaveURL(/\/mesas$/);
+ await c.goto('/catalogo');const card=c.locator('.ticket-card').filter({has:c.getByText('Pollo a la brasa entero',{exact:true})});
+ await expect(card.getByRole('button',{name:'Agotado',exact:true})).toBeDisabled();
+ await a.goto('/admin/productos');const control=a.locator('.admin-stock-control').first();
+ await control.getByRole('button',{name:'Ajustar existencias',exact:true}).click();
+ await control.getByLabel(/Cantidad a añadir/).fill('2');await control.getByLabel('Motivo',{exact:true}).fill('Reposición de dos pollos de prueba');
+ await control.getByRole('button',{name:'Guardar ajuste',exact:true}).click();
+ await expect(control).toContainText('2 porciones disponibles');
+ await c.reload();await expect(card.getByRole('button',{name:'Agregar',exact:true})).toBeEnabled();
+ await a.evaluate(async()=>{const {requireInsforge}=await import('/src/lib/insforge.js');const {error}=await requireInsforge().database.rpc('ajustar_inventario',{p_producto_id:1,p_cantidad:198,p_motivo:'Saldo para siguientes pruebas aisladas',p_operacion:crypto.randomUUID()});if(error)throw error;});
+ await ac.close();await mc.close();await cc.close();
+});

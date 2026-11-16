@@ -33,8 +33,7 @@ export function getProductStock(productOrId) {
   if (typeof productOrId === 'object' && productOrId.stock !== undefined && productOrId.stock !== null) {
     return Number(productOrId.stock);
   }
-  const id = typeof productOrId === 'object' ? productOrId.id : productOrId;
-  return PRODUCT_STOCKS[Number(id)] ?? 50;
+  return 0; // Sin existencias del servidor, no inventar un saldo disponible.
 }
 
 export const PRODUCTS = [

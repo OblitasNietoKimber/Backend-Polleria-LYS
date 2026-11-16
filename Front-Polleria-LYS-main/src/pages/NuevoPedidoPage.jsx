@@ -17,7 +17,7 @@ import {
   Grid2X2,
   UtensilsCrossed,
 } from 'lucide-react';
-import { PRODUCTS } from '../data/products';
+import { stockLimit } from '../utils/stock';
 import { getCategories, getProducts } from '../services/productService';
 import mesaService from '../services/mesaService';
 import * as authService from '../services/authService';
@@ -64,6 +64,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   const [toastMsg, setToastMsg] = useState('');
 
   const [itemsComanda, setItemsComanda] = useState(() => FLOW_PREVIEW&&mesaActual?.atencionId&&!mesaActual?.cuentaEditableId?[]:mesaActual?.items||[]);
+  const [stockCredit] = useState(() => Object.fromEntries(itemsComanda.map(i=>[i.id,i.cantidad])));
   const [observaciones, setObservaciones] = useState(() => mesaActual?.notas || '');
 
   // Verificar si hay un borrador previo guardado para esta mesa
@@ -93,7 +94,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     return usuario?.nombre ? `${usuario.nombre} ${usuario.apellido || ''}`.trim() : 'Ana Rodríguez';
   });
 
-  const [listaProductos, setListaProductos] = useState(() => PRODUCTS);
+  const [listaProductos, setListaProductos] = useState([]);
   const [categorias, setCategorias] = useState(() => CATEGORIAS_FALLBACK);
   const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
 
@@ -132,8 +133,10 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     }
 
     sincronizarCarta();
+    const interval = setInterval(()=>{if(document.visibilityState==='visible') void getProducts().then(p=>{if(!cancelado)setListaProductos(p);}).catch(()=>{});},20000);
     return () => {
       cancelado = true;
+      clearInterval(interval);
     };
   }, []);
 
@@ -147,7 +150,13 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   }, [listaProductos, categoriaActiva, busqueda]);
 
   // Manipulación de comanda
+  function limiteStock(producto, items = itemsComanda) {
+    return stockLimit(producto, Object.fromEntries(items.map(i=>[i.id,i.cantidad])), listaProductos, stockCredit);
+  }
   function handleAgregarItem(producto) {
+    if (!producto.available || (itemsComanda.find(i=>i.id===producto.id)?.cantidad||0)>=limiteStock(producto)) {
+      setToastMsg('Stock insuficiente. Revisa las cantidades y el inventario compartido.'); return;
+    }
     setItemsComanda((prev) => {
       const index = prev.findIndex((it) => it.id === producto.id || it.nombre === producto.name);
       if (index > -1) {
@@ -172,6 +181,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     setItemsComanda((prev) => {
       const nueva = [...prev];
       const actual = nueva[index].cantidad + delta;
+      const producto = listaProductos.find(p=>p.id===nueva[index].id);
+      if(delta>0 && (!producto || actual>limiteStock(producto,prev))) return prev;
       if (actual <= 0) {
         return nueva.filter((_, i) => i !== index);
       }
@@ -291,6 +302,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         }
       });
     } catch (err) {
+      void getProducts().then(setListaProductos).catch(()=>{});
       console.error('Error al confirmar la comanda:', err);
       setToastMsg('Ocurrió un error al confirmar la comanda: ' + (err.message || err));
       setTimeout(() => setToastMsg(''), 4000);
@@ -407,13 +419,14 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
           <div className="platos-grid">
             {productosFiltrados.map((prod) => (
-              <div key={prod.id} className={`plato-card ${prod.available === false ? 'plato-agotado' : ''}`}>
+              <div key={prod.id} className={`plato-card ${prod.available === false || prod.stock<=0 ? 'plato-agotado' : ''}`}>
                 <div className="plato-img-wrapper">
                   <img src={prod.image} alt={prod.name} className="plato-img" loading="lazy" />
-                  {prod.available === false && <span className="plato-badge-agotado">Agotado</span>}
+                  {(prod.available === false || prod.stock<=0) && <span className="plato-badge-agotado">Agotado</span>}
                 </div>
                 <div className="plato-info">
                   <span className="plato-nombre">{prod.name}</span>
+                  <small>Stock disponible: {prod.stock}</small>
                   <div className="plato-precio-row">
                     <span className="plato-precio">S/ {Number(prod.price || 0).toFixed(2)}</span>
                     <button
@@ -421,7 +434,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
                       className="btn-add-item"
                       title={prod.available === false ? 'Producto agotado en cocina' : 'Agregar a la comanda'}
                       onClick={() => handleAgregarItem(prod)}
-                      disabled={prod.available === false}
+                      disabled={prod.available === false || (itemsComanda.find(i=>i.id===prod.id)?.cantidad||0)>=limiteStock(prod)}
                     >
                       +
                     </button>

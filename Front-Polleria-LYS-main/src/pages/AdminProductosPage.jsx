@@ -21,6 +21,7 @@ import {
 } from '../services/productService';
 import { money } from '../utils/currency';
 import ProductFormModal from '../components/admin/ProductFormModal';
+import StockControl from '../components/admin/StockControl';
 import ProductDeleteModal from '../components/admin/ProductDeleteModal';
 import AdminNavTabs from '../components/admin/AdminNavTabs';
 import '../styles/adminProductos.css';
@@ -109,10 +110,10 @@ export default function AdminProductosPage() {
         return false;
       }
       // Filtro por disponibilidad
-      if (filtroDisponibilidad === 'disponibles' && !p.available) {
+      if (filtroDisponibilidad === 'disponibles' && (!p.available || p.stock<=0)) {
         return false;
       }
-      if (filtroDisponibilidad === 'agotados' && p.available) {
+      if (filtroDisponibilidad === 'agotados' && p.available && p.stock>0) {
         return false;
       }
       // Filtro por búsqueda
@@ -128,7 +129,7 @@ export default function AdminProductosPage() {
 
   const totales = useMemo(() => {
     const total = productos.length;
-    const disponibles = productos.filter(p => p.available).length;
+    const disponibles = productos.filter(p => p.available && p.stock>0).length;
     const agotados = total - disponibles;
     return { total, disponibles, agotados };
   }, [productos]);
@@ -430,13 +431,14 @@ export default function AdminProductosPage() {
 
                     <div className="admin-card-badges">
                       <span className="admin-id-badge">#{prod.id}</span>
-                      <span className={`admin-status-pill ${prod.available ? 'on' : 'off'}`}>
-                        {prod.available ? 'Disponible' : 'Agotado'}
+                      <span className={`admin-status-pill ${prod.available && prod.stock>0 ? 'on' : 'off'}`}>
+                        {prod.available && prod.stock>0 ? 'Disponible' : 'Agotado'}
                       </span>
                     </div>
                   </div>
 
                   <div className="admin-card-body">
+                    <StockControl product={prod} onUpdated={async()=>setProductos(await getProducts())}/>
                     <span className="admin-card-cat">{categoriaNombre}</span>
                     <h3 className="admin-card-title">{prod.name}</h3>
                     <p className="admin-card-desc" title={prod.desc || 'Sin descripción'}>
@@ -458,7 +460,7 @@ export default function AdminProductosPage() {
                       title={
                         prod.available
                           ? 'Marcar producto como agotado temporalmente'
-                          : 'Habilitar producto para venta inmediata'
+                          : 'Habilitar producto; necesita existencias para venderse'
                       }
                     >
                       <Power size={14} />

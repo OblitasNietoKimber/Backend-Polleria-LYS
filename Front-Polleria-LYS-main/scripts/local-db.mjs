@@ -5,9 +5,13 @@ export const localUsers = ['admin','mesera','cocina','caja','cliente'].map((rol,
   id:`70000000-0000-0000-0000-${String(index+1).padStart(12,'0')}`,rol,email:`${rol}@local.test`,
 }));
 
-export async function createLocalDatabase(dataDir, { beforePreview } = {}) {
+export async function createLocalDatabase(dataDir, { beforePreview, inventory = false } = {}) {
   const db = new PGlite(dataDir);
-  if ((await db.query("SELECT to_regclass('public.atenciones_salon') AS ready")).rows[0].ready) return db;
+  if ((await db.query("SELECT to_regclass('public.atenciones_salon') AS ready")).rows[0].ready) {
+    if(inventory && !(await db.query("SELECT to_regclass('public.inventario_recursos') AS ready")).rows[0].ready)
+      await db.exec(await readFile(new URL('../../migrations/inventario/20261116020000_inventario-compartido.sql',import.meta.url),'utf8'));
+    return db;
+  }
   const baseline=(await db.query("SELECT to_regclass('public.perfiles') AS ready")).rows[0].ready;
   if(!baseline) {
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA auth;
@@ -36,6 +40,7 @@ export async function createLocalDatabase(dataDir, { beforePreview } = {}) {
   if(beforePreview) await beforePreview(db);
   const preview=new URL('../../migrations/atenciones/',import.meta.url);
   for(const name of (await readdir(preview)).filter(name=>name.endsWith('.sql')).sort()) await db.exec(await readFile(new URL(name,preview),'utf8'));
+  if(inventory) await db.exec(await readFile(new URL('../../migrations/inventario/20261116020000_inventario-compartido.sql',import.meta.url),'utf8'));
   return db;
 }
 

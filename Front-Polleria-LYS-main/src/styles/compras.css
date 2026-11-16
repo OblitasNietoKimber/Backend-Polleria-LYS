@@ -235,6 +235,18 @@
   letter-spacing: 0.05em;
 }
 
+.order-ticket-tax-breakdown {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.order-ticket-tax-note {
+  margin: 0 0 8px;
+  color: var(--smoke);
+  font-size: 0.78rem;
+}
+
 .order-ticket-body {
   padding: 18px;
 }

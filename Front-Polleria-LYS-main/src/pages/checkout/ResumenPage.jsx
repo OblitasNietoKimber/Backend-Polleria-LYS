@@ -10,7 +10,7 @@ import '../../styles/compras.css'
 
 export default function ResumenPage() {
   const navigate = useNavigate()
-  const { cartItems, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, confirmOrder, cartLoading, cartError, orderNumber } = useCart()
+  const { cartItems, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, confirmOrder, cartLoading, cartError, orderNumber, isResumingOrder } = useCart()
   const unavailable = cartItems.some(item => !item.product.available)
   const isSubmitting = useRef(false)
   const [saving, setSaving] = useState(false)
@@ -20,10 +20,10 @@ export default function ResumenPage() {
   useEffect(() => {
     if (payment !== 'tarjeta') {
       orderService.getActiveUnpaidOrder()
-        .then((unpaid) => setUnpaidOrder(unpaid))
+        .then((unpaid) => setUnpaidOrder(unpaid && isResumingOrder(unpaid.id) ? null : unpaid))
         .catch(() => setUnpaidOrder(null))
     }
-  }, [payment])
+  }, [payment, isResumingOrder])
 
   // Si eligió tarjeta pero no completó el cobro (por ejemplo, llegó por atrás
   // o refrescó la página), lo regresamos a Pago en vez de dejarlo confirmar
@@ -78,7 +78,8 @@ export default function ResumenPage() {
         money={money}
         onBack={() => navigate('/checkout/pago')}
         onConfirm={handleConfirm}
-        saving={saving || cartLoading || Boolean(cartError) || unavailable || Boolean(unpaidOrder)}
+        saving={saving}
+        blocked={cartLoading || Boolean(cartError) || unavailable || Boolean(unpaidOrder)}
         unpaidOrder={unpaidOrder}
       />
     </section>

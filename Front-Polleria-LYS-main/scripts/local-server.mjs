@@ -5,7 +5,7 @@ import { randomBytes,createHmac,timingSafeEqual,scryptSync } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createLocalDatabase,asLocalUser,localUsers } from './local-db.mjs';
 const port=Number(process.env.LOCAL_FLOW_PORT||5191);
-const db=await createLocalDatabase(process.env.LOCAL_FLOW_MEMORY==='1'?undefined:fileURLToPath(new URL('../../../.datos-pruebas-atenciones/',import.meta.url)));
+const db=await createLocalDatabase(process.env.LOCAL_FLOW_MEMORY==='1'?undefined:fileURLToPath(new URL('../../../.datos-pruebas-atenciones/',import.meta.url)),{inventory:true});
 const secret=randomBytes(32),salt=randomBytes(16),password=scryptSync('Local123!',salt,32);
 const sessions=new Map();
 const sign=part=>createHmac('sha256',secret).update(part).digest('base64url');
@@ -14,7 +14,7 @@ function identity(req){const value=req.headers.authorization?.replace(/^Bearer /
 const authUser=u=>({id:u.id,email:u.email,emailVerified:true,profile:{name:u.rol+' Local'}});
 const reply=(res,status,data,headers={})=>{res.writeHead(status,{'Content-Type':'application/json',...headers});res.end(JSON.stringify(data));};
 const identifier=value=>{if(!/^[a-z_][a-z_0-9]*$/.test(value))throw new Error('Identificador inválido');return '"'+value+'"';};
-const tables=new Set(['perfiles','roles','categorias','productos','estados_pedido','pedidos','mesas','detalles_pedido','pagos','historial_estados_pedido','entregas_cocina','incidencias_atencion']);
+const tables=new Set(['productos_catalogo','perfiles','roles','categorias','productos','estados_pedido','pedidos','mesas','detalles_pedido','pagos','historial_estados_pedido','entregas_cocina','incidencias_atencion']);
 function split(value){let depth=0,start=0;const result=[];for(let n=0;n<value.length;n++){if(value[n]==='(')depth++;if(value[n]===')')depth--;if(value[n]===','&&depth===0){result.push(value.slice(start,n));start=n+1;}}result.push(value.slice(start));return result.filter(Boolean);}
 function projection(select,table,alias='t'){
  if(select==='*')return `to_jsonb(${alias})`;
@@ -61,7 +61,7 @@ async function records(req,res,url,user,body){
  const single=req.headers.accept?.includes('application/vnd.pgrst.object+json');
  reply(res,200,single?(output[0]||null):output);
 }
-const allowedRPC=new Set(['flujo_listar','flujo_sello','flujo_operar','flujo_devoluciones','obtener_historial_entregas_cocina','crear_pedido_cliente','obtener_dashboard_admin','obtener_historial_ventas','confirmar_entrega_delivery','registrar_cobro','cambiar_estado_cocina','entregar_pedido_cocina','obtener_actividad_salon','obtener_mesas_con_pedidos']);
+const allowedRPC=new Set(['ajustar_inventario','flujo_listar','flujo_sello','flujo_operar','flujo_devoluciones','obtener_historial_entregas_cocina','crear_pedido_cliente','obtener_dashboard_admin','obtener_historial_ventas','confirmar_entrega_delivery','registrar_cobro','cambiar_estado_cocina','entregar_pedido_cocina','obtener_actividad_salon','obtener_mesas_con_pedidos']);
 const server=http.createServer(async(req,res)=>{
  const origin=req.headers.origin;
  if(origin&&!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(origin))return reply(res,403,{message:'Origen no autorizado'});
