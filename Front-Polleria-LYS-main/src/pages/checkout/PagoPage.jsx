@@ -12,7 +12,7 @@ import '../../styles/compras.css'
 
 export default function PagoPage() {
   const navigate = useNavigate()
-  const { deliveryType, payment, setPayment, card, updateCardField, total, setCardReceipt, form } = useCart()
+  const { deliveryType, payment, setPayment, card, updateCardField, total, setCardReceipt } = useCart()
   const [cardErrors, setCardErrors] = useState({})
   const [processing, setProcessing] = useState(false)
   const [gatewayError, setGatewayError] = useState('')
@@ -59,9 +59,12 @@ export default function PagoPage() {
       return
     }
 
+    // Este checkout no solicita el nombre impreso en la tarjeta. No debemos
+    // bloquear el pago por el nombre de entrega (puede contener números o
+    // caracteres que la validación de tarjeta no admite).
     const cardToValidate = {
       ...card,
-      name: card.name || form?.name || 'Cliente Pollería LYS',
+      name: 'Cliente Pollería LYS',
     }
     const errors = validateCardForm(cardToValidate)
     setCardErrors(errors)
