@@ -1,6 +1,6 @@
 import { IconoCelular, IconoDocumento, IconoEfectivo, IconoTarjeta } from "../common/Iconos";
 import { formatCodigoPedido } from "../../utils/orderNumber";
-import { obtenerColorMetodo } from "./VentasMetodoPago";
+import { obtenerColorMetodo } from "../../utils/metodoPagoColor";
 
 const formatoSoles = new Intl.NumberFormat("es-PE", {
   style: "currency",
@@ -44,7 +44,6 @@ export default function HistorialVentas({ ventas = [], siguiente = null, cargand
             ) : ventas.map((venta) => {
               const fechaVenta = new Date(venta.pagadoAt || venta.createdAt);
               const metodo = venta.pago?.metodo || "Sin metodo";
-              const color = obtenerColorMetodo(metodo);
 
               return (
               <tr key={venta.pagoId || venta.id}>
@@ -57,7 +56,7 @@ export default function HistorialVentas({ ventas = [], siguiente = null, cargand
                 <td>
                   <div className="admin-method-cell">
                     {iconoMetodo(metodo)}
-                    <span style={{ color, fontWeight: 700 }}>{metodo}</span>
+                    <span>{metodo}</span>
                   </div>
                 </td>
                 <td className="font-mono admin-time-cell">
