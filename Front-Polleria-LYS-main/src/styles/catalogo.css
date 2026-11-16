@@ -72,7 +72,14 @@
 
 /* Tarjeta de producto (ProductCard) */
 
+.catalogo-grid > .ticket-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .product-card-media {
+  flex-shrink: 0;
   aspect-ratio: 4 / 3;
   overflow: hidden;
   background: #201C18;
@@ -91,6 +98,9 @@
 
 .product-card-body {
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .product-card-unavailable-tag {
@@ -98,6 +108,14 @@
   color: #B23A2E;
   font-weight: 700;
   letter-spacing: 0.05em;
+}
+
+.product-card-stock-tag {
+  display: block;
+  font-size: 0.72rem;
+  color: #78716C;
+  font-weight: 600;
+  margin-bottom: 2px;
 }
 
 .product-card-name {
@@ -119,6 +137,7 @@
 }
 
 .product-card-footer {
+  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -194,6 +213,14 @@
   font-size: 0.7rem;
   color: #B23A2E;
   font-weight: 700;
+}
+
+.product-modal-stock-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: #78716C;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 
 .product-modal-title {

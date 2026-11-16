@@ -17,10 +17,11 @@ import {
   Grid2X2,
   UtensilsCrossed,
 } from 'lucide-react';
-import { PRODUCTS } from '../data/products';
+import { stockLimit } from '../utils/stock';
 import { getCategories, getProducts } from '../services/productService';
 import mesaService from '../services/mesaService';
 import * as authService from '../services/authService';
+import {FLOW_PREVIEW} from '../services/atencionService';
 import '../styles/nuevoPedido.css';
 
 function getCategoryIcon(catId) {
@@ -62,7 +63,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   const [busqueda, setBusqueda] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
-  const [itemsComanda, setItemsComanda] = useState(() => mesaActual?.items || []);
+  const [itemsComanda, setItemsComanda] = useState(() => FLOW_PREVIEW&&mesaActual?.atencionId&&!mesaActual?.cuentaEditableId?[]:mesaActual?.items||[]);
+  const [stockCredit] = useState(() => Object.fromEntries(itemsComanda.map(i=>[i.id,i.cantidad])));
   const [observaciones, setObservaciones] = useState(() => mesaActual?.notas || '');
 
   // Verificar si hay un borrador previo guardado para esta mesa
@@ -92,7 +94,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     return usuario?.nombre ? `${usuario.nombre} ${usuario.apellido || ''}`.trim() : 'Ana Rodríguez';
   });
 
-  const [listaProductos, setListaProductos] = useState(() => PRODUCTS);
+  const [listaProductos, setListaProductos] = useState([]);
   const [categorias, setCategorias] = useState(() => CATEGORIAS_FALLBACK);
   const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
 
@@ -131,8 +133,10 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     }
 
     sincronizarCarta();
+    const interval = setInterval(()=>{if(document.visibilityState==='visible') void getProducts().then(p=>{if(!cancelado)setListaProductos(p);}).catch(()=>{});},20000);
     return () => {
       cancelado = true;
+      clearInterval(interval);
     };
   }, []);
 
@@ -146,7 +150,13 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   }, [listaProductos, categoriaActiva, busqueda]);
 
   // Manipulación de comanda
+  function limiteStock(producto, items = itemsComanda) {
+    return stockLimit(producto, Object.fromEntries(items.map(i=>[i.id,i.cantidad])), listaProductos, stockCredit);
+  }
   function handleAgregarItem(producto) {
+    if (!producto.available || (itemsComanda.find(i=>i.id===producto.id)?.cantidad||0)>=limiteStock(producto)) {
+      setToastMsg('Stock insuficiente. Revisa las cantidades y el inventario compartido.'); return;
+    }
     setItemsComanda((prev) => {
       const index = prev.findIndex((it) => it.id === producto.id || it.nombre === producto.name);
       if (index > -1) {
@@ -171,6 +181,8 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     setItemsComanda((prev) => {
       const nueva = [...prev];
       const actual = nueva[index].cantidad + delta;
+      const producto = listaProductos.find(p=>p.id===nueva[index].id);
+      if(delta>0 && (!producto || actual>limiteStock(producto,prev))) return prev;
       if (actual <= 0) {
         return nueva.filter((_, i) => i !== index);
       }
@@ -248,7 +260,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
     setEnviando(true);
     try {
-      const pedidoExistenteId = mesaActual?.pedidoId;
+      const pedidoExistenteId = FLOW_PREVIEW?mesaActual?.cuentaEditableId:mesaActual?.pedidoId;
       let pedidoIdFinal = pedidoExistenteId;
 
       if (pedidoExistenteId) {
@@ -257,12 +269,14 @@ function NuevoPedidoForm({ numeroNormalizado }) {
           pedidoId: pedidoExistenteId,
           items: itemsComanda,
           notas: observaciones.trim(),
+          version: mesaActual?.versionCuenta,
         });
       } else {
         // Abrir pedido de salón y ocupar mesa en PostgreSQL con idempotencia (SCRUM-278, SCRUM-282)
-        // El pedido se crea en estado 'pendiente' para ingresar a la columna 'Nuevos pedidos' en Cocina
+        // El servidor distingue platos de cocina y productos de servicio directo.
         pedidoIdFinal = await mesaService.abrirPedidoSalon({
           solicitudId,
+          atencionId:mesaActual?.atencionId,
           mesaId: mesaActual?.id,
           mesaNumero: numeroNormalizado,
           comensales: Number(comensales),
@@ -277,19 +291,20 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         mesaNumero: numeroNormalizado,
         tipo: 'pedido_creado',
         titulo: `Mesa ${numeroNormalizado}`,
-        descripcion: pedidoExistenteId ? 'Comanda actualizada y enviada a cocina' : 'Nuevo pedido enviado a cocina',
+        descripcion: pedidoExistenteId ? 'Comanda actualizada' : 'Nuevo pedido registrado',
         ordenCodigo: `Orden #${pedidoIdFinal}`,
         tipoColor: 'rojo',
       });
 
       navigate('/mesas', {
         state: {
-          toastExito: `¡Pedido de Mesa ${numeroNormalizado} enviado a Cocina con éxito!`
+          toastExito: `¡Pedido de Mesa ${numeroNormalizado} registrado con éxito!`
         }
       });
     } catch (err) {
-      console.error('Error al enviar a cocina:', err);
-      setToastMsg('Ocurrió un error al enviar el pedido a cocina: ' + (err.message || err));
+      void getProducts().then(setListaProductos).catch(()=>{});
+      console.error('Error al confirmar la comanda:', err);
+      setToastMsg('Ocurrió un error al confirmar la comanda: ' + (err.message || err));
       setTimeout(() => setToastMsg(''), 4000);
     } finally {
       setEnviando(false);
@@ -404,13 +419,14 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
           <div className="platos-grid">
             {productosFiltrados.map((prod) => (
-              <div key={prod.id} className={`plato-card ${prod.available === false ? 'plato-agotado' : ''}`}>
+              <div key={prod.id} className={`plato-card ${prod.available === false || prod.stock<=0 ? 'plato-agotado' : ''}`}>
                 <div className="plato-img-wrapper">
                   <img src={prod.image} alt={prod.name} className="plato-img" loading="lazy" />
-                  {prod.available === false && <span className="plato-badge-agotado">Agotado</span>}
+                  {(prod.available === false || prod.stock<=0) && <span className="plato-badge-agotado">Agotado</span>}
                 </div>
                 <div className="plato-info">
                   <span className="plato-nombre">{prod.name}</span>
+                  <small>Stock disponible: {prod.stock}</small>
                   <div className="plato-precio-row">
                     <span className="plato-precio">S/ {Number(prod.price || 0).toFixed(2)}</span>
                     <button
@@ -418,7 +434,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
                       className="btn-add-item"
                       title={prod.available === false ? 'Producto agotado en cocina' : 'Agregar a la comanda'}
                       onClick={() => handleAgregarItem(prod)}
-                      disabled={prod.available === false}
+                      disabled={prod.available === false || (itemsComanda.find(i=>i.id===prod.id)?.cantidad||0)>=limiteStock(prod)}
                     >
                       +
                     </button>
@@ -612,10 +628,10 @@ function NuevoPedidoForm({ numeroNormalizado }) {
               className="btn-enviar-cocina"
               onClick={handleEnviarCocina}
               disabled={enviando}
-              title="Enviar comanda a la pantalla de cocina"
+              title="Confirmar comanda: los platos pasan a cocina y las bebidas y postres quedan listos para servir"
             >
               <ChefHat size={18} className="np-btn-icon-inline" />
-              {enviando ? 'Enviando...' : 'Enviar a cocina'}
+              {enviando ? 'Confirmando...' : 'Confirmar comanda'}
             </button>
           </div>
         </aside>
@@ -627,6 +643,10 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 export default function NuevoPedidoPage() {
   const { id: mesaParam } = useParams();
   const numeroNormalizado = String(mesaParam || '01').padStart(2, '0');
+  const [ready,setReady]=useState(!FLOW_PREVIEW),[error,setError]=useState('');
+  useEffect(()=>{if(!FLOW_PREVIEW)return;let active=true;mesaService.fetchMesas({strict:true}).then(()=>{if(active)setReady(true);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[numeroNormalizado]);
+  if(error)return <p role="alert">{error}</p>;
+  if(!ready)return <p role="status">Consultando la cuenta vigente…</p>;
 
   // El key={numeroNormalizado} asegura que al cambiar de mesa se resetee y cargue la comanda correcta
   return <NuevoPedidoForm key={numeroNormalizado} numeroNormalizado={numeroNormalizado} />;

@@ -27,10 +27,21 @@ for (const file of (await readdir(directory)).filter(name => name.endsWith('.sql
     throw new Error(`La migración aplicada ${file} fue modificada. Crea una nueva migración.`);
   }
 }
+// La versión inicial de servicio directo no soportaba cuentas históricas cobradas.
+// Su reemplazo es autosuficiente; conservar el archivo original permite validar
+// instalaciones que sí registraron su checksum, sin modificar migraciones aplicadas.
+const replacements = new Map([
+  ['20261115010000_servicio-directo.sql', '20261115030000_servicio-directo-compatible.sql'],
+  ['20261115020000_servicio-directo-seguro.sql', '20261115030000_servicio-directo-compatible.sql'],
+]);
 // Validate every applied fingerprint before submitting any pending migration.
 for (const { file, original, checksum } of migrations) {
   if (applied.has(file)) {
     console.log(`Ya aplicada: ${file}`); continue;
+  }
+  const replacement = replacements.get(file);
+  if (replacement && migrations.some(migration => migration.file === replacement)) {
+    console.log(`Sustituida: ${file} por ${replacement}`); continue;
   }
   const body = original.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, '');
   if (body.includes('$migration$') || body.includes('$ddl$')) throw new Error('Delimitador SQL reservado en ' + file);

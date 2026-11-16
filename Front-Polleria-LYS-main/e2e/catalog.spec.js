@@ -5,7 +5,7 @@ const categories = [
   { id: 'otras', nombre: 'Otras categorías', descripcion: '', imagen: null },
 ]
 const products = [
-  { id: 101, categoria_id: 'especiales', nombre: 'Plato del servidor', descripcion: 'Descripción persistida', imagen: null, precio: '21.50', disponible: true },
+  { id: 101, categoria_id: 'especiales', nombre: 'Plato del servidor', descripcion: 'Descripción persistida', imagen: null, precio: '21.50', stock: 50, disponible: true },
   { id: 102, categoria_id: 'otras', nombre: 'Plato agotado', descripcion: 'Temporalmente agotado', imagen: null, precio: '12.00', disponible: false },
 ]
 
@@ -21,7 +21,7 @@ async function mockCatalog(page, options = {}) {
       status = 401
       response = { message: 'No active session', statusCode: 401 }
     } else if (url.pathname.endsWith('/categorias')) response = categories
-    else if (url.pathname.endsWith('/productos')) {
+    else if (url.pathname.endsWith('/productos_catalogo')) {
       if (options.beforeProducts) await options.beforeProducts()
       if (options.delay) await new Promise(resolve => setTimeout(resolve, options.delay))
       const id = url.searchParams.get('id')

@@ -7,6 +7,7 @@ import ColumnaPedidos from "../components/cocina/ColumnaPedidos";
 import TarjetaPedidoCocina from "../components/cocina/TarjetaPedidoCocina";
 import CocinaNavLateral from "../components/cocina/CocinaNavLateral";
 import FiltrosTipoPedido from "../components/cocina/FiltrosTipoPedido";
+import {operateFlow} from '../services/atencionService';
 
 export default function CocinaPage() {
   const { pedidos, recargar, loading, error } = usePedidosCocina();
@@ -21,6 +22,13 @@ export default function CocinaPage() {
   const [actualizando, setActualizando] = useState(new Set());
   const [errorCambio, setErrorCambio] = useState('');
   const pendientes = useRef(new Set());
+  async function handleIncidencia(action,cuenta,extra={}){
+    if(pendientes.current.has(cuenta.id))return;
+    pendientes.current.add(cuenta.id);setActualizando(new Set(pendientes.current));setErrorCambio('');
+    try{return await operateFlow(action,{pedido:cuenta.id,version:cuenta.version_cuenta,...extra});}
+    catch(error){setErrorCambio(error.message);throw error;}
+    finally{await recargar();pendientes.current.delete(cuenta.id);setActualizando(new Set(pendientes.current));}
+  }
   async function handleCambiarEstado(pedido, nuevoEstado) {
     if (pendientes.current.has(pedido.id)) return;
     pendientes.current.add(pedido.id);
@@ -65,23 +73,24 @@ export default function CocinaPage() {
           <FiltrosTipoPedido filtroActivo={filtro} onCambiarFiltro={setFiltro} />
 
           {loading && <p role="status">Cargando pedidos de cocina...</p>}
+          {pedidos.some(pedido => pedido.entregaDisponible === false) && <p role="status">Puedes comenzar la preparación y marcar pedidos listos. El registro de entregas aún no está habilitado en el servidor.</p>}
           {(error || errorCambio) && <div className="cocina-error" role="alert"><p>{errorCambio || error}</p><button onClick={recargar}>Actualizar panel</button></div>}
           <div className="cocina-board" aria-busy={loading}>
             <ColumnaPedidos titulo="Nuevos pedidos" variante="nuevo" icono={ClipboardList} pedidos={nuevos}>
               {nuevos.map((p) => (
-                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} actualizando={actualizando.has(p.id)} />
+                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} onIncidencia={handleIncidencia} actualizando={actualizando.has(p.id)} />
               ))}
             </ColumnaPedidos>
 
             <ColumnaPedidos titulo="Preparando" variante="preparacion" icono={CookingPot} pedidos={enPreparacion}>
               {enPreparacion.map((p) => (
-                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} actualizando={actualizando.has(p.id)} />
+                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} onIncidencia={handleIncidencia} actualizando={actualizando.has(p.id)} />
               ))}
             </ColumnaPedidos>
 
             <ColumnaPedidos titulo="Listos" variante="listo" icono={BellRing} pedidos={listos}>
               {listos.map((p) => (
-                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} actualizando={actualizando.has(p.id)} />
+                <TarjetaPedidoCocina key={p.id} pedido={p} onCambiarEstado={handleCambiarEstado} onIncidencia={handleIncidencia} actualizando={actualizando.has(p.id)} />
               ))}
             </ColumnaPedidos>
           </div>

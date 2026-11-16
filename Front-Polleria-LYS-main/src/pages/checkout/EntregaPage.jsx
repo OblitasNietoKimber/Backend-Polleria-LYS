@@ -4,7 +4,10 @@ import { useNavigate } from 'react-router-dom'
 import CheckoutSteps from '../../components/CheckoutSteps'
 import DeliveryForm from '../../components/DeliveryForm'
 import { useCart } from '../../context/CartContext'
+import { validateDeliveryForm } from '../../utils/deliveryValidation'
 import '../../styles/compras.css'
+
+export { validateDeliveryForm }
 
 export default function EntregaPage() {
   const navigate = useNavigate()
@@ -12,11 +15,7 @@ export default function EntregaPage() {
   const [errors, setErrors] = useState({})
 
   function validate() {
-    const nextErrors = {}
-    if (!form.name.trim()) nextErrors.name = 'Ingresa tu nombre.'
-    if (!form.phone.trim()) nextErrors.phone = 'Ingresa un teléfono de contacto.'
-    else if (!/^9\d{8}$/.test(form.phone.trim())) nextErrors.phone = 'El teléfono debe tener 9 dígitos y empezar con 9.'
-    if (deliveryType === 'delivery' && !form.address.trim()) nextErrors.address = 'Ingresa tu dirección.'
+    const nextErrors = validateDeliveryForm(form, deliveryType)
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }

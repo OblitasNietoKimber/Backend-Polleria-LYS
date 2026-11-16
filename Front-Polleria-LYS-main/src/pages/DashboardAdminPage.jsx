@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { FLOW_PREVIEW } from '../services/atencionService';
+const FlowReturnsSummary = lazy(() => import('../components/flow/FlowReturnsSummary'));
+import { Link } from "react-router-dom";
+import { UtensilsCrossed } from "lucide-react";
 import dashboardService from "../services/dashboardService";
 import FiltroFechas from "../components/admin/FiltroFechas";
 import MetricasOperativas from "../components/admin/MetricasOperativas";
@@ -7,6 +11,8 @@ import HistorialVentas from "../components/admin/HistorialVentas";
 import TarjetasResumen from "../components/admin/TarjetasResumen";
 import Ventas7Dias from "../components/admin/Ventas7Dias";
 import VentasMetodoPago from "../components/admin/VentasMetodoPago";
+import AdminNavTabs from "../components/admin/AdminNavTabs";
+import "../styles/dashboard.css";
 
 export default function DashboardAdminPage() {
   const [filtros, setFiltros] = useState({ fechaInicio: "", fechaFin: "" });
@@ -18,6 +24,7 @@ export default function DashboardAdminPage() {
   const [revision, setRevision] = useState(0);
   const filtrosActuales = useRef(filtros);
   const actualizar = useCallback(() => setRevision(valor => valor + 1), []);
+
   useEffect(() => {
     let activo = true, consultando = false, clave = null;
     filtrosActuales.current = filtros;
@@ -67,13 +74,33 @@ export default function DashboardAdminPage() {
   return (
     <div className="lys-root admin-screen">
       <main className="admin-content">
+        <AdminNavTabs />
+        {FLOW_PREVIEW && <Suspense fallback={null}><FlowReturnsSummary filters={filtros} revision={revision}/></Suspense>}
         <section className="admin-page-head">
           <div>
             <h1>DASHBOARD</h1>
             <p>Resumen general de tu restaurante</p>
           </div>
 
-          <FiltroFechas filtros={filtros} onCambiar={cambiarFiltros} onLimpiar={limpiarFiltros} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <Link
+              to="/admin/productos"
+              className="btn-outline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.88rem',
+                padding: '10px 16px',
+                borderRadius: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              <UtensilsCrossed size={16} />
+              <span>Gestionar Productos</span>
+            </Link>
+            <FiltroFechas filtros={filtros} onCambiar={cambiarFiltros} onLimpiar={limpiarFiltros} />
+          </div>
         </section>
 
         {cargando && <p role="status">Consultando ventas…</p>}
@@ -88,8 +115,7 @@ export default function DashboardAdminPage() {
 
         <section className="admin-double-grid">
           <Ventas7Dias ventas={datos?.ventasPorDia} />
-          <HistorialVentas ventas={historial.ventas} haySiguiente={Boolean(historial.siguiente)}
-            cargandoMas={cargandoMas} onCargarMas={cargarMas} />
+          <HistorialVentas ventas={historial.ventas} siguiente={historial.siguiente} cargandoMas={cargandoMas} onCargarMas={cargarMas} />
         </section>
       </main>
     </div>

@@ -1,11 +1,15 @@
 import { insforge, configurationError } from '../lib/insforge'
 
 const PRODUCT_COLUMNS = 'id,categoria_id,nombre,descripcion,imagen,precio,disponible'
+const CATALOG_COLUMNS = `${PRODUCT_COLUMNS},stock,inventario_id,inventario_nombre,inventario_disponible,inventario_escala,inventario_consumo`
 
 function productFromRow(row) {
   return {
     id: Number(row.id), category: row.categoria_id, name: row.nombre,
     desc: row.descripcion, image: row.imagen, price: Number(row.precio), available: row.disponible,
+    stock: Number(row.stock ?? 0), inventoryId: row.inventario_id,
+    inventoryName: row.inventario_nombre, inventoryAvailable: Number(row.inventario_disponible ?? 0),
+    inventoryScale: Number(row.inventario_escala ?? 1), inventoryConsumption: Number(row.inventario_consumo ?? 1),
   }
 }
 
@@ -36,7 +40,7 @@ export async function getProducts({ search = '', category = 'todos' } = {}) {
   const term = search.trim()
   const products = []
   for (let from = 0; ; from += 100) {
-    let query = database().from('productos').select(PRODUCT_COLUMNS)
+    let query = database().from('productos_catalogo').select(CATALOG_COLUMNS)
     if (category !== 'todos') query = query.eq('categoria_id', category)
     if (term) query = query.ilike('nombre', `%${term.replace(/[\\%_]/g, '\\$&')}%`)
     const rows = unwrap(await query.order('id').range(from, from + 99)) || []
@@ -55,7 +59,7 @@ function productId(value) {
 
 export async function getProduct(value) {
   const id = productId(value)
-  const row = unwrap(await database().from('productos').select(PRODUCT_COLUMNS)
+  const row = unwrap(await database().from('productos_catalogo').select(CATALOG_COLUMNS)
     .eq('id', id).maybeSingle())
   return row ? productFromRow(row) : null
 }
@@ -95,14 +99,38 @@ function productValues(product) {
 export async function createProduct(product) {
   const values = productValues(product)
   await requireAdministrator()
-  return productFromRow(unwrap(await database().from('productos').insert([values])
-    .select(PRODUCT_COLUMNS).single()))
+  const row = unwrap(await database().from('productos').insert([values]).select('id').single())
+  return getProduct(row.id)
 }
 
 export async function updateProduct(value, product) {
   const id = productId(value)
   const values = productValues(product)
   await requireAdministrator()
-  return productFromRow(unwrap(await database().from('productos').update(values)
-    .eq('id', id).select(PRODUCT_COLUMNS).single()))
+  unwrap(await database().from('productos').update(values).eq('id', id).select('id').single())
+  return getProduct(id)
+}
+
+export async function deleteProduct(value) {
+  const id = productId(value)
+  await requireAdministrator()
+  const { error } = await database().from('productos').delete().eq('id', id)
+  if (error) {
+    if (error.code === '23503' || String(error.message).toLowerCase().includes('foreign key')) {
+      throw new Error('No se puede eliminar este producto porque ya tiene pedidos registrados. Puedes cambiar su disponibilidad a "Agotado" en su lugar.')
+    }
+    throw new Error(error.message || 'No se pudo eliminar el producto.')
+  }
+  return true
+}
+
+export async function toggleProductAvailability(product) {
+  return updateProduct(product.id, {
+    name: product.name,
+    category: product.category,
+    desc: product.desc,
+    image: product.image,
+    price: product.price,
+    available: !product.available,
+  })
 }

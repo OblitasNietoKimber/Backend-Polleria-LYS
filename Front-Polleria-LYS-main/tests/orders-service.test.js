@@ -62,6 +62,27 @@ test('mantiene el contrato RPC y consulta el pedido guardado antes de confirmar'
     articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' }, metodo: 'efectivo' })
   expect(result.total).toBe(86)
 })
+test('registra una tarjeta aprobada junto con el pedido', async () => {
+  fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: saved })
+  await orders.createOrder({ id: saved.id, items: [{ product: { id: 1 }, qty: 2 }],
+    deliveryType: 'delivery', form: { name: 'Cliente' }, payment: 'tarjeta',
+    cardReceipt: { success: true, status: 'succeeded', paymentIntentId: 'pi_prueba_123' } })
+  expect(fake.rpc).toHaveBeenCalledWith('crear_pedido_cliente_tarjeta', {
+    solicitud_id: saved.id, tipo_entrega: 'delivery', articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' },
+    referencia_pago: 'pi_prueba_123', idempotencia_pago: saved.id,
+  })
+})
+test('no crea un pedido con tarjeta si el cobro no fue aprobado', async () => {
+  await expect(orders.createOrder({ id: saved.id, items: [], deliveryType: 'delivery', form: {}, payment: 'tarjeta' }))
+    .rejects.toThrow('Confirma el pago con tarjeta')
+  expect(fake.rpc).not.toHaveBeenCalled()
+})
+test('normaliza pickup a recojo al invocar crear_pedido_cliente', async () => {
+  fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: { ...saved, tipo: 'recojo' } })
+  await orders.createOrder({ id: saved.id, items: [{ product: { id: 1, price: 0, name: 'Falso' }, qty: 1 }],
+    deliveryType: 'pickup', form: { name: 'Cliente', phone: '987654321' }, payment: 'efectivo' })
+  expect(fake.rpc).toHaveBeenCalledWith('crear_pedido_cliente', expect.objectContaining({ tipo_entrega: 'recojo' }))
+})
 test('no confirma si falla el guardado o la lectura posterior', async () => {
   fake.rpc.mockResolvedValueOnce({ error: { message: 'Producto agotado' } }).mockResolvedValueOnce({ data: saved.id })
   const payload = { id: saved.id, items: [], form: {}, payment: 'efectivo' }
@@ -79,3 +100,7 @@ test('conserva los estados del esquema actual y distingue cancelaciones', () => 
   expect(orders.getOrderStatus({ backendStatus: 'en_preparacion' })).toBe('preparacion')
   expect(orders.getOrderStatus({ backendStatus: 'cancelado' })).toBe('cancelado')
 })
+
+test('muestra en camino cuando cocina entrega un delivery al repartidor',()=>{
+ expect(orders.getOrderStatus({backendStatus:'en_camino'})).toBe('camino');
+});

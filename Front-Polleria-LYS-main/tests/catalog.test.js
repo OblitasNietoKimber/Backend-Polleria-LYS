@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 const fake = vi.hoisted(() => ({ from: vi.fn(), currentUser: vi.fn() }))
 vi.mock('../src/lib/insforge', () => ({ insforge: { database: { from: fake.from }, auth: { getCurrentUser: fake.currentUser } }, configurationError: '' }))
-import { getCategories, getProducts, getProduct, createProduct, updateProduct } from '../src/services/productService'
+import { getCategories, getProducts, getProduct, createProduct, updateProduct, deleteProduct, toggleProductAvailability } from '../src/services/productService'
 
 let requests
 let responses
@@ -21,7 +21,9 @@ beforeEach(() => {
       single: () => Promise.resolve(responses.shift()),
       insert: rows => { request.insert = rows; return query },
       update: values => { request.update = values; return query },
+      delete: () => { request.delete = true; return query },
       range: (from, to) => { request.range = [from, to]; return Promise.resolve(responses.shift()) },
+      then: (resolve, reject) => Promise.resolve(responses.shift() || { error: null }).then(resolve, reject),
     }
     return query
   })
@@ -46,9 +48,9 @@ test('recorre lotes de categorías sin truncar y propaga un fallo de red', async
 
 test('consulta todos los campos y conserva precio, imagen nula y disponibilidad falsa', async () => {
   responses.push({ data: [{ id: '18', categoria_id: 'nueva', nombre: 'Nuevo plato', descripcion: 'Persistido', imagen: null, precio: '19.50', disponible: false }] })
-  expect(await getProducts()).toEqual([{ id: 18, category: 'nueva', name: 'Nuevo plato', desc: 'Persistido', image: null, price: 19.5, available: false }])
-  expect(requests[0].columns).toBe('id,categoria_id,nombre,descripcion,imagen,precio,disponible')
-  expect(requests[0]).toMatchObject({ table: 'productos', order: 'id', range: [0, 99] })
+  expect(await getProducts()).toMatchObject([{ id: 18, category: 'nueva', name: 'Nuevo plato', desc: 'Persistido', image: null, price: 19.5, available: false, stock: 0 }])
+  expect(requests[0].columns).toContain('stock,inventario_id')
+  expect(requests[0]).toMatchObject({ table: 'productos_catalogo', order: 'id', range: [0, 99] })
 })
 
 test('recorre lotes de productos sin limitar el catálogo a los primeros cien', async () => {
@@ -103,6 +105,7 @@ const validProduct = { name: '  Pollo nuevo  ', category: ' pollos ', desc: ' De
 test('el Administrador crea un producto y PostgreSQL asigna su ID', async () => {
   fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id', profile: { rol: 'cliente' } } } })
   responses.push({ data: { rol: 'admin' } }, { data: { id: 18, categoria_id: 'pollos', nombre: 'Pollo nuevo', precio: '24.50', disponible: false } })
+  responses.push({ data: { id:18,nombre:'Pollo nuevo',precio:'24.50',disponible:false,stock:0 } })
   expect(await createProduct({ ...validProduct, id: 1, rol: 'admin' })).toMatchObject({ id: 18, name: 'Pollo nuevo', price: 24.5, available: false })
   expect(requests[0]).toMatchObject({ table: 'perfiles', eq: ['id', 'admin-id'], columns: 'rol' })
   expect(requests[1].insert).toEqual([{ nombre: 'Pollo nuevo', categoria_id: 'pollos', descripcion: 'Descripción', precio: 24.5, imagen: validProduct.image, disponible: false }])
@@ -134,6 +137,7 @@ test('no oculta una denegación de RLS aunque la comprobación previa permita al
 test('el Administrador edita únicamente el producto solicitado', async () => {
   fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
   responses.push({ data: { rol: 'admin' } }, { data: { id: 18, nombre: 'Pollo nuevo', precio: '24.50', disponible: false } })
+  responses.push({ data: { id:18,nombre:'Pollo nuevo',precio:'24.50',disponible:false,stock:12 } })
   expect(await updateProduct('18', validProduct)).toMatchObject({ id: 18, price: 24.5, available: false })
   expect(requests[1]).toMatchObject({ table: 'productos', eq: ['id', 18], update: { nombre: 'Pollo nuevo', disponible: false } })
   expect(requests[1].update.id).toBeUndefined()
@@ -154,4 +158,34 @@ test('propaga los errores al editar un producto inexistente o denegado por Postg
   fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
   responses.push({ data: { rol: 'admin' } }, { error: { message: 'No rows found' } })
   await expect(updateProduct(999, validProduct)).rejects.toThrow('No rows found')
+})
+
+test('el Administrador elimina un producto por su ID', async () => {
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
+  responses.push({ data: { rol: 'admin' } }, { error: null })
+  expect(await deleteProduct('18')).toBe(true)
+  expect(requests[0]).toMatchObject({ table: 'perfiles', eq: ['id', 'admin-id'] })
+  expect(requests[1]).toMatchObject({ table: 'productos', eq: ['id', 18], delete: true })
+})
+
+test('rechaza eliminar un producto con ID inválido o rol insuficiente', async () => {
+  await expect(deleteProduct('abc')).rejects.toThrow('identificador')
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'cliente' } } })
+  responses.push({ data: { rol: 'cliente' } })
+  await expect(deleteProduct(18)).rejects.toThrow('Solo el Administrador')
+})
+
+test('informa amigablemente cuando un producto no puede eliminarse por pedidos asociados', async () => {
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
+  responses.push({ data: { rol: 'admin' } }, { error: { code: '23503', message: 'violates foreign key constraint' } })
+  await expect(deleteProduct(18)).rejects.toThrow('pedidos registrados')
+})
+
+test('toggleProductAvailability invierte la disponibilidad del producto', async () => {
+  fake.currentUser.mockResolvedValue({ data: { user: { id: 'admin-id' } } })
+  responses.push({ data: { rol: 'admin' } }, { data: { id: 18, categoria_id: 'pollos', nombre: 'Pollo nuevo', precio: '24.50', disponible: true } })
+  responses.push({ data: { id:18,nombre:'Pollo nuevo',precio:'24.50',disponible:true,stock:12 } })
+  const res = await toggleProductAvailability({ id: 18, name: 'Pollo nuevo', category: 'pollos', desc: 'Desc', price: 24.5, available: false })
+  expect(res.available).toBe(true)
+  expect(requests[1].update.disponible).toBe(true)
 })

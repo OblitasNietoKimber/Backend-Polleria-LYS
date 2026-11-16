@@ -36,29 +36,27 @@ export const BRAND_LABELS = {
   discover: 'Discover',
 }
 
-/** Formatea el número de tarjeta en grupos (4-4-4-4, o 4-6-5 para Amex) mientras se escribe. */
+/** Formatea el número de tarjeta en grupos de 4 (máximo 16 dígitos) mientras se escribe. */
 export function formatCardNumber(value) {
-  const digits = value.replace(/\D/g, '').slice(0, 19)
-  const brand = detectCardBrand(digits)
-  if (brand === 'amex') {
-    const a = digits.slice(0, 4)
-    const b = digits.slice(4, 10)
-    const c = digits.slice(10, 15)
-    return [a, b, c].filter(Boolean).join(' ')
-  }
+  const digits = (value || '').replace(/\D/g, '').slice(0, 16)
   return digits.replace(/(\d{4})(?=\d)/g, '$1 ')
 }
 
-/** Formatea la fecha de vencimiento como MM/AA mientras se escribe. */
+/** Formatea la fecha de vencimiento como MM/AA mientras se escribe (máximo 4 dígitos). */
 export function formatExpiry(value) {
+  if (!value) return ''
   const digits = value.replace(/\D/g, '').slice(0, 4)
-  if (digits.length <= 2) return digits
+  if (!digits) return ''
+  if (digits.length < 2) return digits
+  if (digits.length === 2) {
+    return value.includes('/') ? `${digits}/` : digits
+  }
   return `${digits.slice(0, 2)}/${digits.slice(2)}`
 }
 
-/** Deja solo dígitos, limitando el CVV a 4 caracteres (Amex usa 4, el resto 3). */
+/** Deja solo dígitos, limitando el CVV estrictamente a 3 dígitos. */
 export function formatCvv(value) {
-  return value.replace(/\D/g, '').slice(0, 4)
+  return (value || '').replace(/\D/g, '').slice(0, 3)
 }
 
 /**
@@ -72,19 +70,19 @@ export function validateCardForm({ number, name, expiry, cvv }) {
 
   if (!digits) {
     errors.number = 'Ingresa el número de tarjeta.'
-  } else if (digits.length < 13 || digits.length > 19) {
-    errors.number = 'El número de tarjeta no es válido.'
+  } else if (digits.length !== 16 && (brand !== 'amex' || digits.length !== 15)) {
+    errors.number = 'El número de tarjeta debe tener 16 dígitos.'
   } else if (!luhnCheck(digits)) {
     errors.number = 'El número de tarjeta no es válido.'
   } else if (!brand) {
-    errors.number = 'No reconocemos esta marca de tarjeta.'
+    errors.number = 'Tarjeta no válida o marca no soportada.'
   }
 
-  const trimmedName = (name || '').trim()
-  if (!trimmedName) {
-    errors.name = 'Ingresa el nombre del titular.'
-  } else if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]{3,}$/.test(trimmedName)) {
-    errors.name = 'Ingresa el nombre tal como aparece en la tarjeta.'
+  if (name !== undefined && name !== null && String(name).trim() !== '') {
+    const trimmedName = String(name).trim()
+    if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]{3,}$/.test(trimmedName)) {
+      errors.name = 'Ingresa un nombre válido tal como aparece en la tarjeta.'
+    }
   }
 
   const expiryMatch = /^(\d{2})\/(\d{2})$/.exec(expiry || '')
@@ -95,22 +93,23 @@ export function validateCardForm({ number, name, expiry, cvv }) {
   } else {
     const month = Number(expiryMatch[1])
     const year = 2000 + Number(expiryMatch[2])
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
     if (month < 1 || month > 12) {
       errors.expiry = 'El mes debe estar entre 01 y 12.'
-    } else {
-      const endOfMonth = new Date(year, month, 0, 23, 59, 59)
-      if (endOfMonth < new Date()) {
-        errors.expiry = 'La tarjeta está vencida.'
-      }
+    } else if (year < currentYear || (year === currentYear && month < currentMonth)) {
+      errors.expiry = 'La tarjeta está vencida.'
+    } else if (year > currentYear + 25) {
+      errors.expiry = 'El año de vencimiento no es válido.'
     }
   }
 
-  const cvvLength = brand === 'amex' ? 4 : 3
   const cvvDigits = (cvv || '').replace(/\D/g, '')
   if (!cvvDigits) {
-    errors.cvv = 'Ingresa el CVV.'
-  } else if (cvvDigits.length !== cvvLength) {
-    errors.cvv = `El CVV debe tener ${cvvLength} dígitos.`
+    errors.cvv = 'Ingresa el código de seguridad (CVV).'
+  } else if (cvvDigits.length !== 3) {
+    errors.cvv = 'El código de seguridad debe tener 3 dígitos.'
   }
 
   return errors

@@ -1,5 +1,7 @@
 # Panel de cocina y seguimiento
 
+> Documento de la integración original. El flujo actual propuesto de entrega, cobro y cierre se describe en [Entrega de cocina](entrega-cocina.md); sustituye las reglas de cierre y el historial indicadas aquí.
+
 Trabajo local en `feature/panel-cocina`, creado desde `dev` (`ef23045`) del repositorio **Backend-Polleria-LYS**. Se revisaron las ramas integradas de autenticación, catálogo, pedidos del cliente, meseras y caja. Esta implementación usa el esquema del nuevo backend; no reutiliza los contratos del proyecto anterior.
 
 ## Configuración general

@@ -9,7 +9,7 @@ export const ORDER_STATUS_STEPS = [
   { key: 'camino', label: 'En camino' },
   { key: 'entregado', label: 'Entregado' },
 ]
-const STATUS = { pendiente: 'recibido', en_preparacion: 'preparacion', listo: 'listo', entregado: 'entregado', cancelado: 'cancelado' }
+const STATUS = { pendiente: 'recibido', en_preparacion: 'preparacion', listo: 'listo', en_camino: 'camino', entregado: 'entregado', cancelado: 'cancelado' }
 export function getStatusLabel(estado) {
   const key = STATUS[estado]
   return ORDER_STATUS_STEPS.find(step => step.key === key)?.label || (key === 'cancelado' ? 'Cancelado' : estado)
@@ -59,16 +59,59 @@ async function getOrderHistory(id, { before } = {}) {
   if (before) query = query.lt('id', before)
   return unwrap(await query.order('id', { ascending: false }).limit(50)) || []
 }
-async function createOrder({ id, items, deliveryType, form, payment }) {
+async function createOrder({ id, items, deliveryType, form, payment, cardReceipt = null }) {
   const { db } = client()
-  const savedId = unwrap(await db.rpc('crear_pedido_cliente', {
-    solicitud_id: id, tipo_entrega: deliveryType,
-    articulos: items.map(({ product, qty }) => ({ id: product.id, qty })),
-    datos_entrega: form, metodo: payment,
-  }))
+  const tipoEntrega = deliveryType === 'pickup' ? 'recojo' : deliveryType
+  const articulos = items.map(({ product, qty }) => ({ id: product.id, qty }))
+  let savedId
+  if (payment === 'tarjeta') {
+    if (!cardReceipt?.success || cardReceipt.status !== 'succeeded') {
+      throw new Error('Confirma el pago con tarjeta antes de crear el pedido.')
+    }
+    savedId = unwrap(await db.rpc('crear_pedido_cliente_tarjeta', {
+      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: form,
+      referencia_pago: cardReceipt.paymentIntentId || cardReceipt.authCode,
+      idempotencia_pago: id,
+    }))
+  } else {
+    savedId = unwrap(await db.rpc('crear_pedido_cliente', {
+      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: form, metodo: payment,
+    }))
+  }
   const saved = await getOrderById(savedId)
   if (!saved) throw new Error('No se pudo consultar el pedido confirmado. Reintenta con la misma solicitud.')
   return saved
 }
 function getOrderStatus(order) { return STATUS[order.backendStatus] || 'recibido' }
-export default { getOrders, getOrderById, getOrderState, getOrderHistory, createOrder, getOrderStatus }
+export async function getActiveUnpaidOrder() {
+  try {
+    const { db, user } = client()
+    const query = db
+      .from('pedidos')
+      .select('id,estado,estado_pago,metodo_solicitado,tipo,creado_en')
+      .eq('cliente_id', user.id)
+      .neq('estado', 'cancelado')
+      .eq('estado_pago', 'pendiente')
+      .in('metodo_solicitado', ['efectivo', 'yape', 'plin'])
+      .order('creado_en', { ascending: false })
+      .limit(1)
+
+    const res = await query
+    const rows = res?.data || []
+    if (!rows.length) return null
+
+    const row = rows[0]
+    return {
+      id: row.id,
+      backendStatus: row.estado,
+      estadoPago: row.estado_pago,
+      payment: row.metodo_solicitado,
+      tipo: row.tipo,
+      createdAt: row.creado_en,
+    }
+  } catch {
+    return null
+  }
+}
+
+export default { getOrders, getOrderById, getOrderState, getOrderHistory, createOrder, getOrderStatus, getActiveUnpaidOrder }

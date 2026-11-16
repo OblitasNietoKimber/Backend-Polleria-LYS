@@ -1,4 +1,12 @@
-export default function OrderSummary({ items, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, money, onBack, onConfirm, saving = false }) {
+import { AlertTriangle } from 'lucide-react'
+import { formatCodigoPedido } from '../utils/orderNumber'
+
+export default function OrderSummary({ items, subtotal, shipping, total, deliveryType, form, payment, cardReceipt, money, onBack, onConfirm, saving = false, blocked = false, unpaidOrder = null }) {
+  // Desglosar el impuesto incluido en productos y envío sin alterar el cobro.
+  const totalCentimos = Math.round(total * 100)
+  const baseCentimos = Math.round(totalCentimos / 1.18)
+  const igv = (totalCentimos - baseCentimos) / 100
+
   return (
     <div>
       <h2 className="font-display checkout-form-title">Resumen de tu compra</h2>
@@ -25,6 +33,17 @@ export default function OrderSummary({ items, subtotal, shipping, total, deliver
             <span>TOTAL</span>
             <span>{money(total)}</span>
           </div>
+          <div className="order-ticket-tax-breakdown">
+            <p className="order-ticket-tax-note">El total incluye IGV. Desglose:</p>
+            <div className="font-mono order-ticket-summary-row">
+              <span>Importe sin IGV</span>
+              <span>{money(baseCentimos / 100)}</span>
+            </div>
+            <div className="font-mono order-ticket-summary-row">
+              <span>IGV (18%) incluido</span>
+              <span>{money(igv)}</span>
+            </div>
+          </div>
         </div>
       </div>
       <div className="order-details">
@@ -34,19 +53,32 @@ export default function OrderSummary({ items, subtotal, shipping, total, deliver
         <div>{deliveryType === 'delivery' ? `${form.address}${form.reference ? ` (${form.reference})` : ''}` : 'Recojo en tienda'}</div>
         <div>
           <strong>Pago:</strong>{' '}
-          {payment === 'efectivo' && 'Efectivo'}
-          {payment === 'yape' && 'Yape / Plin'}
+          {payment === 'efectivo' && (deliveryType === 'delivery' ? 'Efectivo (Contra entrega)' : 'Efectivo (Pagar en caja)')}
+          {payment === 'yape' && (deliveryType === 'delivery' ? 'Yape / Plin (Contra entrega)' : 'Yape / Plin (Pagar en caja)')}
           {payment === 'tarjeta' &&
             (cardReceipt
               ? `${cardReceipt.brandLabel} terminada en ${cardReceipt.last4} · Aprobado (${cardReceipt.authCode})`
               : 'Tarjeta')}
         </div>
       </div>
+
+      {unpaidOrder && (
+        <div className="payment-unpaid-warning-banner" role="alert" style={{ margin: '16px 0' }}>
+          <AlertTriangle size={18} className="payment-unpaid-warning-icon" />
+          <div>
+            <strong>Tienes un pedido pendiente de pago ({formatCodigoPedido(unpaidOrder.id)}):</strong>
+            <p>
+              No puedes solicitar otro pedido en {payment === 'efectivo' ? 'efectivo' : 'Yape / Plin'} hasta que se confirme el pago del anterior en {unpaidOrder.tipo === 'delivery' ? 'entrega' : 'caja'}. Regresa al paso anterior y selecciona <strong>Tarjeta</strong> para continuar.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="checkout-actions">
         <button className="btn-outline checkout-actions-back" onClick={onBack}>
           Atrás
         </button>
-        <button className="btn-ember checkout-actions-primary" disabled={saving} onClick={onConfirm}>
+        <button className="btn-ember checkout-actions-primary" disabled={saving || blocked || Boolean(unpaidOrder)} onClick={onConfirm}>
           {saving ? 'Guardando...' : 'Confirmar pedido'}
         </button>
       </div>

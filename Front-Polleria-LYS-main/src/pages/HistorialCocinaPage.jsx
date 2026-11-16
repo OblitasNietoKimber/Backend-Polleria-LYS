@@ -23,11 +23,13 @@ export default function HistorialCocinaPage() {
   const load = useCallback(() => cocinaService.getPedidosFinalizados({ page }), [page]);
   const { data, loading, error, retry } = useOrderResource(load);
   const finalizados = data || [];
-  const sinFecha = finalizados.filter(p => !p.finalizadoAt);
-  const deHoy = finalizados.filter((p) => esHoy(p.finalizadoAt));
+  const sinFecha = finalizados.filter(p => !(p.entregadoEn || p.finalizadoAt));
+  const deHoy = finalizados.filter((p) => esHoy(p.entregadoEn || p.finalizadoAt));
   const ultimos30 = finalizados.filter(
-    (p) => !esHoy(p.finalizadoAt) && dentroDeDias(p.finalizadoAt, 30)
+    (p) => !esHoy(p.entregadoEn || p.finalizadoAt) && dentroDeDias(p.entregadoEn || p.finalizadoAt, 30)
   );
+
+  const anteriores = finalizados.filter(p => (p.entregadoEn || p.finalizadoAt) && !dentroDeDias(p.entregadoEn || p.finalizadoAt, 30));
 
   return (
     <div className="lys-root admin-screen">
@@ -56,6 +58,7 @@ export default function HistorialCocinaPage() {
             <h2 className="cocina-seccion-titulo">Últimos 30 días ({ultimos30.length})</h2>
             <PedidosFinalizados pedidos={ultimos30} />
           </section>
+          {anteriores.length > 0 && <section><h2 className="cocina-seccion-titulo">Anteriores ({anteriores.length})</h2><PedidosFinalizados pedidos={anteriores} /></section>}
         </div>
       </div>
     </div>

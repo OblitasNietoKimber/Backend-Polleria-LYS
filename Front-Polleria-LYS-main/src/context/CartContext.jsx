@@ -1,9 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { DELIVERY_COST } from '../data/products'
+import { stockLimit } from '../utils/stock'
 import { getProduct } from '../services/productService'
 import orderService from '../services/orderService'
 import { getCurrentUser } from '../services/authService'
 import { orderSignature, readPendingOrder, savePendingOrder, clearPendingOrder } from '../utils/pendingOrder'
+import { formatCodigoPedido } from '../utils/orderNumber'
 
 const CartContext = createContext(null)
 const CART_STORAGE_KEY = 'lys-cart'
@@ -30,7 +32,10 @@ function readStoredDelivery() {
   if (typeof window === 'undefined') return { deliveryType: 'delivery', form: EMPTY_FORM }
   try {
     const raw = window.localStorage.getItem(DELIVERY_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : { deliveryType: 'delivery', form: EMPTY_FORM }
+    if (!raw) return { deliveryType: 'delivery', form: EMPTY_FORM }
+    const parsed = JSON.parse(raw)
+    const normalizedType = parsed.deliveryType === 'pickup' ? 'recojo' : (parsed.deliveryType || 'delivery')
+    return { deliveryType: normalizedType, form: parsed.form || EMPTY_FORM }
   } catch {
     return { deliveryType: 'delivery', form: EMPTY_FORM }
   }
@@ -63,24 +68,35 @@ export function CartProvider({ children }) {
   const cartError = catalogState.ids === cartIds ? catalogState.error : ''
   const missingCartIds = !cartLoading && cartError ? Object.keys(cart).filter(id => !products[id]) : []
   const [cartOpen, setCartOpen] = useState(false)
-  const [deliveryType, setDeliveryType] = useState(() => readStoredDelivery().deliveryType)
+  const [deliveryType, setDeliveryTypeRaw] = useState(() => readStoredDelivery().deliveryType)
+  const setDeliveryType = (type) => setDeliveryTypeRaw(type === 'pickup' ? 'recojo' : type)
   const [form, setForm] = useState(() => readStoredDelivery().form)
   const [payment, setPayment] = useState(readStoredPayment)
   const [orderNumber, setOrderNumber] = useState(readStoredOrderNumber)
   const [card, setCard] = useState(EMPTY_CARD)
   const [cardReceipt, setCardReceipt] = useState(null)
+  const [stockAlert, setStockAlert] = useState(null)
+  const clearStockAlert = () => setStockAlert(null)
 
   useEffect(() => {
     let active = true
     const ids = cartIds ? cartIds.split(',') : []
-    Promise.all(ids.map(getProduct)).then(rows => {
+    const refresh = () => Promise.all(ids.map(getProduct)).then(rows => {
       if (!active) return
       setProducts(Object.fromEntries(rows.filter(Boolean).map(product => [product.id, product])))
       setCatalogState({ ids: cartIds, error: rows.some(product => !product) ? 'Un producto del carrito ya no está en el catálogo.' : '' })
     }).catch(error => {
       if (active) setCatalogState({ ids: cartIds, error: error.message })
     })
-    return () => { active = false }
+    refresh()
+    const poll = setInterval(()=>{if(document.visibilityState==='visible')void refresh();},20000)
+    window.addEventListener('catalog-stock-changed',refresh)
+    window.addEventListener('focus',refresh)
+    return () => {
+      active = false; clearInterval(poll)
+      window.removeEventListener('catalog-stock-changed',refresh)
+      window.removeEventListener('focus',refresh)
+    }
   }, [cartIds])
 
   useEffect(() => {
@@ -138,11 +154,30 @@ export function CartProvider({ children }) {
 
   function addToCart(product, qty = 1) {
     const id = typeof product === 'object' ? product.id : product
+    const itemProduct = typeof product === 'object' ? product : (products[id] || { id })
+    const maxStock = stockLimit(itemProduct, cart, [...Object.values(products), itemProduct])
+    const currentQty = cart[id] || 0
+    const targetQty = currentQty + qty
+
     if (typeof product === 'object') {
-      if (!product.available) return
+      if (!product.available) return false
       setProducts(current => ({ ...current, [id]: product }))
     }
-    setCart((current) => ({ ...current, [id]: (current[id] || 0) + qty }))
+
+    if (targetQty > maxStock) {
+      const productName = itemProduct.name || `Producto #${id}`
+      setStockAlert({
+        id,
+        message: `Solo quedan ${maxStock} unidades disponibles de "${productName}". Ya tienes ${currentQty} en tu carrito.`,
+        maxStock,
+      })
+      setCartOpen(true)
+      return false
+    }
+
+    setStockAlert(null)
+    setCart((current) => ({ ...current, [id]: targetQty }))
+    return true
   }
 
   function removeItem(id) {
@@ -151,15 +186,36 @@ export function CartProvider({ children }) {
       delete next[id]
       return next
     })
+    setStockAlert(cur => (cur?.id === id ? null : cur))
   }
 
   function setQty(id, qty) {
-    setCart((current) => {
-      const next = { ...current }
-      if (qty <= 0) delete next[id]
-      else next[id] = qty
-      return next
-    })
+    if (qty <= 0) {
+      setCart((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+      setStockAlert(cur => (cur?.id === id ? null : cur))
+      return
+    }
+
+    const itemProduct = products[id] || { id }
+    const maxStock = stockLimit(itemProduct, cart, Object.values(products))
+
+    if (qty > maxStock) {
+      const productName = itemProduct.name || `Producto #${id}`
+      setStockAlert({
+        id,
+        message: `Solo quedan ${maxStock} unidades disponibles de "${productName}". No es posible seleccionar ${qty}.`,
+        maxStock,
+      })
+      setCart((current) => ({ ...current, [id]: maxStock }))
+      return
+    }
+
+    setStockAlert(cur => (cur?.id === id ? null : cur))
+    setCart((current) => ({ ...current, [id]: qty }))
   }
 
   function updateFormField(field, value) {
@@ -176,6 +232,10 @@ export function CartProvider({ children }) {
 
   const pendingOrder = useRef(readPendingOrder());
   const confirmation = useRef(null);
+  const isResumingOrder = useCallback(id => pendingOrder.current?.id === id &&
+    pendingOrder.current.signature === orderSignature(getCurrentUser()?.id, {
+      items: cartItems, deliveryType, form, payment,
+    }), [cartItems, deliveryType, form, payment]);
   async function confirmOrder() {
     if (confirmation.current) return confirmation.current;
     if (cartLoading || cartError || !cartItems.length || cartItems.some(item => !item.product.available)) {
@@ -183,7 +243,23 @@ export function CartProvider({ children }) {
     }
     const user = getCurrentUser();
     if (!user || user.rol !== 'cliente') throw new Error('Debes iniciar sesión como cliente.');
-    const request = { items: cartItems, deliveryType, form, payment };
+
+    // Restricción: solo se permite 1 pedido con pago en efectivo o Yape/Plin (contra entrega o recojo en caja)
+    // hasta que el pago de dicho pedido anterior sea confirmado. Con tarjeta opera con normalidad.
+    if (payment !== 'tarjeta') {
+      const activeUnpaid = await orderService.getActiveUnpaidOrder().catch(() => null);
+      if (activeUnpaid && !isResumingOrder(activeUnpaid.id)) {
+        throw new Error(
+          `Ya tienes un pedido en curso (${formatCodigoPedido(activeUnpaid.id)}) con pago pendiente en ${activeUnpaid.payment === 'efectivo' ? 'efectivo' : 'Yape / Plin'}. Hasta que no se confirme el pago de ese pedido, no puedes realizar otro en efectivo o Yape/Plin. Puedes pagar con Tarjeta para continuar.`
+        );
+      }
+    }
+
+    if (payment === 'tarjeta' && (!cardReceipt?.success || cardReceipt.status !== 'succeeded')) {
+      throw new Error('Confirma el pago con tarjeta antes de crear el pedido.');
+    }
+
+    const request = { items: cartItems, deliveryType, form, payment, cardReceipt: payment === 'tarjeta' ? cardReceipt : null };
     const signature = orderSignature(user.id, request);
     if (pendingOrder.current?.signature !== signature) {
       pendingOrder.current = { id: crypto.randomUUID(), signature };
@@ -191,9 +267,13 @@ export function CartProvider({ children }) {
     savePendingOrder(pendingOrder.current);
     confirmation.current = orderService.createOrder({ id: pendingOrder.current.id, ...request })
       .then(saved => {
-        setOrderNumber(saved.id); setCart({}); clearCard(); setCardReceipt(null);
+        window.dispatchEvent(new Event('catalog-stock-changed'));
+        setOrderNumber(saved.id); setCart({}); clearCard();
         pendingOrder.current = null; clearPendingOrder();
         return saved.id;
+      }).catch(error => {
+        window.dispatchEvent(new Event('catalog-stock-changed'));
+        throw error;
       }).finally(() => { confirmation.current = null; });
     return confirmation.current;
   }
@@ -211,6 +291,11 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    cart,
+    isResumingOrder,
+    getAvailableStock: product => stockLimit(product, cart, [...Object.values(products), product]),
+    stockAlert,
+    clearStockAlert,
     missingCartIds,
     cartLoading,
     cartError,
@@ -244,6 +329,8 @@ export function CartProvider({ children }) {
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }
 
+// El contexto mantiene su provider y su hook público en el mismo módulo.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCart() {
   const context = useContext(CartContext)
   if (!context) {

@@ -591,3 +591,24 @@
     transition: none;
   }
 }
+
+
+/* Menú desplegable Admin en SiteHeader */
+.lys-admin-dropdown {
+  position: relative;
+}
+
+.lys-admin-dropdown .lys-admin-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+}
+
+.lys-admin-dropdown .lys-admin-menu {
+  left: 0;
+  right: auto;
+  min-width: 200px;
+}
