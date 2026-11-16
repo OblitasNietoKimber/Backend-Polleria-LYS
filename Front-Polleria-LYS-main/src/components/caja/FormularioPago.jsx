@@ -1,10 +1,10 @@
-import { Banknote, CreditCard, Smartphone } from "lucide-react";
+import PaymentMethodLogo from "./PaymentMethodLogo";
 
 const METODOS = [
-  { nombre: "Efectivo", Icono: Banknote },
-  { nombre: "Yape", Icono: Smartphone },
-  { nombre: "Plin", Icono: Smartphone },
-  { nombre: "Tarjeta", Icono: CreditCard },
+  { nombre: "Efectivo" },
+  { nombre: "Yape" },
+  { nombre: "Plin" },
+  { nombre: "Tarjeta" },
 ];
 
 export default function FormularioPago({ metodo, onMetodoChange, monto, onMontoChange, total, disabled = false }) {
@@ -15,7 +15,7 @@ export default function FormularioPago({ metodo, onMetodoChange, monto, onMontoC
     <div className="caja-payment">
       <p className="caja-label">Método de pago</p>
       <div className="caja-metodos">
-        {METODOS.map(({ nombre, Icono }) => (
+        {METODOS.map(({ nombre }) => (
           <button
             type="button"
             key={nombre}
@@ -24,7 +24,7 @@ export default function FormularioPago({ metodo, onMetodoChange, monto, onMontoC
             onClick={() => onMetodoChange(nombre)}
             aria-pressed={metodo === nombre}
           >
-            <Icono size={18} />
+            <PaymentMethodLogo method={nombre} />
             {nombre}
           </button>
         ))}

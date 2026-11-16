@@ -571,6 +571,85 @@
   box-shadow: inset 0 0 0 1px rgba(226, 58, 50, 0.12);
 }
 
+.caja-payment-logo {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  line-height: 1;
+}
+
+.caja-payment-logo--cash {
+  border-radius: 6px;
+  background: #e7f7ec;
+  color: #16823a;
+}
+
+.caja-payment-logo--visa {
+  position: relative;
+  width: 25px;
+  flex-basis: 25px;
+  border-radius: 5px;
+  background: #1a4fa3;
+  color: #fff;
+  overflow: hidden;
+}
+
+.caja-payment-logo--visa svg {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  opacity: 0.22;
+}
+
+.caja-visa-mark {
+  position: relative;
+  font-family: Arial, sans-serif;
+  font-size: 0.45rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.caja-payment-logo--yape {
+  border-radius: 6px 6px 7px 7px;
+  background: #6f2da8;
+  box-shadow: inset 0 -3px 0 #42c4c7;
+}
+
+.caja-yape-mark {
+  margin-top: -1px;
+  font-family: Georgia, serif;
+  font-size: 1.3rem;
+  font-style: italic;
+  font-weight: 700;
+}
+
+.caja-payment-logo--plin {
+  width: 23px;
+  flex-basis: 23px;
+  border-radius: 7px 7px 7px 3px;
+  background: linear-gradient(135deg, #00a99d, #087fbd);
+}
+
+.caja-plin-mark {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.caja-payment-logo--plin::after {
+  width: 3px;
+  height: 3px;
+  margin: -9px 0 0 -1px;
+  border-radius: 50%;
+  background: #fa4d8d;
+  content: "";
+}
+
 .caja-money-input {
   height: 48px;
   padding: 0 14px;
