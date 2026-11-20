@@ -17,7 +17,8 @@ Utiliza las siguientes cuentas para probar cada uno de los roles y permisos del 
 | **Mesero** | `majimer746@goldlicai.com` | `m1234567` | Toma de Pedidos en Mesas y Perfil |
 | **Cliente / Usuario** | `xisep41755@nbasweeps.com` | `u1234567` | Catálogo, Carrito, Checkout, Mis Pedidos y Perfil |
 
-* **Despliegue en producción:** [https://back-polleria-lys.vercel.app](https://back-polleria-lys.vercel.app)
+* **Despliegue en producción:** https://backend-polleria-lys-apf3.vercel.app/
+* 
 
 ---
 
