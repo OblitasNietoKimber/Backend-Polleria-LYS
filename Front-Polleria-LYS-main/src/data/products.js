@@ -1,12 +1,12 @@
-// Base de pollos enteros preparados/estimados (~200)
-export const STOCK_POLLO_ENTERO = 200;
+// Base de pollos enteros preparados/estimados (~70)
+export const STOCK_POLLO_ENTERO = 70;
 
 export const PRODUCT_STOCKS = {
-  // Pollos a la brasa calculados a partir de los 200 pollos enteros base:
-  1: STOCK_POLLO_ENTERO,                    // Pollo a la brasa entero: 200
-  2: Math.round(STOCK_POLLO_ENTERO * 0.5),  // 1/2 Pollo a la brasa: 100 (la mitad de 200)
-  3: Math.round(STOCK_POLLO_ENTERO * 0.25), // 1/4 Pollo a la brasa: 50 (cuarta parte de 200)
-  4: Math.round(STOCK_POLLO_ENTERO * 0.25), // Pechuga a la brasa: 50 (cuarta parte de 200)
+  // Pollos a la brasa calculados a partir de los 70 pollos enteros base:
+  1: STOCK_POLLO_ENTERO,                    // Pollo a la brasa entero: 70
+  2: Math.round(STOCK_POLLO_ENTERO * 0.5),  // 1/2 Pollo a la brasa: 35 (la mitad de 70)
+  3: Math.round(STOCK_POLLO_ENTERO * 0.25), // 1/4 Pollo a la brasa: 18 (cuarta parte de 70)
+  4: Math.round(STOCK_POLLO_ENTERO * 0.25), // Pechuga a la brasa: 18 (cuarta parte de 70)
 
   // Parrillas y piqueos
   5: 40, // Alitas BBQ (6 und)

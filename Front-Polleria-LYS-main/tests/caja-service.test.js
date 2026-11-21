@@ -7,7 +7,7 @@ const row = { id: 'uuid', tipo: 'salon', estado: 'preparacion', estado_pago: 'pe
 const recibo = { id: 'uuid', codigo: 'uuid', total: '42.90', subtotal: '42.90', envio: '0', estado: 'pagado', items: [{ id: 1, nombre: 'Nombre vendido', precio: '42.9', cantidad: 1 }], pago: { id: 'pago', metodo: 'efectivo', monto: '50', importe: '42.9', vuelto: '7.1' } };
 beforeEach(() => {
   vi.clearAllMocks(); user.mockReturnValue({ rol: 'caja' });
-  for (const method of ['select','eq','neq','gt','order','range','limit']) query[method] = vi.fn(() => query);
+  for (const method of ['select','eq','neq','gt','order','range','in']) query[method] = vi.fn(() => query);
   query.then = resolve => resolve({ data: [row], error: null });
   query.maybeSingle = vi.fn().mockResolvedValue({ data: row, error: null });
   rpc.mockResolvedValue({ data: recibo, error: null });
@@ -19,17 +19,29 @@ test('consulta pendientes persistidos y excluye cancelados y pedidos vacíos', a
   expect(query.neq).toHaveBeenCalledWith('estado', 'cancelado');
   expect(query.gt).toHaveBeenCalledWith('total', 0);
 });
-test('recorre páginas completas para no omitir pedidos', async () => {
+test('recorre páginas completas de cuentas pendientes para no omitir pedidos', async () => {
   query.then = resolve => resolve({ data: query.range.mock.calls.length === 1 ? Array(100).fill(row) : [row], error: null });
-  expect(await pagos.getPedidos()).toHaveLength(101);
+  expect(await pagos.getPedidosPendientes()).toHaveLength(101);
   expect(query.range).toHaveBeenLastCalledWith(100, 199);
 });
 
-test('comprueba cambios con una sola fecha y el conteo sin descargar comprobantes', async () => {
-  query.then = resolve => resolve({ data: [{ actualizado_en: '2026-10-16T19:30:00Z' }], count: 12, error: null });
-  expect(await pagos.getSelloCambios()).toBe(JSON.stringify([12, '2026-10-16T19:30:00Z']));
-  expect(query.select).toHaveBeenCalledWith('actualizado_en', { count: 'exact' });
-  expect(query.limit).toHaveBeenCalledWith(1);
+test('Caja descarga solo las pendientes y los últimos cobros, no todo el historial', async () => {
+  let llamadas = 0;
+  // 1.ª consulta = pendientes (1 fila); 2.ª = cobros (página llena de 100 que NO debe seguir paginando).
+  query.then = resolve => resolve({ data: ++llamadas === 1 ? [row] : Array(100).fill(row), error: null });
+  query.range.mockClear();
+  const pedidos = await pagos.getPedidos();
+  expect(query.eq).toHaveBeenCalledWith('estado_pago', 'pagado');
+  expect(pedidos).toHaveLength(101);
+  expect(llamadas).toBe(2);
+});
+
+test('refresca solo los pedidos avisados, sin repetir los pagos ni las pendientes', async () => {
+  const otros = { id: 'otro', estado: 'pendiente', createdAt: '2026-10-01' };
+  const pedidos = await pagos.actualizarPedidos([otros], [{ pedidoId: 'uuid' }, { pedidoId: 'uuid' }]);
+  expect(query.in).toHaveBeenCalledExactlyOnceWith('id', ['uuid']);
+  expect(query.range).not.toHaveBeenCalled();
+  expect(pedidos.map(pedido => pedido.id)).toEqual(['uuid', 'otro']);
 });
 test('envía una sola RPC sin confiar en total o vuelto propuestos por el navegador', async () => {
   const result = await pagos.registrarCobro('uuid', { metodo: 'Efectivo', monto: 50, idempotencia: 'clave', totalEsperado: 42.9, vuelto: 999 });

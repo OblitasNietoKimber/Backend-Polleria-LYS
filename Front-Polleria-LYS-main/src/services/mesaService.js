@@ -1,7 +1,10 @@
 import { SEED_MESAS, SEED_ACTIVIDADES, ESTADOS_MESA } from '../data/mesasData';
 import { requireInsforge } from '../lib/insforge';
 import { getCurrentUser } from './authService';
-import { FLOW_PREVIEW, getFlow, operateFlow, pendingKitchen, openIncident } from './atencionService';
+import { getPersonNameError, normalizePersonName } from '../utils/identityValidation';
+import { isValidPhone } from './validators';
+import { getReservationTimeError } from '../utils/reservationTime';
+import { FLOW_PREVIEW, getFlowMesas, operateFlow, pendingKitchen, openIncident } from './atencionService';
 
 const MESAS_KEY = 'lys_mesas';
 const ACTIVIDADES_KEY = 'lys_actividades';
@@ -86,19 +89,21 @@ function mapMesaFromDb(row) {
 export async function fetchMesas({ strict = false } = {}) {
   try {
     if(FLOW_PREVIEW){
-      const data=await getFlow();
+      const data=await getFlowMesas();
       cacheMesas=data.mesas.map(m=>{
         const atencion=data.atenciones.find(a=>a.mesa_id===m.id);
         const cuentas=atencion?data.cuentas.filter(p=>p.atencion_id===atencion.id):[];
-        const editable=cuentas.find(p=>p.estado_pago!=='pagado'&&p.estado!=='cancelado');
-        const principal=editable||cuentas[0];
+        const principales = cuentas.filter(p => !p.cuenta_principal_id);
+        const abierta = principales.find(p => p.estado_pago !== 'pagado' && p.estado !== 'cancelado');
+        const principal = abierta || principales[0];
         const mapped=mapMesaFromDb({...m,estado:atencion?'ocupada':m.estado,pedido_id:principal?.id,pedido_estado:principal?.estado,
           estado_pago:cuentas.filter(p=>p.estado!=='cancelado').every(p=>p.estado_pago==='pagado')?'pagado':'pendiente',
-          cocina_entregado_en:principal?.cocina_entregado_en,cuenta_solicitada:editable?.cuenta_solicitada,
-          comensales:principal?.comensales,total:cuentas.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.total),0),
-          subtotal:cuentas.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.subtotal),0),notas:editable?.notas||'',creado_en:atencion?.abierta_en,
+          cocina_entregado_en:principal?.cocina_entregado_en,cuenta_solicitada:abierta?.cuenta_solicitada,
+          comensales:principal?.comensales,total:principales.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.total),0),
+          subtotal:principales.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.subtotal),0),notas:abierta?.notas||'',creado_en:atencion?.abierta_en,
           items:(principal?.items||[]).map(i=>({id:i.id,producto_id:i.producto_id,nombre:i.nombre_producto,cantidad:i.cantidad,precio:i.precio_unitario}))});
-        return {...mapped,atencionId:atencion?.id,cuentas,cuentaEditableId:editable?.id||null,
+        return {...mapped,atencionId:atencion?.id,cuentas,cuentaAbiertaId:abierta?.id||null,
+          cuentaEditableId:abierta?.comanda_editable && !abierta.cuenta_solicitada && !openIncident(abierta) ? abierta.id : null,
           versionCuenta:principal?.version_cuenta,puedeCerrar:Boolean(atencion)&&cuentas.every(p=>(p.estado==='cancelado'||p.estado_pago==='pagado'&&!pendingKitchen(p).length)&&!openIncident(p))};
       });
       return cacheMesas;
@@ -209,6 +214,13 @@ export async function abrirPedidoSalon({
   return nuevoPedidoId;
 }
 
+export async function agregarComandaSalon({ solicitudId, cuentaId, version, items, notas }) {
+  const result = await operateFlow('comanda_adicional', {
+    pedido: cuentaId, version, items: items.map(item => ({ id: item.id, qty: item.cantidad })), notas,
+  }, solicitudId || undefined);
+  return result.pedido;
+}
+
 /**
  * Permite agregar productos y observaciones a un pedido de salón abierto (SCRUM-279).
  */
@@ -259,7 +271,7 @@ export async function enviarPedidoCocina(pedidoId) {
  * Registra la solicitud de cuenta para caja en PostgreSQL (SCRUM-281).
  */
 export async function solicitarCuenta(pedidoId, mesaNumero) {
-  if(FLOW_PREVIEW){const p=(await getFlow()).cuentas.find(p=>p.id===pedidoId);if(!p)throw new Error('La cuenta ya no está disponible');await operateFlow('solicitar',{pedido:pedidoId,version:p.version_cuenta});await fetchMesas({strict:true});return true;}
+  if(FLOW_PREVIEW){const p=(await getFlowMesas()).cuentas.find(p=>p.id===pedidoId);if(!p)throw new Error('La cuenta ya no está disponible');await operateFlow('solicitar',{pedido:pedidoId,version:p.version_cuenta});await fetchMesas({strict:true});return true;}
   const { db } = getDbClient();
   const res = await db.rpc('solicitar_cuenta_salon', {
     p_pedido_id: pedidoId,
@@ -342,17 +354,41 @@ export function ocuparMesa(numero, pedidoId, total = 0) {
   return actualizadas.find((m) => String(m.numero).padStart(2, '0') === numNormalizado);
 }
 
-export async function reservarMesa(numero, { cliente, hora, comensales, telefono } = {}) {
+export async function reservarMesa(numero, { cliente, hora, comensales, telefono = '' } = {}) {
   const mesa = getMesaByNumero(numero);
   if (!mesa?.id) throw new Error('La mesa no existe.');
-  if(FLOW_PREVIEW){await operateFlow('reservar',{mesa:mesa.id,cliente,hora,telefono,comensales:Number(comensales)||mesa.capacidad});await fetchMesas({strict:true});return getMesaByNumero(numero);}
+
+  const errorNombre = getPersonNameError(cliente, { label: 'nombre del cliente o grupo', requiredMessage: 'Ingresa un nombre de al menos 2 caracteres.' });
+  if (errorNombre) throw new Error(errorNombre);
+  const errorHora = getReservationTimeError(hora);
+  if (errorHora) throw new Error(errorHora);
+
+  const personas = typeof comensales === 'string' && /^[0-9]+$/.test(comensales)
+    ? Number(comensales)
+    : comensales;
+  if (!Number.isInteger(personas) || personas < 1 || personas > mesa.capacidad) {
+    throw new Error(`Ingresa entre 1 y ${mesa.capacidad} comensales para esta mesa.`);
+  }
+
+  const celular = typeof (telefono ?? '') === 'string' ? (telefono ?? '').replace(/ /g, '') : null;
+  if (celular === null || (celular !== '' && (celular.length !== 9 || !isValidPhone(celular)))) {
+    throw new Error('El celular debe comenzar con 9 y tener 9 dígitos.');
+  }
+
+  const nombre = normalizePersonName(cliente);
+  if (FLOW_PREVIEW) {
+    await operateFlow('reservar', { mesa: mesa.id, cliente: nombre, hora, telefono: celular, comensales: personas });
+    await fetchMesas({ strict: true });
+    return getMesaByNumero(numero);
+  }
+
   const { db } = getDbClient();
   unwrap(await db.rpc('reservar_mesa_salon', {
     p_mesa_id: Number(mesa.id),
-    p_cliente: (cliente || '').trim(),
-    p_hora: hora || '20:00',
-    p_telefono: (telefono || '').trim(),
-    p_comensales: Number(comensales) || mesa.capacidad,
+    p_cliente: nombre,
+    p_hora: hora,
+    p_telefono: celular,
+    p_comensales: personas,
   }), 'No se pudo registrar la reserva en el servidor.');
 
   await fetchMesas();
@@ -383,7 +419,7 @@ export function getEstadisticasMesas(zona = 'salon_principal') {
 
 export async function fetchActividades() {
   try {
-    if(FLOW_PREVIEW)return ((await getFlow()).actividades||[]).map(a=>({id:a.id,mesaNumero:a.mesa_numero,tipo:a.tipo,tipoColor:a.tipo_color,titulo:a.titulo,descripcion:a.descripcion,ordenCodigo:a.orden_codigo,createdAt:a.creado_en}));
+    if(FLOW_PREVIEW)return ((await getFlowMesas()).actividades||[]).map(a=>({id:a.id,mesaNumero:a.mesa_numero,tipo:a.tipo,tipoColor:a.tipo_color,titulo:a.titulo,descripcion:a.descripcion,ordenCodigo:a.orden_codigo,createdAt:a.creado_en}));
     const { db } = getDbClient();
     const res = await db.rpc('obtener_actividad_salon');
     const data = unwrap(res, 'No se pudo obtener la actividad desde PostgreSQL.');
@@ -458,6 +494,7 @@ export default {
   getMesaByNumero,
   abrirPedidoSalon,
   modificarPedidoSalon,
+  agregarComandaSalon,
   enviarPedidoCocina,
   solicitarCuenta,
   liberarMesa,

@@ -27,7 +27,7 @@ export default function CocinaPage() {
     pendientes.current.add(cuenta.id);setActualizando(new Set(pendientes.current));setErrorCambio('');
     try{return await operateFlow(action,{pedido:cuenta.id,version:cuenta.version_cuenta,...extra});}
     catch(error){setErrorCambio(error.message);throw error;}
-    finally{await recargar();pendientes.current.delete(cuenta.id);setActualizando(new Set(pendientes.current));}
+    finally{await recargar([{ pedidoId: cuenta.id }]);pendientes.current.delete(cuenta.id);setActualizando(new Set(pendientes.current));}
   }
   async function handleCambiarEstado(pedido, nuevoEstado) {
     if (pendientes.current.has(pedido.id)) return;
@@ -37,7 +37,7 @@ export default function CocinaPage() {
     try { await cocinaService.cambiarEstado(pedido, nuevoEstado); }
     catch (error) { setErrorCambio(error.message); }
     finally {
-      await recargar();
+      await recargar([{ pedidoId: pedido.id }]);
       pendientes.current.delete(pedido.id);
       setActualizando(new Set(pendientes.current));
     }

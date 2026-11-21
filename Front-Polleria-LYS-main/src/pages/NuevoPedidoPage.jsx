@@ -18,11 +18,14 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { stockLimit } from '../utils/stock';
-import { getCategories, getProducts } from '../services/productService';
+import { useCatalogResource } from '../hooks/useCatalogResource';
+import { getCategories, getProducts, updateCatalogProducts } from '../services/productService';
 import mesaService from '../services/mesaService';
 import * as authService from '../services/authService';
-import {FLOW_PREVIEW} from '../services/atencionService';
+import {FLOW_PREVIEW, openIncident} from '../services/atencionService';
 import '../styles/nuevoPedido.css';
+
+const UMBRAL_CONFIRMACION_POLLOS = 10;
 
 function getCategoryIcon(catId) {
   switch (catId) {
@@ -58,20 +61,28 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     return todasLasMesas.find((m) => String(m.numero).padStart(2, '0') === numeroNormalizado) || null;
   }, [todasLasMesas, numeroNormalizado]);
 
-  const [comensales, setComensales] = useState(() => mesaActual?.comensalesReserva || mesaActual?.capacidad || 4);
+  const cuentaAbierta = FLOW_PREVIEW
+    ? mesaActual?.cuentas?.find(cuenta => cuenta.id === mesaActual.cuentaAbiertaId)
+    : null;
+  const comandaAdicional = Boolean(cuentaAbierta && !cuentaAbierta.comanda_editable);
+  const bloqueada = Boolean(cuentaAbierta && (cuentaAbierta.cuenta_solicitada || openIncident(cuentaAbierta)));
+  const draftKey = `lys_borrador_mesa_${numeroNormalizado}` +
+    (comandaAdicional ? `_comanda_${cuentaAbierta.id}` : '');
+
+  const [comensales, setComensales] = useState(() => cuentaAbierta?.comensales || mesaActual?.comensalesReserva || mesaActual?.capacidad || 4);
   const [categoriaActiva, setCategoriaActiva] = useState('pollos');
   const [busqueda, setBusqueda] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
-  const [itemsComanda, setItemsComanda] = useState(() => FLOW_PREVIEW&&mesaActual?.atencionId&&!mesaActual?.cuentaEditableId?[]:mesaActual?.items||[]);
+  const [itemsComanda, setItemsComanda] = useState(() => FLOW_PREVIEW && !mesaActual?.cuentaEditableId ? [] : mesaActual?.items || []);
   const [stockCredit] = useState(() => Object.fromEntries(itemsComanda.map(i=>[i.id,i.cantidad])));
-  const [observaciones, setObservaciones] = useState(() => mesaActual?.notas || '');
+  const [observaciones, setObservaciones] = useState(() => comandaAdicional ? '' : mesaActual?.notas || '');
 
   // Verificar si hay un borrador previo guardado para esta mesa
   const [borradorPendiente, setBorradorPendiente] = useState(() => {
-    if (mesaActual?.pedidoId) return null; // Si ya tiene pedido activo en cocina no mostrar borrador viejo
+    if (mesaActual?.pedidoId && !comandaAdicional) return null;
     try {
-      const raw = localStorage.getItem(`lys_borrador_mesa_${numeroNormalizado}`);
+      const raw = localStorage.getItem(draftKey);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -80,7 +91,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 
   const [solicitudId, setSolicitudId] = useState(() => {
     try {
-      const raw = localStorage.getItem(`lys_borrador_mesa_${numeroNormalizado}`);
+      const raw = localStorage.getItem(draftKey);
       const borrador = raw ? JSON.parse(raw) : null;
       if (borrador?.solicitudId) return borrador.solicitudId;
     } catch {
@@ -94,51 +105,18 @@ function NuevoPedidoForm({ numeroNormalizado }) {
     return usuario?.nombre ? `${usuario.nombre} ${usuario.apellido || ''}`.trim() : 'Ana Rodríguez';
   });
 
-  const [listaProductos, setListaProductos] = useState([]);
-  const [categorias, setCategorias] = useState(() => CATEGORIAS_FALLBACK);
-  const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
-
-  useEffect(() => {
-    let cancelado = false;
-    async function sincronizarCarta() {
-      try {
-        setCargandoCatalogo(true);
-        const [catsRes, prodsRes] = await Promise.allSettled([
-          getCategories(),
-          getProducts(),
-        ]);
-
-        if (cancelado) return;
-
-        if (catsRes.status === 'fulfilled' && Array.isArray(catsRes.value) && catsRes.value.length > 0) {
-          const catsMapeadas = [
-            ...catsRes.value.map((c) => ({
-              id: c.id,
-              label: c.label || c.nombre || c.id,
-              icono: getCategoryIcon(c.id),
-            })),
-            { id: 'todos', label: 'Toda la carta', icono: Grid2X2 },
-          ];
-          setCategorias(catsMapeadas);
-        }
-
-        if (prodsRes.status === 'fulfilled' && Array.isArray(prodsRes.value) && prodsRes.value.length > 0) {
-          setListaProductos(prodsRes.value);
-        }
-      } catch (err) {
-        console.warn('Usando catálogo local de reserva para salón:', err);
-      } finally {
-        if (!cancelado) setCargandoCatalogo(false);
-      }
-    }
-
-    sincronizarCarta();
-    const interval = setInterval(()=>{if(document.visibilityState==='visible') void getProducts().then(p=>{if(!cancelado)setListaProductos(p);}).catch(()=>{});},20000);
-    return () => {
-      cancelado = true;
-      clearInterval(interval);
-    };
-  }, []);
+  const carta = useCatalogResource(getProducts, 'carta-salon', 0, { update: updateCatalogProducts });
+  const { data: listaCategorias } = useCatalogResource(getCategories, 'categorias-salon', 0, { category: true });
+  const listaProductos = useMemo(() => carta.data || [], [carta.data]);
+  const cargandoCatalogo = carta.loading;
+  const categorias = useMemo(() => listaCategorias?.length ? [
+    ...listaCategorias.map(categoria => ({
+      id: categoria.id,
+      label: categoria.label || categoria.id,
+      icono: getCategoryIcon(categoria.id),
+    })),
+    { id: 'todos', label: 'Toda la carta', icono: Grid2X2 },
+  ] : CATEGORIAS_FALLBACK, [listaCategorias]);
 
   // Filtrar productos
   const productosFiltrados = useMemo(() => {
@@ -218,7 +196,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
       return;
     }
     // Guardar borrador local con solicitudId para idempotencia
-    localStorage.setItem(`lys_borrador_mesa_${numeroNormalizado}`, JSON.stringify({
+    localStorage.setItem(draftKey, JSON.stringify({
       solicitudId,
       items: itemsComanda,
       observaciones,
@@ -245,17 +223,44 @@ function NuevoPedidoForm({ numeroNormalizado }) {
   }
 
   function handleDescartarBorrador() {
-    localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`);
+    localStorage.removeItem(draftKey);
     setBorradorPendiente(null);
   }
 
   const [enviando, setEnviando] = useState(false);
 
   async function handleEnviarCocina() {
+    if (enviando || bloqueada) return;
     if (itemsComanda.length === 0) {
       setToastMsg('La comanda está vacía. Selecciona al menos un producto.');
       setTimeout(() => setToastMsg(''), 3000);
       return;
+    }
+
+    if (!carta.data) {
+      setToastMsg(cargandoCatalogo ? 'Espera a que cargue la carta.' : 'No se pudo cargar la carta. Intenta confirmar de nuevo.');
+      if (!cargandoCatalogo) carta.retry();
+      return;
+    }
+
+    const productosPorId = new Map(listaProductos.map(producto => [String(producto.id), producto]));
+    let pollos = 0;
+    for (const item of itemsComanda) {
+      const producto = productosPorId.get(String(item.id));
+      if (!producto) {
+        setToastMsg(`Retira ${item.nombre} de la comanda porque ya no está en la carta.`);
+        return;
+      }
+      if (producto.inventoryId === 'pollo-brasa') {
+        pollos += item.cantidad * producto.inventoryConsumption / producto.inventoryScale;
+      }
+    }
+
+    if (pollos > UMBRAL_CONFIRMACION_POLLOS) {
+      const cantidad = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 3 }).format(pollos);
+      if (!window.confirm(`¿Confirmas enviar una comanda con ${cantidad} pollos? Revisa la cantidad antes de continuar.`)) {
+        return;
+      }
     }
 
     setEnviando(true);
@@ -263,7 +268,12 @@ function NuevoPedidoForm({ numeroNormalizado }) {
       const pedidoExistenteId = FLOW_PREVIEW?mesaActual?.cuentaEditableId:mesaActual?.pedidoId;
       let pedidoIdFinal = pedidoExistenteId;
 
-      if (pedidoExistenteId) {
+      if (comandaAdicional) {
+        pedidoIdFinal = await mesaService.agregarComandaSalon({
+          solicitudId, cuentaId: cuentaAbierta.id, version: cuentaAbierta.version_cuenta,
+          items: itemsComanda, notas: observaciones.trim(),
+        });
+      } else if (pedidoExistenteId) {
         // Modificar productos y observaciones de un pedido de salón abierto (SCRUM-279)
         await mesaService.modificarPedidoSalon({
           pedidoId: pedidoExistenteId,
@@ -285,7 +295,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         });
       }
 
-      try { localStorage.removeItem(`lys_borrador_mesa_${numeroNormalizado}`); } catch { /* Conserva el pedido confirmado si Web Storage está bloqueado. */ }
+      try { localStorage.removeItem(draftKey); } catch { /* Conserva el pedido confirmado si Web Storage está bloqueado. */ }
 
       mesaService.registrarActividad({
         mesaNumero: numeroNormalizado,
@@ -302,7 +312,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
         }
       });
     } catch (err) {
-      void getProducts().then(setListaProductos).catch(()=>{});
+      carta.retry();
       console.error('Error al confirmar la comanda:', err);
       setToastMsg('Ocurrió un error al confirmar la comanda: ' + (err.message || err));
       setTimeout(() => setToastMsg(''), 4000);
@@ -476,17 +486,18 @@ function NuevoPedidoForm({ numeroNormalizado }) {
                   </select>
                 </div>
                 <span className={`comanda-tag-estado ${mesaActual?.estado === 'ocupada' ? 'ocupada' : 'nueva'}`}>
-                  {mesaActual?.estado === 'ocupada' ? 'Ocupada' : 'Nueva orden'}
+                  {comandaAdicional ? 'Comanda adicional' : mesaActual?.estado === 'ocupada' ? 'Ocupada' : 'Nueva orden'}
                 </span>
               </div>
               <div className="comanda-sub-row">
-                <div className="comensales-control" title="Ajusta el número de comensales">
+                <div className="comensales-control" title={comandaAdicional ? undefined : "Ajusta el número de comensales"}>
                   <Users size={13} className="np-comensales-icon" />
                   <button
                     type="button"
                     className="comensales-btn"
                     onClick={() => setComensales((prev) => Math.max(1, prev - 1))}
                     title="Menos comensales"
+                    disabled={comandaAdicional}
                   >
                     -
                   </button>
@@ -496,6 +507,7 @@ function NuevoPedidoForm({ numeroNormalizado }) {
                     className="comensales-btn"
                     onClick={() => setComensales((prev) => Math.min(16, prev + 1))}
                     title="Más comensales"
+                    disabled={comandaAdicional}
                   >
                     +
                   </button>
@@ -612,6 +624,11 @@ function NuevoPedidoForm({ numeroNormalizado }) {
             </div>
           </div>
 
+          {comandaAdicional && <p className="attention-status">
+            Los productos nuevos se sumarán a la cuenta de la mesa.
+          </p>}
+          {bloqueada && <p role="alert">Vuelve a Mesas para reabrir la cuenta o resolver la incidencia.</p>}
+
           {/* Botones de acción */}
           <div className="comanda-acciones">
             <button
@@ -627,11 +644,11 @@ function NuevoPedidoForm({ numeroNormalizado }) {
               type="button"
               className="btn-enviar-cocina"
               onClick={handleEnviarCocina}
-              disabled={enviando}
+              disabled={enviando || bloqueada}
               title="Confirmar comanda: los platos pasan a cocina y las bebidas y postres quedan listos para servir"
             >
               <ChefHat size={18} className="np-btn-icon-inline" />
-              {enviando ? 'Confirmando...' : 'Confirmar comanda'}
+              {enviando ? 'Confirmando...' : comandaAdicional ? 'Confirmar comanda adicional' : 'Confirmar comanda'}
             </button>
           </div>
         </aside>
@@ -643,11 +660,22 @@ function NuevoPedidoForm({ numeroNormalizado }) {
 export default function NuevoPedidoPage() {
   const { id: mesaParam } = useParams();
   const numeroNormalizado = String(mesaParam || '01').padStart(2, '0');
-  const [ready,setReady]=useState(!FLOW_PREVIEW),[error,setError]=useState('');
-  useEffect(()=>{if(!FLOW_PREVIEW)return;let active=true;mesaService.fetchMesas({strict:true}).then(()=>{if(active)setReady(true);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[numeroNormalizado]);
-  if(error)return <p role="alert">{error}</p>;
-  if(!ready)return <p role="status">Consultando la cuenta vigente…</p>;
+  const [resultado, setResultado] = useState(null);
+  useEffect(() => {
+    if (!FLOW_PREVIEW) return;
+    let vigente = true;
+    mesaService.fetchMesas({ strict: true }).then(() => {
+      if (vigente) setResultado({ numero: numeroNormalizado });
+    }).catch(error => {
+      if (vigente) setResultado({ numero: numeroNormalizado, error: error.message });
+    });
+    return () => { vigente = false; };
+  }, [numeroNormalizado]);
 
-  // El key={numeroNormalizado} asegura que al cambiar de mesa se resetee y cargue la comanda correcta
+  if (FLOW_PREVIEW && resultado?.numero !== numeroNormalizado) {
+    return <p role="status">Consultando la cuenta vigente…</p>;
+  }
+  if (resultado?.error) return <p role="alert">{resultado.error}</p>;
+
   return <NuevoPedidoForm key={numeroNormalizado} numeroNormalizado={numeroNormalizado} />;
 }

@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 import { test, expect } from './fixtures'
 const identity = { id: '10000000-0000-0000-0000-000000000001', email: 'cliente@example.test', emailVerified: true, profile: { name: 'Cliente Prueba' } }
 const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: identity.id, exp: 4102444800 })).toString('base64url')}.test`
-const form = { name: 'Cliente Prueba', phone: '987654321', address: 'Av. Prueba 123', reference: '' }
+const form = { name: 'Cliente Prueba', phone: '987654321', address: 'Av. Prueba 123', location: { lat: -11.88, lng: -77.03, address: 'Av. Prueba 123' }, reference: '' }
 const uuid = '20000000-0000-0000-0000-000000000099'
 const fixture = { id: uuid, tipo: 'delivery', estado: 'pendiente', destinatario: form, metodo_solicitado: 'efectivo',
   subtotal: '128.70', envio: '6.00', total: '134.70', creado_en: '2026-10-16T16:00:00Z',
@@ -70,6 +70,65 @@ for (const type of ['delivery', 'recojo']) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 }
+
+test('un nombre numérico guardado en localStorage bloquea saltarse entrega y confirmar', async ({ page }) => {
+  const { confirmations } = await backend(page);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('lys-checkout-delivery', JSON.stringify({
+    deliveryType: 'delivery', form: { name: '12345678', phone: '987654321', address: 'Av. Prueba 123', location: { lat: -11.88, lng: -77.03, address: 'Av. Prueba 123' } },
+  })));
+  await page.goto('/checkout/resumen');
+  await expect(page.getByText('El nombre no puede contener números.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Confirmar pedido/ })).toBeDisabled();
+  expect(confirmations).toHaveLength(0);
+});
+
+test('el nombre de entrega impide números al escribir, pegar o rellenar el input', async ({ page }) => {
+  await backend(page);
+  await page.route('https://tile.openstreetmap.org/**', route => route.abort());
+  await page.goto('/checkout/entrega');
+  const input = page.getByPlaceholder('Ej. María Torres López');
+  await input.fill('');
+  await input.pressSequentially('María123');
+  await expect(input).toHaveValue('María');
+  await input.fill('');
+  await input.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text/plain', '123١٢٣１２３');
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+  });
+  await expect(input).toHaveValue('');
+  await input.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text/plain', 'María2 Torres3');
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+  });
+  await expect(input).toHaveValue('María Torres');
+  await input.fill('María99 Torres88');
+  await expect(input).toHaveValue('María Torres');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('lys-checkout-delivery')).form.name)).toBe('María Torres');
+});
+
+for (const quantity of [-1, 1.5, '2', 101]) {
+  test(`un carrito alterado con cantidad ${JSON.stringify(quantity)} no permite confirmar`, async ({ page }) => {
+    const { confirmations } = await backend(page);
+    await page.goto('/');
+    await page.evaluate(qty => localStorage.setItem('lys-cart', JSON.stringify({ 1: qty })), quantity);
+    await page.goto('/checkout/resumen');
+    await expect(page.getByRole('button', { name: /Confirmar pedido/ })).toBeDisabled();
+    expect(confirmations).toHaveLength(0);
+  });
+}
+
+test('el stock del servidor bloquea un carrito restaurado con cantidades superiores al saldo', async ({ page }) => {
+  const { confirmations } = await backend(page);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('lys-cart', JSON.stringify({ 1: 51 })));
+  await page.goto('/checkout/resumen');
+  await expect(page.getByText('El carrito supera el stock disponible. Revisa las cantidades.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Confirmar pedido/ })).toBeDisabled();
+  expect(confirmations).toHaveLength(0);
+});
 for (const failure of ['respuesta', 'lectura']) {
   test(`reintenta tras perder la ${failure} y recargar sin duplicar la solicitud`, async ({ page }) => {
     const { confirmations } = await backend(page, { failFirst: failure === 'respuesta', failRead: failure === 'lectura' })
@@ -166,3 +225,93 @@ for (const width of [320, 390, 768, 876, 1280]) {
     await expect(page.locator('h1.order-detail-id')).toHaveAttribute('title',uuid)
   })
 }
+
+
+test('entrega respeta límites aunque se manipule maxlength y se pegue texto', async ({ page }) => {
+  await backend(page)
+  await page.route('https://tile.openstreetmap.org/**', route => route.abort())
+  await page.route('https://photon.komoot.io/**', route => route.fulfill({ json: { features: [] } }))
+  await page.goto('/checkout/entrega')
+  const fields = [
+    [page.getByPlaceholder('Ej. María Torres López'), 120, 'a'],
+    [page.getByPlaceholder('Ej. Frente al parque, fachada azul, piso 2...'), 150, 'r'],
+    [page.getByRole('combobox'), 150, 'c'],
+    [page.getByPlaceholder('9XXXXXXXX'), 9, '9'],
+  ]
+  for (const [input, limit, character] of fields) {
+    // Un límite reducido no debe bloquear la escritura antes del onChange.
+    await input.evaluate(element => element.setAttribute('maxlength', '2'))
+    await expect(input).toHaveAttribute('maxlength', String(limit))
+    await input.fill('')
+    await input.pressSequentially(character.repeat(5))
+    await expect(input).toHaveValue(character.repeat(5))
+    await input.evaluate(element => element.setAttribute('maxlength', '9999'))
+    await expect(input).toHaveAttribute('maxlength', String(limit))
+    await input.evaluate(element => element.removeAttribute('maxlength'))
+    await expect(input).toHaveAttribute('maxlength', String(limit))
+    await input.fill(character.repeat(limit + 60))
+    await expect(input).toHaveValue(character.repeat(limit))
+    await input.press('End')
+    await input.pressSequentially(character.repeat(3))
+    await expect(input).toHaveValue(character.repeat(limit))
+  }
+  const name = fields[0][0]
+  await name.fill('')
+  await name.evaluate(element => {
+    const clipboardData = new DataTransfer()
+    clipboardData.setData('text/plain', 'a'.repeat(200) + '123')
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }))
+  })
+  await expect(name).toHaveValue('a'.repeat(120))
+})
+
+test('tarjeta restaura los límites del inspector y conserva el formato al escribir', async ({ page }) => {
+  await backend(page)
+  await page.goto('/checkout/pago')
+  await page.getByRole('button', { name: /Tarjeta Débito/ }).click()
+  for (const [placeholder, limit, value] of [
+    ['Número de tarjeta', 19, '4111 1111 1111 1111'],
+    ['Fecha de caducidad', 5, '12/30'],
+    ['Código de seguridad', 3, '123'],
+  ]) {
+    const input = page.getByPlaceholder(placeholder)
+    await input.evaluate(element => element.setAttribute('maxlength', '2'))
+    await expect(input).toHaveAttribute('maxlength', String(limit))
+    await input.pressSequentially(value)
+    await expect(input).toHaveValue(value)
+    await input.evaluate(element => element.removeAttribute('maxlength'))
+    await expect(input).toHaveAttribute('maxlength', String(limit))
+    await input.fill(value + '999999')
+    await expect(input).toHaveValue(value)
+  }
+})
+
+test('escribir una dirección distinta invalida el punto y bloquea continuar y confirmar', async ({ page }) => {
+  const { confirmations } = await backend(page)
+  await page.route('https://tile.openstreetmap.org/**', route => route.abort())
+  await page.route('https://photon.komoot.io/**', route => route.fulfill({ json: { features: [] } }))
+  await page.goto('/checkout/entrega')
+  await page.getByRole('combobox').fill('Av. Larco 123, Miraflores')
+  await page.getByRole('button', { name: 'Continuar al pago' }).click()
+  await expect(page).toHaveURL(/checkout\/entrega/)
+  await expect(page.getByText('Selecciona tu dirección en las sugerencias o en el mapa de Carabayllo.', { exact: true })).toBeVisible()
+  await page.goto('/checkout/resumen')
+  await expect(page.getByRole('button', { name: /Confirmar pedido/ })).toBeDisabled()
+  expect(confirmations).toHaveLength(0)
+})
+
+test('solo sugiere puntos dentro de Carabayllo y permite seleccionar una dirección válida', async ({ page }) => {
+  await backend(page)
+  await page.route('https://tile.openstreetmap.org/**', route => route.abort())
+  await page.route('https://photon.komoot.io/**', route => route.fulfill({ json: { features: [
+    { geometry: { coordinates: [-77.03, -11.88] }, properties: { street: 'Av. Válida', housenumber: '123' } },
+    { geometry: { coordinates: [-77.08, -11.94] }, properties: { street: 'Fuera del distrito', district: 'Carabayllo' } },
+  ] } }))
+  await page.goto('/checkout/entrega')
+  await page.getByRole('combobox').fill('Av. Válida')
+  await expect(page.getByRole('option')).toHaveCount(1)
+  await page.getByRole('option').click()
+  await expect(page.getByRole('combobox')).toHaveValue('Av. Válida 123, Carabayllo')
+  await page.getByRole('button', { name: 'Continuar al pago' }).click()
+  await expect(page).toHaveURL(/checkout\/pago/)
+})

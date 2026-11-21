@@ -8,11 +8,13 @@ import { validateCardForm } from '../../utils/cardValidation'
 import { chargeCard } from '../../services/paymentGatewayService'
 import orderService from '../../services/orderService'
 import { formatCodigoPedido } from '../../utils/orderNumber'
+import { validateDeliveryForm } from '../../utils/deliveryValidation'
+import { getCartError, PAYMENT_METHODS } from '../../utils/checkoutValidation'
 import '../../styles/compras.css'
 
 export default function PagoPage() {
   const navigate = useNavigate()
-  const { deliveryType, payment, setPayment, card, updateCardField, total, setCardReceipt } = useCart()
+  const { deliveryType, form, cartItems, cartLoading, cartError, payment, setPayment, card, updateCardField, total, setCardReceipt } = useCart()
   const [cardErrors, setCardErrors] = useState({})
   const [processing, setProcessing] = useState(false)
   const [gatewayError, setGatewayError] = useState('')
@@ -48,6 +50,15 @@ export default function PagoPage() {
   }
 
   async function handleContinue() {
+    if (processing) return
+    const deliveryErrors = validateDeliveryForm(form, deliveryType)
+    const validationError = cartLoading ? 'Espera a que se actualice el carrito.' :
+      cartError || getCartError(cartItems, { checkStock: true }) || Object.values(deliveryErrors)[0] ||
+      (!PAYMENT_METHODS.includes(payment) ? 'Selecciona un método de pago válido.' : '')
+    if (validationError) {
+      setGatewayError(validationError)
+      return
+    }
     if (payment !== 'tarjeta') {
       if (activeUnpaidOrder) {
         setGatewayError(

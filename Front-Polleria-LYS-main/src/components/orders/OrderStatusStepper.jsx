@@ -1,9 +1,8 @@
 import { Check } from 'lucide-react'
-import { ORDER_STATUS_STEPS } from '../../services/orderService'
-import { useLiveOrderStatus } from '../../hooks/useLiveOrderStatus'
+import orderService, { ORDER_STATUS_STEPS } from '../../services/orderService'
 
 export default function OrderStatusStepper({ order }) {
-  const currentStatus = useLiveOrderStatus(order)
+  const currentStatus = orderService.getOrderStatus(order)
 
   if (currentStatus === 'cancelado') return <p role="status">Este pedido fue cancelado.</p>
 

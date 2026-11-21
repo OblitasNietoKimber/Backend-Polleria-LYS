@@ -56,9 +56,9 @@ test('anular después de preparar no devuelve alimento consumido',async()=>{
  await act('admin','autorizar',id);await act('cocina','detener',id);
  expect(Number((await stock(1)).stock)).toBe(199);
 });
-test('pagar y entregar no vuelve a descontar; ampliar después de entregar descuenta la diferencia',async()=>{
+test('cada comanda descuenta solo sus productos y el cobro conjunto no descuenta inventario',async()=>{
  const id=await open([{id:1,qty:1}]);await act('cocina','comenzar',id);await act('cocina','listo',id);await act('cocina','entregar',id);
- await act('mesera','editar',id,{items:[{id:1,qty:2}]});expect(Number((await stock(1)).stock)).toBe(198);
+ await act('mesera','comanda_adicional',id,{items:[{id:1,qty:1}]});expect(Number((await stock(1)).stock)).toBe(198);
  const p=(await list()).cuentas.find(p=>p.id===id);
  await act('caja','cobrar',id,{metodo:'efectivo',recibido:p.total,anticipado:true});expect(Number((await stock(1)).stock)).toBe(198);
 });
@@ -87,7 +87,7 @@ test('la migración reserva comandas previas activas y conserva sus importes',as
    await asLocalUser(previous,cook,tx=>tx.query('SELECT public.flujo_operar($1,$2)',[action,{pedido:delivered,version:current,operacion:randomUUID()}]));
   }
   await previous.exec(await readFile(new URL('../../migrations/inventario/20261116020000_inventario-compartido.sql',import.meta.url),'utf8'));
-  expect(Number((await previous.query('SELECT stock FROM public.productos_catalogo WHERE id=1')).rows[0].stock)).toBe(198);
+  expect(Number((await previous.query('SELECT stock FROM public.productos_catalogo WHERE id=1')).rows[0].stock)).toBe(68);
   expect((await previous.query('SELECT to_jsonb(p) AS data FROM public.pedidos p WHERE id=$1',[id])).rows[0].data).toEqual(before);
  }finally{await previous.close();}
 },60000);

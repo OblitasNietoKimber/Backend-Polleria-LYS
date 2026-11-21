@@ -35,6 +35,8 @@ beforeAll(async () => {
       [users[i], roles[i], `Usuario ${roles[i]}`, 'Prueba', '999888777'])
   }
   await db.exec(await readFile(new URL('../../migrations/20261016194047_caja-pagos.sql', import.meta.url), 'utf8'))
+  await db.exec(await readFile(new URL('../../migrations/validacion/20261120140000_reservas-validacion.sql', import.meta.url), 'utf8'))
+  await db.exec("CREATE OR REPLACE FUNCTION public.hora_lima_reservas() RETURNS time LANGUAGE sql STABLE SET search_path = '' AS $$ SELECT TIME '17:00' $$")
   // Precios controlados del escenario de negocio; independientes de la carta comercial.
   await db.exec("UPDATE productos SET precio = CASE id WHEN 1 THEN 42.90 WHEN 2 THEN 24.90 WHEN 3 THEN 14.90 END WHERE id IN (1,2,3)")
 }, 30000)
@@ -210,6 +212,23 @@ test('reservar_mesa_salon registra la reserva en PostgreSQL y se refleja en obte
   const mesa8Libre = mesasLibres.find((m) => m.numero === '08')
   expect(mesa8Libre.estado).toBe('libre')
   expect(mesa8Libre.cliente_reserva).toBeNull()
+})
+
+test.each([
+  ['Familia42', '20:00', '987654321', 2, /Nombre inválido/],
+  ['A'.repeat(121), '20:00', '987654321', 2, /Nombre inválido/],
+  ['Familia Gómez', '24:00', '987654321', 2, /hora válida/],
+  ['Familia Gómez', '11:59', '987654321', 2, /horario de atención/],
+  ['Familia Gómez', '23:00', '987654321', 2, /horario de atención/],
+  ['Familia Gómez', '14:00', '987654321', 2, /hora posterior/],
+  ['Familia Gómez', '17:00', '987654321', 2, /hora posterior/],
+  ['Familia Gómez', '20:00', '9876543210', 2, /9 dígitos/],
+  ['Familia Gómez', '20:00', '887654321', 2, /9 dígitos/],
+  ['Familia Gómez', '20:00', '987654321', 0, /entre 1 y 4/],
+  ['Familia Gómez', '20:00', '987654321', 5, /entre 1 y 4/],
+])('la RPC rechaza datos de reserva inválidos (%s, %s, %s, %s)', async (nombre, hora, telefono, comensales, error) => {
+  await expect(asUser(1, 'SELECT public.reservar_mesa_salon(8, $1, $2, $3, $4)', [nombre, hora, telefono, comensales])).rejects.toThrow(error)
+  expect((await db.query('SELECT estado FROM public.mesas WHERE id=8')).rows[0].estado).toBe('libre')
 })
 
 test('obtener_actividad_salon devuelve los eventos reales del historial de pedidos', async () => {

@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { Search, UtensilsCrossed } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useCatalogResource } from '../hooks/useCatalogResource'
-import { getCategories, getProducts, getProduct } from '../services/productService'
+import { getCategories, getProducts, getProduct, updateCatalogProducts } from '../services/productService'
 import { CATEGORIES } from '../data/categories'
 import ProductCard from '../components/ProductCard'
 import ProductDetailModal from '../components/ProductDetailModal'
@@ -12,16 +12,22 @@ const CATEGORY_ICONS = Object.fromEntries(CATEGORIES.map(({ id, icon }) => [id, 
 
 export default function CatalogoPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const categoryResource = useCatalogResource(getCategories, 'categorias')
+  const categoryResource = useCatalogResource(getCategories, 'categorias', 0, { category: true })
 
   const activeCategory = searchParams.get('categoria') || 'todos'
   const search = searchParams.get('buscar') || ''
   const loadProducts = useCallback(() => getProducts({ search, category: activeCategory }), [search, activeCategory])
-  const productResource = useCatalogResource(loadProducts, JSON.stringify([search, activeCategory]), 250)
+  const updateProducts = useCallback((previous, changes) =>
+    updateCatalogProducts(previous, changes, { search, category: activeCategory }), [search, activeCategory])
+  const productResource = useCatalogResource(loadProducts, JSON.stringify([search, activeCategory]), 250, { update: updateProducts })
   const products = productResource.data || []
   const selectedProductId = searchParams.get('producto')
   const loadDetail = useCallback(() => selectedProductId ? getProduct(selectedProductId) : Promise.resolve(null), [selectedProductId])
-  const detailResource = useCatalogResource(loadDetail, `producto:${selectedProductId || ''}`)
+  const updateDetail = useCallback((product, changes) => changes.every(change =>
+    (change.recurso === 'stock' && change.inventarioId && change.inventarioId !== product?.inventoryId) ||
+    (change.recurso === 'productos' && change.productoId && change.productoId !== Number(selectedProductId))
+  ) ? product : loadDetail(), [loadDetail, selectedProductId])
+  const detailResource = useCatalogResource(loadDetail, `producto:${selectedProductId || ''}`, 0, { update: updateDetail })
 
   const filteredProducts = products
   const selectedProduct = detailResource.data

@@ -4,16 +4,19 @@ import { Clock, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 import mesaService from '../../services/mesaService';
 import {FLOW_PREVIEW} from '../../services/atencionService';
 import AtencionCuentas from './AtencionCuentas';
+import { PERSON_NAME_MAX_LENGTH } from '../../utils/identityValidation';
+import { RESERVATION_FIRST_TIME, RESERVATION_LAST_TIME } from '../../utils/reservationTime';
 
 export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotificacion }) {
   const navigate = useNavigate();
 
   const [modoReserva, setModoReserva] = useState(false);
   const [clienteNombre, setClienteNombre] = useState('');
-  const [horaReservaInput, setHoraReservaInput] = useState('20:00');
+  const [horaReservaInput, setHoraReservaInput] = useState('');
   const [comensalesReserva, setComensalesReserva] = useState(() => mesa?.capacidad || 4);
   const [telefonoReserva, setTelefonoReserva] = useState('');
   const [errorReserva, setErrorReserva] = useState('');
+  const [guardandoReserva, setGuardandoReserva] = useState(false);
   const [errorOperacion, setErrorOperacion] = useState('');
 
   const [modoAnulacion, setModoAnulacion] = useState(false);
@@ -38,17 +41,18 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
     navigate(`/mesas/${numero}/pedido`);
   }
 
-  async function handleConfirmarReserva() {
-    if (!clienteNombre.trim()) {
-      setErrorReserva('Por favor ingresa el nombre del cliente o familia.');
-      return;
-    }
+  async function handleConfirmarReserva(event) {
+    event.preventDefault();
+    if (guardandoReserva) return;
+
+    setErrorReserva('');
+    setGuardandoReserva(true);
     try {
       await mesaService.reservarMesa(numero, {
-        cliente: clienteNombre.trim(),
+        cliente: clienteNombre,
         hora: horaReservaInput,
         comensales: comensalesReserva,
-        telefono: telefonoReserva.trim(),
+        telefono: telefonoReserva,
       });
       if (onNotificacion) {
         onNotificacion(`Reserva para Mesa ${numero} guardada con éxito.`);
@@ -57,6 +61,8 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
       onClose();
     } catch (err) {
       setErrorReserva(err.message || 'Error al guardar la reserva');
+    } finally {
+      setGuardandoReserva(false);
     }
   }
 
@@ -184,23 +190,30 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
           )}
 
           {estado === 'libre' && modoReserva && (
-            <div className="mesa-reserva-form">
+            <form className="mesa-reserva-form" noValidate onSubmit={handleConfirmarReserva}>
               <div className="mesa-reserva-form-head">
                 <Calendar size={18} />
-                <h4 className="mesa-reserva-form-title">Nueva reserva · Mesa {numero}</h4>
+                <h4 className="mesa-reserva-form-title">Reserva para hoy · Mesa {numero}</h4>
               </div>
 
-              {errorReserva && <div className="mesa-reserva-error">{errorReserva}</div>}
+              <p className="mesa-reserva-horario">
+                Horario de 12:00 p. m. a 11:00 p. m. (Lima). La mesa se aparta al guardar.
+              </p>
+
+              {errorReserva && <div role="alert" className="mesa-reserva-error">{errorReserva}</div>}
 
               <div className="mesa-reserva-fields">
                 <div>
-                  <label className="mesa-reserva-label">Nombre del cliente / grupo:</label>
+                  <label htmlFor="reserva-cliente" className="mesa-reserva-label">Nombre del cliente / grupo:</label>
                   <input
+                    id="reserva-cliente"
                     type="text"
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    required
                     placeholder="Ej: Familia López, Carlos Vega..."
                     value={clienteNombre}
                     onChange={(e) => {
-                      setClienteNombre(e.target.value);
+                      setClienteNombre(e.target.value.replace(/\p{N}/gu, ''));
                       if (errorReserva) setErrorReserva('');
                     }}
                     className="mesa-reserva-input"
@@ -209,49 +222,72 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
 
                 <div className="mesa-reserva-row">
                   <div>
-                    <label className="mesa-reserva-label">Hora programada:</label>
+                    <label htmlFor="reserva-hora" className="mesa-reserva-label">Hora programada:</label>
                     <input
+                      id="reserva-hora"
                       type="time"
+                      min={RESERVATION_FIRST_TIME}
+                      max={RESERVATION_LAST_TIME}
+                      required
                       value={horaReservaInput}
-                      onChange={(e) => setHoraReservaInput(e.target.value)}
+                      onChange={(e) => {
+                        setHoraReservaInput(e.target.value);
+                        setErrorReserva('');
+                      }}
                       className="mesa-reserva-input"
                     />
                   </div>
 
                   <div>
-                    <label className="mesa-reserva-label">Comensales:</label>
+                    <label htmlFor="reserva-comensales" className="mesa-reserva-label">Comensales:</label>
                     <input
+                      id="reserva-comensales"
                       type="number"
                       min="1"
-                      max="16"
+                      max={capacidad}
+                      step="1"
+                      required
                       value={comensalesReserva}
-                      onChange={(e) => setComensalesReserva(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => {
+                        setComensalesReserva(e.target.value);
+                        setErrorReserva('');
+                      }}
                       className="mesa-reserva-input"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mesa-reserva-label">Teléfono de contacto (opcional):</label>
+                  <label htmlFor="reserva-telefono" className="mesa-reserva-label">Celular de contacto (opcional):</label>
                   <input
+                    id="reserva-telefono"
                     type="tel"
-                    placeholder="Ej: 987 654 321"
+                    inputMode="numeric"
+                    placeholder="Ej: 987654321"
                     value={telefonoReserva}
-                    onChange={(e) => setTelefonoReserva(e.target.value)}
+                    onChange={(e) => {
+                      const celular = e.target.value.replace(/ /g, '');
+                      if (/^[0-9]{0,9}$/.test(celular)) {
+                        setTelefonoReserva(celular);
+                        setErrorReserva('');
+                      } else {
+                        setErrorReserva('Ingresa hasta 9 dígitos en el celular.');
+                      }
+                    }}
                     className="mesa-reserva-input"
                   />
                 </div>
 
                 <div className="mesa-reserva-actions">
-                  <button type="button" onClick={handleConfirmarReserva} className="mesa-reserva-save-btn">
-                    Guardar reserva
+                  <button type="submit" disabled={guardandoReserva} className="mesa-reserva-save-btn">
+                    {guardandoReserva ? 'Guardando…' : 'Guardar reserva'}
                   </button>
-                  <button type="button" onClick={() => setModoReserva(false)} className="mesa-reserva-cancel-btn">
+                  <button type="button" disabled={guardandoReserva} onClick={() => setModoReserva(false)} className="mesa-reserva-cancel-btn">
                     Cancelar
                   </button>
                 </div>
               </div>
-            </div>
+            </form>
           )}
 
           {estado === 'ocupada' && (
@@ -384,7 +420,7 @@ export default function MesaDetalleModal({ mesa, onClose, onMesaUpdated, onNotif
                   </div>
                   <div>
                     <span className="mesa-reservada-field-label">Hora:</span>
-                    <strong className="mesa-reservada-field-value-accent">{horaReserva || '20:00'} hrs</strong>
+                    <strong className="mesa-reservada-field-value-accent">{horaReserva ? `${horaReserva} hrs` : 'Sin hora registrada'}</strong>
                   </div>
                 </div>
 

@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import * as authService from '../services/authService';
 import { validatePersonalDataForm } from '../services/validators';
+import PersonNameInput from '../components/common/PersonNameInput';
 import '../styles/profile.css';
 
 function Field({
@@ -16,6 +17,7 @@ function Field({
   disabled,
 }) {
   const id = `profile-${name}`;
+  const Input = name === 'nombre' || name === 'apellido' ? PersonNameInput : 'input';
 
   return (
     <div className="profile-field">
@@ -23,7 +25,7 @@ function Field({
         {label}
       </label>
 
-      <input
+      <Input
         id={id}
         className={`lys-input profile-field-input ${error ? 'err' : ''}`}
         type={type}
@@ -31,6 +33,8 @@ function Field({
         value={value}
         onChange={onChange}
         autoComplete={autoComplete}
+        maxLength={name === 'nombre' || name === 'apellido' ? 120 : name === 'telefono' ? 9 : undefined}
+        inputMode={name === 'telefono' ? 'numeric' : undefined}
         disabled={disabled}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
@@ -91,6 +95,7 @@ function DatosTab({ user }) {
       await authService.updateProfile(form);
       setSaved(true);
     } catch (err) {
+      if (err.fieldErrors) setErrors(err.fieldErrors);
       setFormError(err.message);
     } finally {
       setLoading(false);

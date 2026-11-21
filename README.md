@@ -17,11 +17,22 @@ Utiliza las siguientes cuentas para probar cada uno de los roles y permisos del 
 | **Mesero** | `majimer746@goldlicai.com` | `m1234567` | Toma de Pedidos en Mesas y Perfil |
 | **Cliente / Usuario** | `xisep41755@nbasweeps.com` | `u1234567` | Catálogo, Carrito, Checkout, Mis Pedidos y Perfil |
 
-* **Despliegue en producción:** https://backend-polleria-lys-apf3.vercel.app/
-* 
+* **Despliegue en producción:** [https://back-polleria-lys.vercel.app](https://backend-polleria-lys-apf3.vercel.app/mesas)
 
 ---
 
+## Tarjeta de prueba para Stripe Checkout
+
+En el modo de prueba de Stripe, elige **Tarjeta** en el checkout e ingresa estos datos para simular un pago.
+
+- **Visa:** `4242 4242 4242 4242`
+- **Vencimiento:** `12/34` o cualquier fecha futura
+- **CVC:** `123` o cualquier código de tres dígitos
+- **Titular:** `Cliente de Prueba`
+
+[Documentación oficial de tarjetas de prueba de Stripe](https://docs.stripe.com/testing#cards)
+
+---
 ##  Instrucciones para Ejecutar el Proyecto
 
 ### 1. Variables de Entorno

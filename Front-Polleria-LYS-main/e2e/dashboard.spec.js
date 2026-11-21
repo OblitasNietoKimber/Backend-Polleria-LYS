@@ -4,7 +4,7 @@ const venta = n => ({ id: `00000000-0000-0000-0000-00000000010${n}`, codigo: `00
   tipo: 'recojo', mesa: null, cliente: `Cliente ${n}`, total: 14.9, pagadoAt: `2026-10-0${n}T17:00:00Z`, pago: { metodo: 'plin' } });
 async function backend(page, { role = 'admin', error = '' } = {}) {
   const calls = { dashboard: [], historial: [] };
-  await page.route('https://b9zz47j5.us-east.insforge.app/**', async route => {
+  await page.route('https://8bwzqx2s.us-east.insforge.app/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname;
     let response = {}, status = 200;
     if (path === '/api/auth/refresh') {

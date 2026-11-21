@@ -7,6 +7,7 @@ let calls, responses
 const saved = { id: '10000000-0000-0000-0000-000000000099', tipo: 'delivery', estado: 'pendiente',
   subtotal: '80.00', envio: '6.00', total: '86.00', destinatario: { name: 'Cliente' },
   detalles_pedido: [{ producto_id: 1, nombre_producto: 'Nombre vendido', precio_unitario: '40.00', cantidad: 2 }] }
+const delivery = { name: 'Cliente Prueba', phone: '987654321', address: 'Av. Prueba 123', location: { lat: -11.88, lng: -77.03, address: 'Av. Prueba 123' }, reference: '' }
 beforeEach(() => {
   calls = []; responses = []
   fake.user.mockReturnValue({ id: 'cliente-a', rol: 'cliente' })
@@ -57,18 +58,18 @@ test('consulta solo estado para refrescar y limita las páginas de historial', a
 test('mantiene el contrato RPC y consulta el pedido guardado antes de confirmar', async () => {
   fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: saved })
   const result = await orders.createOrder({ id: saved.id, items: [{ product: { id: 1, price: 0, name: 'Falso' }, qty: 2 }],
-    deliveryType: 'delivery', form: { name: 'Cliente' }, payment: 'efectivo', total: 0, cliente_id: 'ajeno' })
+    deliveryType: 'delivery', form: delivery, payment: 'efectivo', total: 0, cliente_id: 'ajeno' })
   expect(fake.rpc).toHaveBeenCalledWith('crear_pedido_cliente', { solicitud_id: saved.id, tipo_entrega: 'delivery',
-    articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' }, metodo: 'efectivo' })
+    articulos: [{ id: 1, qty: 2 }], datos_entrega: { ...delivery, location: { lat: -11.88, lng: -77.03 } }, metodo: 'efectivo' })
   expect(result.total).toBe(86)
 })
 test('registra una tarjeta aprobada junto con el pedido', async () => {
   fake.rpc.mockResolvedValue({ data: saved.id }); responses.push({ data: saved })
   await orders.createOrder({ id: saved.id, items: [{ product: { id: 1 }, qty: 2 }],
-    deliveryType: 'delivery', form: { name: 'Cliente' }, payment: 'tarjeta',
+    deliveryType: 'delivery', form: delivery, payment: 'tarjeta',
     cardReceipt: { success: true, status: 'succeeded', paymentIntentId: 'pi_prueba_123' } })
   expect(fake.rpc).toHaveBeenCalledWith('crear_pedido_cliente_tarjeta', {
-    solicitud_id: saved.id, tipo_entrega: 'delivery', articulos: [{ id: 1, qty: 2 }], datos_entrega: { name: 'Cliente' },
+    solicitud_id: saved.id, tipo_entrega: 'delivery', articulos: [{ id: 1, qty: 2 }], datos_entrega: { ...delivery, location: { lat: -11.88, lng: -77.03 } },
     referencia_pago: 'pi_prueba_123', idempotencia_pago: saved.id,
   })
 })
@@ -85,7 +86,7 @@ test('normaliza pickup a recojo al invocar crear_pedido_cliente', async () => {
 })
 test('no confirma si falla el guardado o la lectura posterior', async () => {
   fake.rpc.mockResolvedValueOnce({ error: { message: 'Producto agotado' } }).mockResolvedValueOnce({ data: saved.id })
-  const payload = { id: saved.id, items: [], form: {}, payment: 'efectivo' }
+  const payload = { id: saved.id, items: [{ product: { id: 1 }, qty: 1 }], deliveryType: 'delivery', form: delivery, payment: 'efectivo' }
   await expect(orders.createOrder(payload)).rejects.toThrow('Producto agotado')
   responses.push({ data: null })
   await expect(orders.createOrder(payload)).rejects.toThrow('misma solicitud')
@@ -104,3 +105,17 @@ test('conserva los estados del esquema actual y distingue cancelaciones', () => 
 test('muestra en camino cuando cocina entrega un delivery al repartidor',()=>{
  expect(orders.getOrderStatus({backendStatus:'en_camino'})).toBe('camino');
 });
+
+test.each([
+  { form: { ...delivery, name: 'Cliente123' } },
+  { form: { ...delivery, phone: 987654321 } },
+  { form: { ...delivery, location: { lat: 0, lng: 0, outOfZone: false } } },
+  { items: [{ product: { id: 1 }, qty: -1 }] },
+  { items: [{ product: { id: 1 }, qty: '2' }] },
+  { items: [{ product: { id: 1 }, qty: 1.5 }] },
+  { payment: 'gratis' }, { deliveryType: 'otro' }, { id: 'inventado' },
+])('rechaza datos manipulados antes de invocar la RPC: %j', async changes => {
+  await expect(orders.createOrder({ id: saved.id, items: [{ product: { id: 1 }, qty: 1 }], deliveryType: 'delivery', form: delivery, payment: 'efectivo', ...changes }))
+    .rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+  expect(fake.rpc).not.toHaveBeenCalled()
+})

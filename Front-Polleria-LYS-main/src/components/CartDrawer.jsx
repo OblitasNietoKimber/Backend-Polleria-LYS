@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { getProductStock } from '../data/products'
 import { money } from '../utils/currency'
+import { getCartError } from '../utils/checkoutValidation'
 
 export default function CartDrawer() {
   const navigate = useNavigate()
@@ -19,6 +20,7 @@ export default function CartDrawer() {
     stockAlert,
     clearStockAlert,
   } = useCart()
+  const validationError = cartItems.length ? getCartError(cartItems, { checkStock: true }) : ''
 
   function handleCheckout() {
     closeCart()
@@ -49,6 +51,7 @@ export default function CartDrawer() {
           )}
           {cartLoading && <p role="status">Actualizando los productos del carrito...</p>}
           {cartError && <p role="alert">{cartError}</p>}
+          {cartOpen && !cartError && validationError && <p role="alert">{validationError}</p>}
           {missingCartIds.map(id => <button key={id} className="btn-outline" onClick={() => removeItem(id)}>Quitar producto {id}</button>)}
           {cartItems.length === 0 && !cartLoading && !cartError ? (
             <div className="cart-drawer-empty">Aún no agregaste platos.</div>
@@ -99,7 +102,7 @@ export default function CartDrawer() {
               <span>Subtotal</span>
               <span>{money(subtotal)}</span>
             </div>
-            <button className="btn-ember cart-drawer-checkout-btn" disabled={cartLoading || Boolean(cartError) || cartItems.some(item => !item.product.available)} onClick={handleCheckout}>
+            <button className="btn-ember cart-drawer-checkout-btn" disabled={cartLoading || Boolean(cartError) || Boolean(validationError)} onClick={handleCheckout}>
               Continuar compra
             </button>
           </div>

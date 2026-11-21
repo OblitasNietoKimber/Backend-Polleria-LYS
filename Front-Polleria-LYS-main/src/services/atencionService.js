@@ -16,10 +16,19 @@ export const getFlow = (pagina=0) => {
   promise.catch(()=>{if(cached?.promise===promise)cached=null;});
   return promise;
 };
-export const getFlowStamp = () => rpc('flujo_sello');
+let consultaMesas;
+export function getFlowMesas() {
+  const usuario = getCurrentUser()?.id;
+  if (consultaMesas && consultaMesas.usuario === usuario) return consultaMesas.promise;
+  const promise = rpc('flujo_mesas').finally(() => {
+    if (consultaMesas?.promise === promise) consultaMesas = null;
+  });
+  consultaMesas = { usuario, promise };
+  return promise;
+}
 export const operateFlow = async (accion,data,operacion=crypto.randomUUID()) => {
   try{return await rpc('flujo_operar',{p_accion:accion,p_datos:{...data,operacion}});}
-  finally{cached=null;}
+  finally{cached=null;consultaMesas=null;}
 };
 export function pendingKitchen(cuenta) {
   if(cuenta.cocina_cancelada_en) return [];

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import * as authService from '../services/authService';
 import { validateRegisterForm } from '../services/validators';
 import Logo from '../components/common/Logo';
+import PersonNameInput from '../components/common/PersonNameInput';
 import '../styles/login.css';
 
 const initialForm = {
@@ -23,8 +24,11 @@ function Field({
   error,
   placeholder,
   autoComplete,
+  inputMode,
+  maxLength,
 }) {
   const id = `register-${name}`;
+  const Input = name === 'nombre' || name === 'apellido' ? PersonNameInput : 'input';
 
   return (
     <div className="register-page__field">
@@ -32,7 +36,7 @@ function Field({
         {label}
       </label>
 
-      <input
+      <Input
         id={id}
         className={`lys-input login-page__input ${error ? 'err' : ''}`}
         type={type}
@@ -41,6 +45,8 @@ function Field({
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        inputMode={inputMode}
+        maxLength={maxLength ?? (name === 'nombre' || name === 'apellido' ? 120 : undefined)}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
       />
@@ -115,6 +121,7 @@ function RegisterPage() {
         navigate('/profile');
       }
     } catch (err) {
+      if (err.fieldErrors) setErrors(err.fieldErrors);
       setFormError(
         err.message || 'No se pudo completar el registro.'
       );

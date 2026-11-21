@@ -1,57 +1,128 @@
 import { beforeEach, afterEach, expect, test, vi } from 'vitest';
-const fake=vi.hoisted(()=>({realtime:{connect:vi.fn(),subscribe:vi.fn(),unsubscribe:vi.fn(),disconnect:vi.fn(),on:vi.fn(),off:vi.fn()},query:{},user:vi.fn(),from:vi.fn()}));
-vi.mock('../src/lib/insforge',()=>({requireInsforge:()=>({realtime:fake.realtime,database:{from:fake.from}})}));
-vi.mock('../src/services/authService',()=>({getCurrentUser:fake.user}));
-import {watchOrders,getOrderChangeStamp,ORDER_EVENT} from '../src/services/orderUpdates';
-const cleanup=[];let stamp='2026-10-16T12:00:00Z';
-const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
-function watch(fn){const stop=watchOrders(fn,{intervalMs:5000});cleanup.push(stop);return stop;}
-beforeEach(()=>{
- vi.useFakeTimers();vi.clearAllMocks();stamp='2026-10-16T12:00:00Z';fake.user.mockReturnValue({id:'cliente-id',rol:'cliente'});
- fake.realtime.connect.mockResolvedValue();fake.realtime.subscribe.mockResolvedValue({ok:true});fake.from.mockReturnValue(fake.query);
- for(const name of ['select','order','limit','eq'])fake.query[name]=vi.fn(()=>fake.query);
- fake.query.then=resolve=>resolve({data:[{actualizado_en:stamp}],count:1,error:null});
- vi.stubGlobal('window',new EventTarget());vi.stubGlobal('document',Object.assign(new EventTarget(),{visibilityState:'visible'}));
+
+const { realtime, from, user } = vi.hoisted(() => ({
+  realtime: { connect: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn(), disconnect: vi.fn(), on: vi.fn(), off: vi.fn() },
+  from: vi.fn(), user: vi.fn(),
+}));
+vi.mock('../src/lib/insforge', () => ({ requireInsforge: () => ({ realtime, database: { from } }) }));
+vi.mock('../src/services/authService', () => ({ getCurrentUser: user }));
+
+import { CATALOG_EVENT, MESA_EVENT, ORDER_EVENT, liveUpdatesUnavailable, watchCatalog, watchOrders } from '../src/services/orderUpdates';
+
+const cleanup = [];
+const clientChannel = 'lys:client:cliente-id';
+const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+function watch(fn, options) {
+  const stop = watchOrders(fn, options);
+  cleanup.push(stop);
+  return stop;
+}
+function receive(event, body) {
+  realtime.on.mock.calls.filter(([name]) => name === event).forEach(([, handler]) => handler(body));
+}
+function message(pedidoId, options) {
+  return { pedidoId, meta: { channel: clientChannel, senderType: 'system', ...options } };
+}
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.clearAllMocks();
+  user.mockReturnValue({ id: 'cliente-id', rol: 'cliente' });
+  realtime.connect.mockResolvedValue();
+  realtime.subscribe.mockResolvedValue({ ok: true });
+  vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
 });
-afterEach(()=>{cleanup.splice(0).forEach(fn=>fn());vi.useRealTimers();vi.unstubAllGlobals();});
-test('comparte canal y sonda entre componentes y desconecta al salir del último',async()=>{
- const a=vi.fn(),b=vi.fn(),stopA=watch(a),stopB=watch(b);await flush();
- expect(fake.realtime.subscribe).toHaveBeenCalledTimes(1);expect(fake.realtime.subscribe).toHaveBeenCalledWith('lys:client:cliente-id');
- fake.from.mockClear();await vi.advanceTimersByTimeAsync(5000);expect(fake.from).toHaveBeenCalledTimes(1);
- stopA();expect(fake.realtime.unsubscribe).not.toHaveBeenCalled();stopB();expect(fake.realtime.unsubscribe).toHaveBeenCalledWith('lys:client:cliente-id');
-});
-test('descarta eventos de otros canales o enviados por usuarios',async()=>{
- const fn=vi.fn();watch(fn);await flush();fn.mockClear();
- const listener=fake.realtime.on.mock.calls.find(([name])=>name===ORDER_EVENT)[1];
- listener({meta:{channel:'lys:client:otro',senderType:'system'}});listener({meta:{channel:'lys:client:cliente-id',senderType:'user'}});expect(fn).not.toHaveBeenCalled();
- listener({meta:{channel:'lys:client:cliente-id',senderType:'system'}});expect(fn).toHaveBeenCalledTimes(1);
-});
-test('no descarga pedidos completos cuando la sonda no cambia',async()=>{
- const fn=vi.fn();watch(fn);await flush();fn.mockClear();
- await vi.advanceTimersByTimeAsync(15000);expect(fn).not.toHaveBeenCalled();
- stamp='2026-10-16T12:01:00Z';await vi.advanceTimersByTimeAsync(5000);expect(fn).toHaveBeenCalledTimes(1);
- expect(fake.query.select).toHaveBeenCalledWith('actualizado_en',{count:'exact'});expect(fake.query.limit).toHaveBeenCalledWith(1);expect(fake.query.eq).toHaveBeenCalledWith('cliente_id','cliente-id');
-});
-test('pausa la sonda oculta y recupera datos al volver, reconectar o recuperar red',async()=>{
- const fn=vi.fn();watch(fn);await flush();fn.mockClear();fake.from.mockClear();
- document.visibilityState='hidden';await vi.advanceTimersByTimeAsync(10000);expect(fake.from).not.toHaveBeenCalled();
- document.visibilityState='visible';document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('online'));fake.realtime.on.mock.calls.find(([name])=>name==='connect')[1]();expect(fn).toHaveBeenCalledTimes(3);
-});
-test('recupera cambios sin WebSocket mediante la sonda',async()=>{
- fake.realtime.connect.mockRejectedValue(new Error('offline'));const fn=vi.fn();watch(fn);await flush();fn.mockClear();stamp='nuevo';await vi.advanceTimersByTimeAsync(5000);expect(fn).toHaveBeenCalled();
-});
-test('limpia el registro cuando se desmonta durante connect',async()=>{
- let resolve;fake.realtime.connect.mockReturnValue(new Promise(done=>{resolve=done;}));const fn=vi.fn();const stop=watch(fn);stop();resolve();await flush();expect(fake.realtime.subscribe).not.toHaveBeenCalled();expect(fn).not.toHaveBeenCalled();
-});
-test('propaga el error de la sonda al consumidor y exige sesión',async()=>{
- fake.query.then=resolve=>resolve({error:{message:'Sin conexión'}});await expect(getOrderChangeStamp()).rejects.toThrow(/Sin conexión/);
- fake.user.mockReturnValue(null);await expect(getOrderChangeStamp()).rejects.toThrow(/iniciar sesión/);
+afterEach(() => {
+  cleanup.splice(0).forEach(stop => stop());
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
-test('un panel con sondeo propio puede recibir eventos sin duplicar la carga ni la sonda',async()=>{
- fake.realtime.connect.mockRejectedValue(new Error('offline'));const fn=vi.fn();
- const stop=watchOrders(fn,{initialRefresh:false,poll:false});cleanup.push(stop);await flush();
- await vi.advanceTimersByTimeAsync(15000);expect(fn).not.toHaveBeenCalled();expect(fake.from).not.toHaveBeenCalled();
- fake.realtime.on.mock.calls.find(([name])=>name===ORDER_EVENT)[1]({meta:{channel:'lys:client:cliente-id',senderType:'system'}});
- expect(fn).toHaveBeenCalledTimes(1);
+test('comparte canal y no hace sondeo REST cuando está inactivo', async () => {
+  const a = vi.fn(), b = vi.fn(), stopA = watch(a), stopB = watch(b);
+  await flush();
+  expect(realtime.subscribe).toHaveBeenCalledExactlyOnceWith(clientChannel);
+  expect(a).toHaveBeenCalledExactlyOnceWith(null);
+  expect(b).toHaveBeenCalledExactlyOnceWith(null);
+  await vi.advanceTimersByTimeAsync(120000);
+  expect(a).toHaveBeenCalledTimes(1);
+  expect(from).not.toHaveBeenCalled();
+  stopA();
+  expect(realtime.unsubscribe).not.toHaveBeenCalled();
+  stopB();
+  expect(realtime.unsubscribe).toHaveBeenCalledExactlyOnceWith(clientChannel);
+});
+
+test('filtra canal, origen y tipo de evento y agrupa cambios del mismo pedido', async () => {
+  const fn = vi.fn(), mesa = vi.fn();
+  watch(fn);
+  watch(mesa, { events: [MESA_EVENT] });
+  await flush();
+  fn.mockClear();
+  mesa.mockClear();
+  receive(ORDER_EVENT, message('otro', { channel: 'lys:client:otro' }));
+  receive(ORDER_EVENT, message('falso', { senderType: 'user' }));
+  receive(ORDER_EVENT, message('pedido-1'));
+  receive(ORDER_EVENT, message('pedido-1'));
+  receive(MESA_EVENT, message());
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fn).toHaveBeenCalledExactlyOnceWith([{ event: ORDER_EVENT, pedidoId: 'pedido-1', recurso: undefined, tipo: undefined, inventarioId: undefined, productoId: undefined }]);
+  expect(mesa).toHaveBeenCalledTimes(1);
+});
+
+test('acumula avisos en segundo plano y resincroniza una vez al reconectar', async () => {
+  const fn = vi.fn();
+  watch(fn);
+  await flush();
+  fn.mockClear();
+  document.visibilityState = 'hidden';
+  receive(ORDER_EVENT, message('pedido-1'));
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(fn).not.toHaveBeenCalled();
+  document.visibilityState = 'visible';
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(fn).toHaveBeenCalledTimes(1);
+  receive('disconnect');
+  expect(liveUpdatesUnavailable()).toBe(true);
+  receive('connect');
+  await flush();
+  expect(liveUpdatesUnavailable()).toBe(false);
+  expect(fn).toHaveBeenCalledTimes(2);
+  expect(fn).toHaveBeenLastCalledWith(null);
+});
+
+test('ofrece carga inicial si falla el WebSocket y se recupera al volver la red', async () => {
+  realtime.connect.mockRejectedValueOnce(new Error('offline'));
+  const fn = vi.fn();
+  watch(fn);
+  await vi.advanceTimersByTimeAsync(250);
+  expect(liveUpdatesUnavailable()).toBe(true);
+  expect(fn).toHaveBeenCalledTimes(1);
+  window.dispatchEvent(new Event('online'));
+  await flush();
+  expect(liveUpdatesUnavailable()).toBe(false);
+  expect(fn).toHaveBeenCalledTimes(2);
+});
+
+test('permite catálogo anónimo sin compartir su canal con pedidos', async () => {
+  user.mockReturnValue(null);
+  const fn = vi.fn();
+  cleanup.push(watchCatalog(fn));
+  await flush();
+  expect(realtime.subscribe).toHaveBeenCalledExactlyOnceWith('lys:catalogo');
+  receive(CATALOG_EVENT, { recurso: 'stock', meta: { channel: 'lys:catalogo', senderType: 'system' } });
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fn).toHaveBeenLastCalledWith([{ event: CATALOG_EVENT, recurso: 'stock', pedidoId: undefined, tipo: undefined, inventarioId: undefined, productoId: undefined }]);
+});
+
+test('descarta la conexión si el consumidor ya se desmontó', async () => {
+  let resolve;
+  realtime.connect.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+  const fn = vi.fn();
+  const stop = watch(fn);
+  stop();
+  resolve();
+  await flush();
+  expect(realtime.subscribe).not.toHaveBeenCalled();
+  expect(fn).not.toHaveBeenCalled();
 });

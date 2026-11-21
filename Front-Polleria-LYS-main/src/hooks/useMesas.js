@@ -1,51 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import mesaService from '../services/mesaService';
 import useOrderResource from './useOrderResource';
-const loadMesas = () => mesaService.fetchMesas({ strict: true });
+import { FLOW_PREVIEW } from '../services/atencionService';
+import { MESA_EVENT, ORDER_EVENT } from '../services/orderUpdates';
+
+const eventosMesas = [ORDER_EVENT, MESA_EVENT];
+const afectaSalon = cambio => cambio.event === MESA_EVENT || !cambio.tipo || cambio.tipo === 'salon';
+const loadMesas = async () => {
+  const [mesas, actividades] = await Promise.all([
+    mesaService.fetchMesas({ strict: true }),
+    mesaService.fetchActividades(),
+  ]);
+  return { mesas, actividades };
+};
+
 export default function useMesas(zona = 'salon_principal') {
-  const { data, loading, error, retry } = useOrderResource(loadMesas, 5000);
-  const listaCompleta = useMemo(() => data || [], [data]);
-  const [actividades, setActividades] = useState(() => mesaService.getActividades());
+  const { data, loading, error, retry: recargar } = useOrderResource(loadMesas, {
+    events: eventosMesas,
+    filter: afectaSalon,
+  });
+  const listaCompleta = useMemo(() => data?.mesas || [], [data]);
+  const actividades = useMemo(() => data?.actividades || mesaService.getActividades(), [data]);
 
   useEffect(() => {
-    let cancelado = false;
-    async function cargarActividades() {
-      try {
-        const acts = await mesaService.fetchActividades();
-        if (!cancelado && Array.isArray(acts)) {
-          setActividades(acts);
-        }
-      } catch {
-        if (!cancelado) setActividades(mesaService.getActividades());
-      }
-    }
-    cargarActividades();
-
-    const refresh = async () => {
-      try {
-        const acts = await mesaService.fetchActividades();
-        setActividades(acts);
-      } catch {
-        setActividades(mesaService.getActividades());
-      }
-    };
-
-    window.addEventListener('lys_actividades_updated', refresh);
-    return () => {
-      cancelado = true;
-      window.removeEventListener('lys_actividades_updated', refresh);
-    };
-  }, []);
-
-  const recargar = useCallback(async () => {
-    await retry();
-    try {
-      const acts = await mesaService.fetchActividades();
-      setActividades(acts);
-    } catch {
-      setActividades(mesaService.getActividades());
-    }
-  }, [retry]);
+    if (FLOW_PREVIEW) return;
+    const actualizar = () => { void recargar(); };
+    window.addEventListener('lys_actividades_updated', actualizar);
+    return () => window.removeEventListener('lys_actividades_updated', actualizar);
+  }, [recargar]);
 
   const mesas = useMemo(
     () => (!zona || zona === 'todas' ? listaCompleta : listaCompleta.filter((m) => m.zona === zona)),

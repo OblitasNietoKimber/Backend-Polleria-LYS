@@ -30,9 +30,11 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
   const mapRef = useRef(null)
   const markerRef = useRef(null)
   const polygonRef = useRef(null)
+  const requestRef = useRef(null)
+  const currentPointRef = useRef(point)
   const [locating, setLocating] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
-  const [isOutOfZone, setIsOutOfZone] = useState(false)
+  const isOutOfZone = isValidPoint(point) && !isWithinCarabayllo(point)
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false)
 
   // Inicialización del mapa de Leaflet
@@ -96,6 +98,7 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
     mapRef.current = map
 
     return () => {
+      requestRef.current?.abort()
       resizeObserver.disconnect()
       map.remove()
       mapRef.current = null
@@ -105,6 +108,8 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
 
   // Sincronización del marcador si cambia `point` desde props (ej. por autocompletado de dirección)
   useEffect(() => {
+    currentPointRef.current = point
+    if (!isValidPoint(point)) requestRef.current?.abort()
     const map = mapRef.current
     if (!map) return
 
@@ -113,18 +118,9 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
         markerRef.current.remove()
         markerRef.current = null
       }
-      setIsOutOfZone(false)
       return
     }
 
-    const inZone = isWithinCarabayllo(point)
-    setIsOutOfZone(!inZone)
-
-    if (!inZone) {
-      setStatusMessage('Ubicación fuera del área de reparto en Carabayllo.')
-    } else {
-      setStatusMessage('Punto seleccionado dentro de la zona de Carabayllo.')
-    }
 
     if (!markerRef.current) {
       const marker = L.marker([point.lat, point.lng], {
@@ -151,8 +147,9 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
   }, [point])
 
   async function handleLocationSelect(selectedPoint, mapInstance = mapRef.current) {
+    requestRef.current?.abort()
+    setIsReverseGeocoding(false)
     if (!isWithinCarabayllo(selectedPoint)) {
-      setIsOutOfZone(true)
       setStatusMessage('La ubicación seleccionada está fuera de nuestra zona de cobertura en Carabayllo.')
 
       if (markerRef.current) {
@@ -167,19 +164,18 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
       return
     }
 
-    setIsOutOfZone(false)
     setStatusMessage('Punto confirmado dentro de Carabayllo.')
-    onChange(selectedPoint)
+    onChange({ ...selectedPoint, address: null })
 
     // Geocodificación inversa automática para autocompletar la dirección de la calle
     setIsReverseGeocoding(true)
-    const detected = await reverseGeocodeCarabayllo(selectedPoint.lat, selectedPoint.lng)
+    const controller = new AbortController()
+    requestRef.current = controller
+    const detected = await reverseGeocodeCarabayllo(selectedPoint.lat, selectedPoint.lng, controller.signal)
+    if (controller.signal.aborted || currentPointRef.current?.lat !== selectedPoint.lat || currentPointRef.current?.lng !== selectedPoint.lng) return
     setIsReverseGeocoding(false)
-
-    const finalAddress = detected || `Carabayllo (${selectedPoint.lat.toFixed(4)}, ${selectedPoint.lng.toFixed(4)})`
-    if (onAddressDetected) {
-      onAddressDetected(finalAddress)
-    }
+    if (detected) onAddressDetected?.(detected, selectedPoint)
+    else setStatusMessage('No se pudo confirmar la calle. Selecciona otra dirección o vuelve a intentarlo.')
   }
 
   function handleUseMyLocation() {
@@ -204,7 +200,7 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
         }
 
         if (!isWithinCarabayllo(myLocation)) {
-          setIsOutOfZone(true)
+          onChange({ ...myLocation, outOfZone: true })
           setStatusMessage(
             'Tu ubicación actual está fuera de Carabayllo. Marca tu dirección directamente en el mapa dentro de la zona destacada.'
           )
@@ -304,8 +300,9 @@ export default function DeliveryMap({ point, onChange, onAddressDetected }) {
           <div className="delivery-status-alert alert-success" role="status">
             <CheckCircle2 size={16} />
             <span>
-              <strong>Punto fijado en Carabayllo</strong> ({point.lat.toFixed(4)}, {point.lng.toFixed(4)})
+              <strong>{point.address ? 'Dirección confirmada en Carabayllo' : 'Punto pendiente de confirmar'}</strong> ({point.lat.toFixed(4)}, {point.lng.toFixed(4)})
               {isReverseGeocoding && ' · Identificando calle…'}
+              {!isReverseGeocoding && !point.address && ` · ${statusMessage}`}
             </span>
           </div>
         ) : (

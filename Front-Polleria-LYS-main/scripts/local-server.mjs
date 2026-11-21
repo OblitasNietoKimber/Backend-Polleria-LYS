@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { createLocalDatabase,asLocalUser,localUsers } from './local-db.mjs';
 const port=Number(process.env.LOCAL_FLOW_PORT||5191);
 const db=await createLocalDatabase(process.env.LOCAL_FLOW_MEMORY==='1'?undefined:fileURLToPath(new URL('../../../.datos-pruebas-atenciones/',import.meta.url)),{inventory:true});
+if (process.env.LOCAL_FLOW_MEMORY === '1' && process.env.LOCAL_FLOW_TEST_CLOCK === '1') {
+  await db.exec("CREATE OR REPLACE FUNCTION public.hora_lima_reservas() RETURNS time LANGUAGE sql STABLE SET search_path = '' AS $$ SELECT TIME '17:00' $$");
+}
 const secret=randomBytes(32),salt=randomBytes(16),password=scryptSync('Local123!',salt,32);
 const sessions=new Map();
 const sign=part=>createHmac('sha256',secret).update(part).digest('base64url');
@@ -19,6 +22,9 @@ function split(value){let depth=0,start=0;const result=[];for(let n=0;n<value.le
 function projection(select,table,alias='t'){
  if(select==='*')return `to_jsonb(${alias})`;
  const fields=split(select).map(field=>{
+  const comandas = field.match(/^comandas:comandas_cuenta\((.*)\)$/);
+  if (table === 'pedidos' && comandas) return `'comandas',(SELECT COALESCE(jsonb_agg(${projection(comandas[1], 'pedidos', alias + 'c')}),'[]'::jsonb)
+    FROM public.pedidos ${alias}c WHERE ${alias}c.cuenta_principal_id = ${alias}.id)`;
   const match=field.match(/^(\w+)\((.*)\)$/);
   if(!match)return "'"+field.replaceAll("'",'')+"',"+alias+'.'+identifier(field);
   const [,relation,columns]=match;
@@ -61,7 +67,7 @@ async function records(req,res,url,user,body){
  const single=req.headers.accept?.includes('application/vnd.pgrst.object+json');
  reply(res,200,single?(output[0]||null):output);
 }
-const allowedRPC=new Set(['ajustar_inventario','flujo_listar','flujo_sello','flujo_operar','flujo_devoluciones','obtener_historial_entregas_cocina','crear_pedido_cliente','crear_pedido_cliente_tarjeta','obtener_dashboard_admin','obtener_historial_ventas','confirmar_entrega_delivery','registrar_cobro','cambiar_estado_cocina','entregar_pedido_cocina','obtener_actividad_salon','obtener_mesas_con_pedidos']);
+const allowedRPC=new Set(['ajustar_inventario','flujo_listar','flujo_mesas','flujo_sello','obtener_resumen_caja','flujo_operar','flujo_devoluciones','obtener_historial_entregas_cocina','crear_pedido_cliente','crear_pedido_cliente_tarjeta','obtener_dashboard_admin','obtener_historial_ventas','confirmar_entrega_delivery','registrar_cobro','cambiar_estado_cocina','entregar_pedido_cocina','obtener_actividad_salon','obtener_mesas_con_pedidos']);
 const server=http.createServer(async(req,res)=>{
  const origin=req.headers.origin;
  if(origin&&!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(origin))return reply(res,403,{message:'Origen no autorizado'});
