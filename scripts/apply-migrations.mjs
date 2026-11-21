@@ -1,8 +1,10 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { parseArgs } from 'node:util';
-const { values } = parseArgs({ options: { application: { type: 'boolean', default: false }, realtime: { type: 'boolean', default: false }, from: { type: 'string' } } });
-if (values.application && values.realtime) throw new Error('Selecciona --application o --realtime.');
+const { values } = parseArgs({ options: { application: { type: 'boolean', default: false }, realtime: { type: 'boolean', default: false }, atenciones: { type: 'boolean', default: false }, from: { type: 'string' } } });
+if ([values.application, values.realtime, values.atenciones].filter(Boolean).length > 1) {
+  throw new Error('Selecciona solo una opción entre --application, --atenciones y --realtime.');
+}
 if (values.from && !/^[A-Za-z0-9_.-]+$/.test(values.from)) throw new Error('Prefijo de migración inválido.');
 const baseUrl = process.env.INSFORGE_BASE_URL?.replace(/\/$/, '');
 const apiKey = process.env.INSFORGE_API_KEY;
@@ -17,7 +19,8 @@ async function sql(query) {
 await sql("CREATE TABLE IF NOT EXISTS public.schema_migrations(version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now()); ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY; REVOKE ALL ON public.schema_migrations FROM PUBLIC,anon,authenticated;");
 const existing = await sql('SELECT version,checksum FROM public.schema_migrations');
 const applied = new Map((existing.rows || []).map(row => [row.version,row.checksum]));
-const directory = new URL(values.realtime ? '../migrations/realtime/' : values.application ? '../migrations/' : '../insforge/migrations/', import.meta.url);
+const directory = new URL(values.realtime ? '../migrations/realtime/' : values.atenciones ? '../migrations/atenciones/' :
+  values.application ? '../migrations/' : '../insforge/migrations/', import.meta.url);
 const migrations = [];
 for (const file of (await readdir(directory)).filter(name => name.endsWith('.sql') && (!values.from || name >= values.from)).sort()) {
   // Git stores LF; Windows checkout must not change a migration's fingerprint.

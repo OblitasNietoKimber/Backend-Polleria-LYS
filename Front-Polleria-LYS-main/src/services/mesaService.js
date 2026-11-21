@@ -93,15 +93,17 @@ export async function fetchMesas({ strict = false } = {}) {
       cacheMesas=data.mesas.map(m=>{
         const atencion=data.atenciones.find(a=>a.mesa_id===m.id);
         const cuentas=atencion?data.cuentas.filter(p=>p.atencion_id===atencion.id):[];
-        const editable=cuentas.find(p=>p.estado_pago!=='pagado'&&p.estado!=='cancelado');
-        const principal=editable||cuentas[0];
+        const principales = cuentas.filter(p => !p.cuenta_principal_id);
+        const abierta = principales.find(p => p.estado_pago !== 'pagado' && p.estado !== 'cancelado');
+        const principal = abierta || principales[0];
         const mapped=mapMesaFromDb({...m,estado:atencion?'ocupada':m.estado,pedido_id:principal?.id,pedido_estado:principal?.estado,
           estado_pago:cuentas.filter(p=>p.estado!=='cancelado').every(p=>p.estado_pago==='pagado')?'pagado':'pendiente',
-          cocina_entregado_en:principal?.cocina_entregado_en,cuenta_solicitada:editable?.cuenta_solicitada,
-          comensales:principal?.comensales,total:cuentas.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.total),0),
-          subtotal:cuentas.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.subtotal),0),notas:editable?.notas||'',creado_en:atencion?.abierta_en,
+          cocina_entregado_en:principal?.cocina_entregado_en,cuenta_solicitada:abierta?.cuenta_solicitada,
+          comensales:principal?.comensales,total:principales.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.total),0),
+          subtotal:principales.filter(p=>p.estado!=='cancelado').reduce((s,p)=>s+Number(p.subtotal),0),notas:abierta?.notas||'',creado_en:atencion?.abierta_en,
           items:(principal?.items||[]).map(i=>({id:i.id,producto_id:i.producto_id,nombre:i.nombre_producto,cantidad:i.cantidad,precio:i.precio_unitario}))});
-        return {...mapped,atencionId:atencion?.id,cuentas,cuentaEditableId:editable?.id||null,
+        return {...mapped,atencionId:atencion?.id,cuentas,cuentaAbiertaId:abierta?.id||null,
+          cuentaEditableId:abierta?.comanda_editable && !abierta.cuenta_solicitada && !openIncident(abierta) ? abierta.id : null,
           versionCuenta:principal?.version_cuenta,puedeCerrar:Boolean(atencion)&&cuentas.every(p=>(p.estado==='cancelado'||p.estado_pago==='pagado'&&!pendingKitchen(p).length)&&!openIncident(p))};
       });
       return cacheMesas;
@@ -210,6 +212,13 @@ export async function abrirPedidoSalon({
   dispatchLocalEvent('storage');
 
   return nuevoPedidoId;
+}
+
+export async function agregarComandaSalon({ solicitudId, cuentaId, version, items, notas }) {
+  const result = await operateFlow('comanda_adicional', {
+    pedido: cuentaId, version, items: items.map(item => ({ id: item.id, qty: item.cantidad })), notas,
+  }, solicitudId || undefined);
+  return result.pedido;
 }
 
 /**
@@ -485,6 +494,7 @@ export default {
   getMesaByNumero,
   abrirPedidoSalon,
   modificarPedidoSalon,
+  agregarComandaSalon,
   enviarPedidoCocina,
   solicitarCuenta,
   liberarMesa,

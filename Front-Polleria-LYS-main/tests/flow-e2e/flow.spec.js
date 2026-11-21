@@ -173,3 +173,49 @@ test('confirmar comanda pide confirmar cuando las porciones suman más de diez p
  await expect(page).toHaveURL(/\/mesas$/);
  await expect(page.getByRole('button', { name: /Mesa 09/ })).toContainText(/ocupada/i);
 });
+
+
+test('la mesera envía una comanda adicional durante la preparación y caja emite un recibo', async ({ browser }) => {
+  const [m, k, c] = await Promise.all([browser.newPage(), browser.newPage(), browser.newPage()]);
+  try {
+    await Promise.all([login(m, 'mesera'), login(k, 'cocina'), login(c, 'caja')]);
+    await m.goto('/mesas/04/pedido');
+    await m.locator('.plato-card').filter({ has: m.getByText('Pollo a la brasa entero', { exact: true }) })
+      .getByTitle('Agregar a la comanda', { exact: true }).click();
+    await m.getByRole('button', { name: 'Confirmar comanda', exact: true }).click();
+    await expect(m).toHaveURL(/\/mesas$/);
+
+    await k.goto('/cocina');
+    const ticket = k.locator('.cocina-card').filter({ hasText: /Mesa 04/ });
+    await ticket.getByRole('button', { name: 'Comenzar', exact: true }).click();
+    await expect(ticket.getByRole('button', { name: 'Marcar listo', exact: true })).toBeVisible();
+    await m.reload();
+    await m.getByRole('button', { name: /Mesa 04/ }).click();
+    await expect(m.getByRole('button', { name: 'Editar comanda', exact: true })).toHaveCount(0);
+    await m.getByRole('button', { name: 'Nueva comanda para esta mesa', exact: true }).click();
+    await expect(m.locator('.comanda-item')).toHaveCount(0);
+    await m.locator('.plato-card').filter({ has: m.getByText('1/2 Pollo a la brasa', { exact: true }) })
+      .getByTitle('Agregar a la comanda', { exact: true }).click();
+    await m.getByRole('button', { name: 'Confirmar comanda adicional', exact: true }).click();
+    await expect(m).toHaveURL(/\/mesas$/);
+
+    await k.reload();
+    await expect(ticket).toHaveCount(2);
+    await expect(ticket.filter({ hasText: 'Pollo a la brasa entero' }).getByRole('button', { name: 'Marcar listo' })).toBeVisible();
+    await expect(ticket.filter({ hasText: '1/2 Pollo a la brasa' }).getByRole('button', { name: 'Comenzar' })).toBeVisible();
+
+    await m.getByRole('button', { name: /Mesa 04/ }).click();
+    await m.getByRole('button', { name: 'Solicitar cuenta para caja', exact: true }).click();
+    await c.goto('/caja');
+    await expect(c.getByRole('tab', { name: /Por cobrar\s*1/ })).toBeVisible();
+    await c.getByLabel('Monto recibido').fill('200');
+    await c.getByRole('button', { name: /^Cobrar S\// }).click();
+    const recibo = c.getByRole('dialog');
+    await expect(recibo).toContainText('Pollo a la brasa entero');
+    await expect(recibo).toContainText('1/2 Pollo a la brasa');
+    await c.getByRole('button', { name: 'Cerrar comprobante', exact: true }).click();
+    await expect(c.getByRole('tab', { name: /Por cobrar\s*0/ })).toBeVisible();
+  } finally {
+    await Promise.all([m.close(), k.close(), c.close()]);
+  }
+});

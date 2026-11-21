@@ -4,12 +4,26 @@ import {FLOW_PREVIEW,operateFlow,kitchenLabel} from './atencionService';
 
 const METODOS = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', yape: 'Yape', plin: 'Plin' };
 const CAMPOS = 'id, tipo, estado, estado_pago, cuenta_solicitada, destinatario, subtotal, envio, total, creado_en, metodo_solicitado, mesas(numero), detalles_pedido(producto_id, cantidad, precio_unitario, nombre_producto), pagos(id, metodo, monto, recibido, vuelto, referencia, creado_en, comprobante)';
-const CAMPOS_ATENCION=CAMPOS.replace('detalles_pedido(producto_id','detalles_pedido(id,requiere_preparacion,producto_id')+',version_cuenta,atencion_id,cocina_cancelada_en,entregas_cocina(items),incidencias_atencion(id,tipo,estado,motivo,importe,referencia,creada_en,resuelta_en)';
+const DETALLES_COMANDA = 'id,requiere_preparacion,producto_id,cantidad,precio_unitario,nombre_producto';
+const CAMPOS_ATENCION = CAMPOS.replace(
+  'detalles_pedido(producto_id, cantidad, precio_unitario, nombre_producto)', `detalles_pedido(${DETALLES_COMANDA})`,
+) + ',version_cuenta,atencion_id,cocina_cancelada_en,entregas_cocina(items),incidencias_atencion(id,tipo,estado,motivo,importe,referencia,creada_en,resuelta_en)' +
+  `,comandas:comandas_cuenta(estado,cocina_cancelada_en,entregas_cocina(items),detalles_pedido(${DETALLES_COMANDA}))`;
 const columnasCaja = () => (FLOW_PREVIEW ? CAMPOS_ATENCION : CAMPOS).replace(', comprobante)', ')');
-function mapAtencion(row){
+
+function mapAtencion(row) {
   const rawPago = Array.isArray(row.pagos) ? row.pagos[0] : (row.pagos || null);
-  const cuenta={...row,items:row.detalles_pedido,entregas:row.entregas_cocina,incidencias:row.incidencias_atencion,pago:rawPago};
-  return {...normalizarPedido(row),cuentaSolicitada:row.cuenta_solicitada,versionCuenta:row.version_cuenta,estadoCocina:kitchenLabel(cuenta),cuenta};
+  const cuenta = { ...row, items: row.detalles_pedido, entregas: row.entregas_cocina, incidencias: row.incidencias_atencion, pago: rawPago };
+  const comandas = (row.comandas || []).filter(comanda => comanda.estado !== 'cancelado');
+  const detalles = [...(row.detalles_pedido || []), ...comandas.flatMap(comanda => comanda.detalles_pedido || [])];
+  const estadosCocina = [kitchenLabel(cuenta), ...comandas.map(comanda => kitchenLabel({
+    ...comanda, items: comanda.detalles_pedido, entregas: comanda.entregas_cocina,
+  }))];
+  const estadoCocina = ['Nuevo', 'Preparando', 'Listo'].find(estado => estadosCocina.includes(estado)) || estadosCocina[0];
+  return {
+    ...normalizarPedido({ ...row, detalles_pedido: detalles }),
+    cuentaSolicitada: row.cuenta_solicitada, versionCuenta: row.version_cuenta, estadoCocina, cuenta,
+  };
 }
 
 function database() {
@@ -80,6 +94,7 @@ async function consultar(estado = null, { max = Infinity } = {}) {
   const db = database(), pedidos = [], size = Math.min(100, max);
   for (let offset = 0; ; offset += size) {
     let query = db.from('pedidos').select(columnasCaja()).order('creado_en', { ascending: false }).order('id').range(offset, offset + size - 1);
+    if (FLOW_PREVIEW) query = query.is('cuenta_principal_id', null);
     if (estado) query = query.eq('estado_pago', estado);
     if (estado === 'pendiente') query = query.neq('estado', 'cancelado').gt('total', 0);
     const rows = unwrap(await query) || [];
@@ -98,7 +113,9 @@ export async function actualizarPedidos(actuales, cambios) {
   const ids = [...new Set(cambios.map(cambio => cambio.pedidoId))];
   if (ids.some(id => !id)) return getPedidos();
   const db = database();
-  const rows = unwrap(await db.from('pedidos').select(columnasCaja()).in('id', ids)) || [];
+  let query = db.from('pedidos').select(columnasCaja()).in('id', ids);
+  if (FLOW_PREVIEW) query = query.is('cuenta_principal_id', null);
+  const rows = unwrap(await query) || [];
   const pendientes = rows.filter(row => row.estado_pago === 'pendiente' && row.estado !== 'cancelado' && Number(row.total) > 0);
   const pagados = rows.filter(row => row.estado_pago === 'pagado');
   const map = FLOW_PREVIEW ? mapAtencion : normalizarPedido;
@@ -117,7 +134,9 @@ export async function getResumenDia(dia) {
 export const getPedidosPendientes = () => consultar('pendiente');
 export const getVentas = () => consultar('pagado');
 export async function getPedidoPorId(id) {
-  const row = unwrap(await database().from('pedidos').select(FLOW_PREVIEW?CAMPOS_ATENCION:CAMPOS).eq('id', id).maybeSingle());
+  let query = database().from('pedidos').select(FLOW_PREVIEW ? CAMPOS_ATENCION : CAMPOS).eq('id', id);
+  if (FLOW_PREVIEW) query = query.is('cuenta_principal_id', null);
+  const row = unwrap(await query.maybeSingle());
   return row ? (FLOW_PREVIEW?mapAtencion(row):normalizarPedido(row)) : null;
 }
 export function calcularTotal(pedido) { return Number(pedido.total); }

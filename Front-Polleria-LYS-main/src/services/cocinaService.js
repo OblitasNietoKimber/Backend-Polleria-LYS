@@ -47,7 +47,7 @@ export function mapPedido(row) {
       cantidad: item.cantidad - (entregados.get(String(item.productoId)) || 0) })).filter(item => item.cantidad > 0) };
 }
 const activeStates = ['pendiente', 'en_preparacion', 'listo'];
-const flowFields = fields + ',total,version_cuenta,cocina_cancelada_en,incidencias_atencion(tipo,estado,motivo)';
+const flowFields = fields + ',total,version_cuenta,cuenta_principal_id,cocina_cancelada_en,incidencias_atencion(tipo,estado,motivo)';
 
 function mapActive(row, legacy) {
   const pedido = mapPedido({ ...row, entregaDisponible: !legacy });

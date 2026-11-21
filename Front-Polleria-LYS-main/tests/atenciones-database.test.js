@@ -94,11 +94,61 @@ test('conserva nombres y precios vendidos aunque cambie el catálogo',async()=>{
  expect(after.items[0].nombre_producto).toBe(before.items[0].nombre_producto);
  await db.query('UPDATE productos SET precio=$1,nombre=$2 WHERE id=1',[before.items[0].precio_unitario,before.items[0].nombre_producto]);
 });
-test('una ampliación solo devuelve a cocina cantidades nuevas y no permite retirar lo entregado',async()=>{
- const id=await open(10);await ready(id);await act('cocina','entregar',id);
- await act('mesera','editar',id,{items:[{id:1,qty:3}]});await ready(id);await act('cocina','entregar',id);
- const p=await account(id);expect(p.entregas.map(e=>e.items[0].cantidad)).toEqual([1,2]);
- await expect(act('mesera','editar',id,{items:[{id:1,qty:2}]})).rejects.toThrow(/retirar|entregados/);
+test('una comanda en preparación queda fija y la adicional comparte un único cobro', async () => {
+ const id = await open(10);
+ await act('cocina', 'comenzar', id);
+ const original = await account(id);
+ await expect(act('mesera', 'editar', id, { items: [{ id: 1, qty: 3 }] })).rejects.toThrow(/adicional/);
+
+ const addition = { pedido: id, version: original.version_cuenta, operacion: randomUUID(), items: [{ id: 1, qty: 2 }] };
+ const { pedido: extra } = await run('mesera', 'comanda_adicional', addition);
+ expect(extra).not.toBe(id);
+ expect(await run('mesera', 'comanda_adicional', addition)).toMatchObject({ pedido: extra });
+ expect(await account(extra)).toMatchObject({
+  cuenta_principal_id: id, atencion_id: original.atencion_id, mesa_id: original.mesa_id, estado: 'pendiente',
+  items: [expect.objectContaining({ cantidad: 2 })],
+ });
+ const updated = await account(id);
+ expect(updated).toMatchObject({ estado: 'en_preparacion', items: original.items });
+ expect(Number(updated.total)).toBe(Number(original.total) * 3);
+ const mesa = (await query('mesera', 'SELECT flujo_mesas() AS data')).rows[0].data;
+ expect(mesa.cuentas.find(p => p.id === extra).cuenta_principal_id).toBe(id);
+
+ await expect(run('caja', 'cobrar', {
+  pedido: id, version: original.version_cuenta, metodo: 'efectivo', recibido: original.total, anticipado: true,
+ })).rejects.toThrow(/cuenta cambió/);
+ await expect(pay(extra)).rejects.toThrow(/principal/);
+ await act('mesera', 'solicitar', id);
+ await expect(act('mesera', 'comanda_adicional', id, { items: [{ id: 1, qty: 1 }] })).rejects.toThrow(/Reabre/);
+ const recibo = await act('caja', 'cobrar', id, { metodo: 'efectivo', recibido: updated.total });
+ expect(recibo.id).toBe(id);
+ expect(Number(recibo.total)).toBe(Number(updated.total));
+ expect(recibo.items.map(item => item.cantidad)).toEqual([1, 2]);
+ expect((await account(extra)).pago).toBeNull();
+ expect((await account(extra)).estado_pago).toBe('pagado');
+ await expect(pay(id)).rejects.toThrow();
+
+ await act('cocina', 'listo', id);
+ await act('cocina', 'entregar', id);
+ await expect(run('mesera', 'cerrar', { mesa: 10 })).rejects.toThrow(/Faltan/);
+ await ready(extra);
+ await act('cocina', 'entregar', extra);
+ expect((await account(id)).entregas[0].items[0].cantidad).toBe(1);
+ expect((await account(extra)).entregas[0].items[0].cantidad).toBe(2);
+ await run('mesera', 'cerrar', { mesa: 10 });
+});
+
+test('anular una comanda adicional antes de cocinarla actualiza el total sin anular la cuenta', async () => {
+ const id = await open(10);
+ await act('cocina', 'comenzar', id);
+ const original = await account(id);
+ const { pedido: extra } = await act('mesera', 'comanda_adicional', id, { items: [{ id: 1, qty: 2 }] });
+ await act('mesera', 'incidencia', extra, { motivo: 'Comanda adicional duplicada' });
+ expect((await account(id)).total).toBe(original.total);
+ expect((await account(id)).estado).toBe('en_preparacion');
+ expect((await account(extra)).estado).toBe('cancelado');
+ const recibo = await pay(id);
+ expect(recibo.items.map(item => item.cantidad)).toEqual([1]);
 });
 test('devolución anticipada puede detener cocina sin cobrar ni entregar platos ficticios',async()=>{
  const id=await open(11);await pay(id);await act('caja','incidencia',id,{motivo:'Reclamo después del pago anticipado'});await act('admin','autorizar',id);
@@ -135,7 +185,7 @@ test('no admite importes manipulados, pagos insuficientes ni quitar productos de
  const id=await open(16),p=await account(id);
  await expect(act('caja','cobrar',id,{anticipado:true,metodo:'efectivo',recibido:1,total:1})).rejects.toThrow(/monto/);
  await expect(act('caja','cobrar',id,{anticipado:true,metodo:'yape',recibido:Number(p.total)+1})).rejects.toThrow(/monto/);
- await pay(id);await expect(act('mesera','editar',id,{items:[{id:1,qty:2}]})).rejects.toThrow(/cobrado/);
+ await pay(id);await expect(act('mesera','editar',id,{items:[{id:1,qty:2}]})).rejects.toThrow(/cobrad[oa]/);
 });
 test('la migración conserva importes y registros históricos y vincula una atención existente',async()=>{
  let before,existing;

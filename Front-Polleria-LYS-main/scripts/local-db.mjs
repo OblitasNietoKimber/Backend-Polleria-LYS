@@ -21,6 +21,9 @@ export async function createLocalDatabase(dataDir, { beforePreview, inventory = 
   if ((await db.query("SELECT to_regclass('public.atenciones_salon') AS ready")).rows[0].ready) {
     if(inventory && !(await db.query("SELECT to_regclass('public.inventario_recursos') AS ready")).rows[0].ready)
       await db.exec(await readFile(new URL('../../migrations/inventario/20261116020000_inventario-compartido.sql',import.meta.url),'utf8'));
+    if (!(await db.query("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='pedidos' AND column_name='cuenta_principal_id'")).rows.length) {
+      await db.exec(await readFile(new URL('../../migrations/atenciones/20261120181000_comandas_adicionales.sql', import.meta.url), 'utf8'));
+    }
     await applyReservationValidation(db);
     await applyRealtimeMigrations(db);
     return db;

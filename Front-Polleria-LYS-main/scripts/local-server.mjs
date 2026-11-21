@@ -22,6 +22,9 @@ function split(value){let depth=0,start=0;const result=[];for(let n=0;n<value.le
 function projection(select,table,alias='t'){
  if(select==='*')return `to_jsonb(${alias})`;
  const fields=split(select).map(field=>{
+  const comandas = field.match(/^comandas:comandas_cuenta\((.*)\)$/);
+  if (table === 'pedidos' && comandas) return `'comandas',(SELECT COALESCE(jsonb_agg(${projection(comandas[1], 'pedidos', alias + 'c')}),'[]'::jsonb)
+    FROM public.pedidos ${alias}c WHERE ${alias}c.cuenta_principal_id = ${alias}.id)`;
   const match=field.match(/^(\w+)\((.*)\)$/);
   if(!match)return "'"+field.replaceAll("'",'')+"',"+alias+'.'+identifier(field);
   const [,relation,columns]=match;
