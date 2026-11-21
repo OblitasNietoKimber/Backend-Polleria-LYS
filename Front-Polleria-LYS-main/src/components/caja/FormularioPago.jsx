@@ -7,22 +7,55 @@ const METODOS = [
   { nombre: "Tarjeta" },
 ];
 
-export default function FormularioPago({ metodo, onMetodoChange, monto, onMontoChange, total, disabled = false }) {
+export default function FormularioPago({
+  metodo,
+  onMetodoChange,
+  monto,
+  onMontoChange,
+  total,
+  disabled = false,
+  metodoSolicitado = null,
+  puedeModificarMetodo = false,
+  onToggleModificarMetodo = null,
+}) {
   const base = Math.ceil(total / 10) * 10;
   const montosRapidos = [...new Set([base, Math.max(100, base), Math.max(200, base)])];
+  const tieneMetodoSolicitado = Boolean(metodoSolicitado);
+  const botonesBloqueados = disabled || (tieneMetodoSolicitado && !puedeModificarMetodo);
 
   return (
     <div className="caja-payment">
-      <p className="caja-label">Método de pago</p>
+      <div className="caja-metodo-header">
+        <p className="caja-label">Método de pago</p>
+        {tieneMetodoSolicitado && (
+          <label className="caja-modificar-metodo-check">
+            <input
+              type="checkbox"
+              checked={puedeModificarMetodo}
+              onChange={(e) => onToggleModificarMetodo?.(e.target.checked)}
+              disabled={disabled}
+            />
+            <span>Modificar método</span>
+          </label>
+        )}
+      </div>
+
+      {tieneMetodoSolicitado && !puedeModificarMetodo && (
+        <div className="caja-metodo-auto-note">
+          <span>Seleccionado en carrito: <strong>{metodoSolicitado}</strong></span>
+        </div>
+      )}
+
       <div className="caja-metodos">
         {METODOS.map(({ nombre }) => (
           <button
             type="button"
             key={nombre}
-            disabled={disabled}
+            disabled={botonesBloqueados}
             className={metodo === nombre ? "active" : ""}
             onClick={() => onMetodoChange(nombre)}
             aria-pressed={metodo === nombre}
+            title={tieneMetodoSolicitado && !puedeModificarMetodo ? "Marca 'Modificar método' para cambiarlo" : undefined}
           >
             <PaymentMethodLogo method={nombre} />
             {nombre}

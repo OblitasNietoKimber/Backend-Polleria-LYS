@@ -949,6 +949,12 @@
   font-weight: 700;
 }
 
+.mesa-reserva-horario {
+  margin: 0 0 12px;
+  color: #78350F;
+  font-size: 0.82rem;
+}
+
 .mesa-reserva-error {
   color: #DC2626;
   font-size: 0.82rem;

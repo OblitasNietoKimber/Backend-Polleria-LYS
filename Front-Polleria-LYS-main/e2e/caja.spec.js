@@ -5,7 +5,7 @@ async function backend(page, { failFirst = false, reject = '', role = 'caja', re
   const calls = []; let paid = null, table = 'ocupada';
   calls.reads = [];
   await page.addInitScript(() => localStorage.setItem('lys_pedidos', JSON.stringify([{ id: 'LOCAL-IGNORADO', estado: 'pendiente', total: 1 }])));
-  await page.route('https://b9zz47j5.us-east.insforge.app/**', async route => {
+  await page.route('https://8bwzqx2s.us-east.insforge.app/**', async route => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
     let response = {}, status = 200;
     if (path === '/api/auth/refresh') {
@@ -16,7 +16,15 @@ async function backend(page, { failFirst = false, reject = '', role = 'caja', re
     else if (path === '/api/database/records/pedidos') {
       calls.reads.push(url.searchParams.get('select'));
       if (readError) { status = 503; response = { message: 'No se puede consultar caja' }; }
-      else response = empty ? [] : [{ ...order, actualizado_en: paid ? '2026-10-16T19:00:01Z' : '2026-10-16T19:00:00Z', estado_pago: paid ? 'pagado' : 'pendiente', estado: paid ? 'entregado' : order.estado, pagos: paid ? [{ comprobante: paid }] : [] }];
+      else {
+        const estadoPago = paid ? 'pagado' : 'pendiente';
+        const filtro = url.searchParams.get('estado_pago');
+        const row = { ...order, estado_pago: estadoPago, estado: paid ? 'entregado' : order.estado,
+          pagos: paid ? [{ id: paid.pago.id, metodo: paid.pago.metodo, monto: paid.total, recibido: paid.pago.monto,
+            vuelto: paid.pago.vuelto, creado_en: paid.pagadoAt, comprobante: paid }] : [] };
+        response = empty || (filtro && filtro !== `eq.${estadoPago}`) ? [] : [row];
+        if (url.searchParams.get('id')?.startsWith('eq.')) response = response[0] || null;
+      }
     } else if (path.includes('/rpc/registrar_cobro')) {
       const body = req.postDataJSON(); calls.push(body);
       if (reject) { status = 400; response = { message: reject }; }
@@ -101,13 +109,15 @@ test('muestra caja vacía en móvil', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('la consulta periódica descarga solo el sello cuando no hay cambios', async ({ page }) => {
-  const calls = await backend(page); await page.goto('/caja');
+test('Caja inactiva no consulta periódicamente ni descarga comprobantes', async ({ page }) => {
+  await page.clock.install();
+  const calls = await backend(page);
+  await page.goto('/caja');
   await expect(page.getByText('Cuenta solicitada', { exact: false })).toBeVisible();
-  const completas = () => calls.reads.filter(select => select !== 'actualizado_en').length;
-  expect(completas()).toBe(1);
-  await expect.poll(() => calls.reads.filter(select => select === 'actualizado_en').length, { timeout: 15000 }).toBeGreaterThan(1);
-  expect(completas()).toBe(1);
+  expect(calls.reads).toHaveLength(2);
+  expect(calls.reads.every(select => !select.includes('comprobante'))).toBe(true);
+  await page.clock.fastForward(120000);
+  expect(calls.reads).toHaveLength(2);
 });
 
 for (const width of [320, 390]) {
@@ -133,19 +143,25 @@ test('el administrador ve el cobro persistido en el resumen de ventas', async ({
 });
 
 test('separa efectivo y ventas del día en Perú e incluye delivery solo cuando está cobrado',async({page})=>{
- await page.clock.install({time:new Date('2026-11-15T02:00:00Z')});
+ await page.clock.install({time:new Date('2026-11-15T04:59:45Z')});
  await backend(page);
  const paid=(id,tipo,metodo,fecha='2026-11-15T01:00:00Z')=>({...order,id,tipo,estado_pago:'pagado',total:'70',pagos:[{id:`pago-${id}`,metodo,monto:'70',recibido:metodo==='efectivo'?'100':'70',vuelto:metodo==='efectivo'?'30':'0',creado_en:fecha}]});
  const rows=[paid('efectivo','delivery','efectivo'),paid('digital','delivery','yape'),paid('ayer','salon','efectivo','2026-11-13T18:00:00Z'),{...order,id:'pendiente',tipo:'delivery',total:'70'}];
- await page.route('**/api/database/records/pedidos?*',route=>route.fulfill({status:200,headers:{'content-range':'0-3/4'},contentType:'application/json',body:JSON.stringify(rows)}));
+ await page.route('**/api/database/records/pedidos?*',route=>{
+  const estado = new URL(route.request().url()).searchParams.get('estado_pago')?.slice(3);
+  return route.fulfill({ json: rows.filter(row => row.estado_pago === estado) });
+ });
+ await page.route('**/rpc/obtener_resumen_caja', route => {
+  const { p_dia } = route.request().postDataJSON();
+  return route.fulfill({ json: p_dia === '2026-11-14' ? { ventas: 140, efectivo: 70, cobrados: 2 } : { ventas: 0, efectivo: 0, cobrados: 0 } });
+ });
  await page.goto('/caja');
  const card=label=>page.locator('.caja-summary-card').filter({has:page.getByText(label,{exact:true})});
  await expect(card('Ventas del día')).toContainText('S/ 140.00');
  await expect(card('Efectivo cobrado del día')).toContainText('S/ 70.00');
  await expect(card('Pedidos cobrados')).toContainText('2');
  await expect(card('Por cobrar')).toContainText('S/ 70.00');
- await page.clock.setSystemTime(new Date('2026-11-15T05:00:01Z'));
- await page.clock.runFor(10000);
+ await page.clock.fastForward(16000);
  await expect(card('Ventas del día')).toContainText('S/ 0.00');
  for(const width of [1280,768,390]) {
   await page.setViewportSize({width,height:844});
@@ -157,7 +173,11 @@ test('confirma la entrega de delivery usando el estado actual y conserva el comp
  await backend(page);
  let estado='en_camino',confirmaciones=0;
  const comprobante={id:order.id,codigo:order.id,tipo:'delivery',cliente:'Cliente reparto',subtotal:42.9,envio:0,total:42.9,estado:'pagado',estadoPedido:'pendiente',createdAt:order.creado_en,pagadoAt:new Date().toISOString(),items:[{id:1,nombre:'Pollo a la brasa entero',cantidad:1,precio:42.9}],pago:{id:'pago-test',metodo:'efectivo',monto:50,importe:42.9,vuelto:7.1}};
- await page.route('**/api/database/records/pedidos?**',route=>route.fulfill({headers:{'content-range':'0-0/1'},json:[{...order,tipo:'delivery',estado,estado_pago:'pagado',actualizado_en:new Date().toISOString(),pagos:[{comprobante}]}]}));
+ await page.route('**/api/database/records/pedidos?**',route=>{
+  const params = new URL(route.request().url()).searchParams;
+  const row = {...order,tipo:'delivery',estado,estado_pago:'pagado',pagos:[{comprobante}]};
+  return route.fulfill({json: params.get('id')?.startsWith('eq.') ? row : params.get('estado_pago') === 'eq.pendiente' ? [] : [row]});
+ });
  await page.route('**/api/database/rpc/confirmar_entrega_delivery',async route=>{
   confirmaciones++;expect(route.request().postDataJSON()).toEqual({p_pedido_id:order.id});
   await new Promise(resolve=>setTimeout(resolve,200));estado='entregado';await route.fulfill({json:order.id});

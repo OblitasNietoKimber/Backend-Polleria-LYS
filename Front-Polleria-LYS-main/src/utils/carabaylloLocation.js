@@ -1,63 +1,42 @@
-/**
- * Utilidades de geolocalización y delimitación de cobertura para el distrito de Carabayllo, Lima.
- */
+import boundary from './carabaylloBoundary.json'
 
-// Centro urbano de Carabayllo (Plaza de Armas / Túpac Amaru / San Pedro)
+// INEI 2017, publicado por MINAM. Fuente y fecha en carabaylloBoundary.json.
 export const CARABAYLLO_CENTER = [-11.8784, -77.0342]
-
-// Límites geográficos aproximados de la zona de reparto en Carabayllo
+const rings = boundary.features[0].geometry.coordinates
+export const CARABAYLLO_ZONE_POLYGON = rings.map(ring => ring.map(([lng, lat]) => [lat, lng]))
+const vertices = rings.flat()
 export const CARABAYLLO_BOUNDS = {
-  minLat: -11.945,
-  maxLat: -11.750,
-  minLng: -77.085,
-  maxLng: -76.960,
+  minLat: Math.min(...vertices.map(p => p[1])), maxLat: Math.max(...vertices.map(p => p[1])),
+  minLng: Math.min(...vertices.map(p => p[0])), maxLng: Math.max(...vertices.map(p => p[0])),
 }
 
-// Polígono que delimita visualmente el área de reparto de Carabayllo en el mapa
-export const CARABAYLLO_ZONE_POLYGON = [
-  [-11.750, -77.035],
-  [-11.770, -76.990],
-  [-11.820, -76.960],
-  [-11.880, -76.965],
-  [-11.930, -77.010],
-  [-11.942, -77.045],
-  [-11.925, -77.070],
-  [-11.885, -77.085],
-  [-11.820, -77.075],
-  [-11.770, -77.055],
-]
-
-/**
- * Verifica si un punto geográfico se encuentra dentro del área de cobertura de Carabayllo.
- */
-export function isWithinCarabayllo(point) {
-  if (!point || typeof point !== 'object') return false
-  const lat = Number(point.lat)
-  const lng = Number(point.lng)
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
-
-  return (
-    lat >= CARABAYLLO_BOUNDS.minLat &&
-    lat <= CARABAYLLO_BOUNDS.maxLat &&
-    lng >= CARABAYLLO_BOUNDS.minLng &&
-    lng <= CARABAYLLO_BOUNDS.maxLng
-  )
-}
-
-/**
- * Valida si un objeto contiene coordenadas latitud/longitud válidas.
- */
 export function isValidPoint(point) {
-  if (!point || typeof point !== 'object') return false
-  const lat = Number(point.lat)
-  const lng = Number(point.lng)
-  return Number.isFinite(lat) && Math.abs(lat) <= 90 && Number.isFinite(lng) && Math.abs(lng) <= 180
+  return !!point && typeof point.lat === 'number' && typeof point.lng === 'number' &&
+    Number.isFinite(point.lat) && Math.abs(point.lat) <= 90 &&
+    Number.isFinite(point.lng) && Math.abs(point.lng) <= 180
 }
+
+function insideRing({ lat: y, lng: x }, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j]
+    const cross = (x - xi) * (yj - yi) - (y - yi) * (xj - xi)
+    if (Math.abs(cross) < 1e-12 && x >= Math.min(xi, xj) && x <= Math.max(xi, xj) && y >= Math.min(yi, yj) && y <= Math.max(yi, yj)) return true
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+export function isWithinCarabayllo(point) {
+  return isValidPoint(point) && insideRing(point, rings[0]) && !rings.slice(1).some(ring => insideRing(point, ring))
+}
+
 
 /**
  * Realiza geocodificación inversa para obtener la dirección legible a partir de coordenadas en Carabayllo.
  */
 export async function reverseGeocodeCarabayllo(lat, lng, signal) {
+  if (!isWithinCarabayllo({ lat, lng })) return null
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
     const res = await fetch(url, {
@@ -69,6 +48,7 @@ export async function reverseGeocodeCarabayllo(lat, lng, signal) {
     if (!res.ok) return null
     const data = await res.json()
     const addr = data.address || {}
+    if (addr.country_code !== 'pe' || !Object.values(addr).some(value => typeof value === 'string' && /^carabayllo$/i.test(value.trim()))) return null
     const road = addr.road || addr.pedestrian || addr.suburb || addr.neighbourhood || addr.city_district || ''
     const houseNumber = addr.house_number || ''
     const street = [road, houseNumber].filter(Boolean).join(' ')
@@ -76,7 +56,7 @@ export async function reverseGeocodeCarabayllo(lat, lng, signal) {
       return `${street}, Carabayllo`
     }
     const displayName = data.display_name ? data.display_name.split(',').slice(0, 2).join(',') : ''
-    return displayName ? `${displayName}, Carabayllo` : 'Carabayllo, Lima'
+    return displayName ? `${displayName}, Carabayllo` : null
   } catch {
     return null
   }
@@ -100,7 +80,7 @@ export async function searchCarabaylloAddresses(query, signal) {
     url.searchParams.set('countrycode', 'PE')
     url.searchParams.set('lat', String(CARABAYLLO_CENTER[0]))
     url.searchParams.set('lon', String(CARABAYLLO_CENTER[1]))
-    url.searchParams.set('bbox', '-77.09,-11.95,-76.95,-11.75')
+    url.searchParams.set('bbox', [CARABAYLLO_BOUNDS.minLng, CARABAYLLO_BOUNDS.minLat, CARABAYLLO_BOUNDS.maxLng, CARABAYLLO_BOUNDS.maxLat].join(','))
     url.searchParams.append('layer', 'street')
     url.searchParams.append('layer', 'house')
 
@@ -112,9 +92,10 @@ export async function searchCarabaylloAddresses(query, signal) {
     for (const feature of Array.isArray(data.features) ? data.features : []) {
       const props = feature?.properties
       const coords = feature?.geometry?.coordinates
-      if (!props || !Array.isArray(coords)) continue
+      if (!props || !Array.isArray(coords) || !isValidPoint({ lat: coords[1], lng: coords[0] })) continue
 
       const point = { lat: Number(coords[1].toFixed(6)), lng: Number(coords[0].toFixed(6)) }
+      if (!isWithinCarabayllo(point)) continue
       const title = [props.street || props.name, props.housenumber].filter(Boolean).join(' ')
       if (!title) continue
 

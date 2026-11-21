@@ -6,6 +6,7 @@ import OrderSummary from '../../components/OrderSummary'
 import { useCart } from '../../context/CartContext'
 import { money } from '../../utils/currency'
 import orderService from '../../services/orderService'
+import { validateCheckout } from '../../utils/checkoutValidation'
 import '../../styles/compras.css'
 
 export default function ResumenPage() {
@@ -16,6 +17,7 @@ export default function ResumenPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [unpaidOrder, setUnpaidOrder] = useState(null)
+  const validationError = Object.values(validateCheckout({ items: cartItems, deliveryType, form, payment }, { checkStock: true }))[0] || ''
 
   useEffect(() => {
     if (payment !== 'tarjeta') {
@@ -63,6 +65,7 @@ export default function ResumenPage() {
       <CheckoutSteps step={3} />
 
       {error && <p role="alert">{error}</p>}
+      {!error && !cartLoading && !unpaidOrder && validationError && <p role="alert">{validationError}</p>}
       {saving && <p role="status">Guardando pedido...</p>}
       {cartLoading && <p role="status">Actualizando los productos del carrito...</p>}
       {(cartError || unavailable) && <p role="alert">{cartError || 'Hay productos no disponibles en el carrito.'}</p>}
@@ -79,7 +82,7 @@ export default function ResumenPage() {
         onBack={() => navigate('/checkout/pago')}
         onConfirm={handleConfirm}
         saving={saving}
-        blocked={cartLoading || Boolean(cartError) || unavailable || Boolean(unpaidOrder)}
+        blocked={cartLoading || Boolean(cartError) || unavailable || Boolean(unpaidOrder) || Boolean(validationError)}
         unpaidOrder={unpaidOrder}
       />
     </section>

@@ -1,5 +1,8 @@
 import { requireInsforge } from '../lib/insforge'
 import { getCurrentUser } from './authService'
+import { assertValidForm, asForm } from '../utils/identityValidation'
+import { normalizeDeliveryForm, normalizeDeliveryType } from '../utils/deliveryValidation'
+import { validateCheckout } from '../utils/checkoutValidation'
 
 export const ORDER_PAGE_SIZE = 20
 export const ORDER_STATUS_STEPS = [
@@ -59,9 +62,16 @@ async function getOrderHistory(id, { before } = {}) {
   if (before) query = query.lt('id', before)
   return unwrap(await query.order('id', { ascending: false }).limit(50)) || []
 }
-async function createOrder({ id, items, deliveryType, form, payment, cardReceipt = null }) {
+async function createOrder(request) {
+  const { id, items, deliveryType, form, payment, cardReceipt = null } = asForm(request)
   const { db } = client()
-  const tipoEntrega = deliveryType === 'pickup' ? 'recojo' : deliveryType
+  if (payment === 'tarjeta' && (!cardReceipt?.success || cardReceipt.status !== 'succeeded')) {
+    throw new Error('Confirma el pago con tarjeta antes de crear el pedido.')
+  }
+  assertValidForm(validateCheckout({ items, deliveryType, form, payment }))
+  assertValidForm(typeof id === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id) ? {} : { id: 'La solicitud del pedido no es válida.' })
+  const tipoEntrega = normalizeDeliveryType(deliveryType)
+  const entrega = normalizeDeliveryForm(form, tipoEntrega)
   const articulos = items.map(({ product, qty }) => ({ id: product.id, qty }))
   let savedId
   if (payment === 'tarjeta') {
@@ -69,13 +79,13 @@ async function createOrder({ id, items, deliveryType, form, payment, cardReceipt
       throw new Error('Confirma el pago con tarjeta antes de crear el pedido.')
     }
     savedId = unwrap(await db.rpc('crear_pedido_cliente_tarjeta', {
-      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: form,
+      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: entrega,
       referencia_pago: cardReceipt.paymentIntentId || cardReceipt.authCode,
       idempotencia_pago: id,
     }))
   } else {
     savedId = unwrap(await db.rpc('crear_pedido_cliente', {
-      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: form, metodo: payment,
+      solicitud_id: id, tipo_entrega: tipoEntrega, articulos, datos_entrega: entrega, metodo: payment,
     }))
   }
   const saved = await getOrderById(savedId)

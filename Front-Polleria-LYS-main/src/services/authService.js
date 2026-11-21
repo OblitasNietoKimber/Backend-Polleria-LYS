@@ -1,11 +1,14 @@
 import { insforge, requireInsforge } from '../lib/insforge';
+import { validateForgotPasswordForm, validateLoginForm, validatePersonalDataForm, validateRegisterForm, validateResetPasswordForm } from './validators';
+import { assertValidForm, asForm, normalizePersonName } from '../utils/identityValidation';
 
 let snapshot = { user: null, loading: true, error: '' };
 let initialization;
 let revision = 0;
 const listeners = new Set();
 const PENDING_PROFILE = 'lys_pending_profile';
-const normalizeEmail = value => (value || '').trim().toLowerCase();
+const normalizeEmail = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
+const personalData = form => ({ nombre: normalizePersonName(form.nombre), apellido: normalizePersonName(form.apellido), telefono: form.telefono.trim() });
 
 export function getAuthSnapshot() { return snapshot; }
 export function subscribeAuth(listener) { listeners.add(listener); return () => listeners.delete(listener); }
@@ -29,16 +32,19 @@ function unwrap({ data, error }) {
 function pendingProfile(email) {
   try {
     const data = JSON.parse(sessionStorage.getItem(PENDING_PROFILE) || 'null');
-    return data?.email === email ? data : null;
+    if (data?.email !== email) return null;
+    if (Object.keys(validatePersonalDataForm(data)).length) {
+      sessionStorage.removeItem(PENDING_PROFILE);
+      return null;
+    }
+    return data;
   } catch { return null; }
 }
 async function loadProfile(authUser) {
   const client = requireInsforge();
   const pending = pendingProfile(authUser.email);
   if (pending) {
-    unwrap(await client.database.from('perfiles').update({
-      nombre: pending.nombre, apellido: pending.apellido, telefono: pending.telefono,
-    }).eq('id', authUser.id).select().single());
+    unwrap(await client.database.from('perfiles').update(personalData(pending)).eq('id', authUser.id).select().single());
     sessionStorage.removeItem(PENDING_PROFILE);
   }
   const profile = unwrap(await client.database.from('perfiles').select('*').eq('id', authUser.id).single());
@@ -84,18 +90,22 @@ export function getCurrentUser() { return snapshot.user; }
 export function isAuthenticated() { return Boolean(snapshot.user); }
 
 export async function register(form) {
+  assertValidForm(validateRegisterForm(form));
   const email = normalizeEmail(form.email);
+  const profile = personalData(form);
   const data = unwrap(await requireInsforge().auth.signUp({
-    email, password: form.password, name: `${form.nombre.trim()} ${form.apellido.trim()}`,
+    email, password: form.password, name: `${profile.nombre} ${profile.apellido}`,
     redirectTo: `${window.location.origin}/login`,
   }));
   sessionStorage.setItem(PENDING_PROFILE, JSON.stringify({
-    email, nombre: form.nombre.trim(), apellido: form.apellido.trim(), telefono: form.telefono.trim(),
+    email, ...profile,
   }));
   if (data?.requireEmailVerification) return { requireEmailVerification: true, email };
   return { user: await syncSession(), requireEmailVerification: false };
 }
-export async function login({ email, password }) {
+export async function login(form) {
+  const { email, password } = asForm(form);
+  assertValidForm(validateLoginForm({ email, password }));
   unwrap(await requireInsforge().auth.signInWithPassword({ email: normalizeEmail(email), password }));
   return syncSession();
 }
@@ -104,19 +114,22 @@ export async function logout() {
   revision++;
   publish({ user: null, loading: false, error: '' });
 }
-export async function verifyEmail({ email, code }) {
+export async function verifyEmail(form) {
+  const { email, code } = asForm(form);
+  assertValidForm(validateForgotPasswordForm({ email }));
+  assertValidForm(typeof code === 'string' && /^[0-9]{6}$/.test(code.trim()) ? {} : { code: 'Ingresa el código de verificación de 6 dígitos.' });
   unwrap(await requireInsforge().auth.verifyEmail({ email: normalizeEmail(email), otp: code.trim() }));
   return syncSession();
 }
 export async function resendVerification(email) {
+  assertValidForm(validateForgotPasswordForm({ email }));
   return unwrap(await requireInsforge().auth.resendVerificationEmail({ email: normalizeEmail(email), redirectTo: `${window.location.origin}/login` }));
 }
 export async function updateProfile(form) {
   const user = getCurrentUser();
   if (!user) throw new Error('Debes iniciar sesión.');
-  const data = unwrap(await requireInsforge().database.from('perfiles').update({
-    nombre: form.nombre.trim(), apellido: form.apellido.trim(), telefono: form.telefono.trim(),
-  }).eq('id', user.id).select().single());
+  assertValidForm(validatePersonalDataForm(form));
+  const data = unwrap(await requireInsforge().database.from('perfiles').update(personalData(form)).eq('id', user.id).select().single());
   const updated = { ...user, ...data };
   publish({ user: updated });
   return updated;
@@ -124,16 +137,23 @@ export async function updateProfile(form) {
 export async function updatePreferences(preferencias) {
   const user = getCurrentUser();
   if (!user) throw new Error('Debes iniciar sesión.');
-  const safePreferences = { notificacionesEmail: Boolean(preferencias.notificacionesEmail), notificacionesPromos: Boolean(preferencias.notificacionesPromos) };
+  const fields = asForm(preferencias);
+  assertValidForm(typeof fields.notificacionesEmail === 'boolean' && typeof fields.notificacionesPromos === 'boolean' &&
+    Object.keys(fields).every(key => ['notificacionesEmail', 'notificacionesPromos'].includes(key)) ? {} : { preferencias: 'Las preferencias deben contener valores booleanos válidos.' });
+  const safePreferences = { notificacionesEmail: fields.notificacionesEmail, notificacionesPromos: fields.notificacionesPromos };
   const data = unwrap(await requireInsforge().database.from('perfiles').update({ preferencias: safePreferences }).eq('id',user.id).select().single());
   const updated = { ...user, ...data };
   publish({ user: updated });
   return updated;
 }
 export async function requestPasswordReset(email) {
+  assertValidForm(validateForgotPasswordForm({ email }));
   return unwrap(await requireInsforge().auth.sendResetPasswordEmail({ email: normalizeEmail(email), redirectTo: `${window.location.origin}/reset-password` }));
 }
-export async function resetPassword({ email, code, password, token }) {
+export async function resetPassword(form) {
+  const { email, code, password, confirmPassword, token } = asForm(form);
+  assertValidForm(validateResetPasswordForm({ email, code, password, confirmPassword, token }));
+  if (!token) assertValidForm(validateForgotPasswordForm({ email }));
   const client = requireInsforge();
   const otp = token || unwrap(await client.auth.exchangeResetPasswordToken({ email: normalizeEmail(email), code: code.trim() })).token;
   unwrap(await client.auth.resetPassword({ newPassword: password, otp }));

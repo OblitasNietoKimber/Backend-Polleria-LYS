@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 async function login(page,role){
- await page.goto('/login');await page.getByLabel('Correo electrónico',{exact:true}).fill(`${role}@local.test`);await page.getByLabel('Contraseña',{exact:true}).fill('Local123!');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();await expect(page).toHaveURL('http://127.0.0.1:5180/');
+ await page.goto('/login');await page.getByLabel('Correo electrónico',{exact:true}).fill(`${role}@local.test`);await page.getByLabel('Contraseña',{exact:true}).fill('Local123!');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();await expect(page).toHaveURL(/\/$/);
 }
 async function rpc(page,action,data){return page.evaluate(async({action,data})=>{
  const {operateFlow}=await import('/src/services/atencionService.js');return operateFlow(action,data);
@@ -93,4 +93,129 @@ test('stock compartido se descuenta desde mesas, bloquea el catálogo y administ
  await c.reload();await expect(card.getByRole('button',{name:'Agregar',exact:true})).toBeEnabled();
  await a.evaluate(async()=>{const {requireInsforge}=await import('/src/lib/insforge.js');const {error}=await requireInsforge().database.rpc('ajustar_inventario',{p_producto_id:1,p_cantidad:198,p_motivo:'Saldo para siguientes pruebas aisladas',p_operacion:crypto.randomUUID()});if(error)throw error;});
  await ac.close();await mc.close();await cc.close();
+});
+
+test('reserva limita el celular y respeta la capacidad aunque se cambien los atributos del formulario', async ({ page }) => {
+ await login(page, 'mesera');
+ await page.goto('/mesas');
+ await page.getByRole('button', { name: /Mesa 08/ }).click();
+ await page.getByRole('button', { name: 'Reservar esta mesa' }).click();
+ await page.clock.setFixedTime(new Date('2020-01-01T22:00:00Z'));
+ await expect(page.getByRole('heading', { name: /Reserva para hoy/ })).toBeVisible();
+
+ const nombre = page.getByLabel('Nombre del cliente / grupo:');
+ const telefono = page.getByLabel('Celular de contacto (opcional):');
+ const comensales = page.getByLabel('Comensales:');
+ const hora = page.getByLabel('Hora programada:');
+ const guardar = page.getByRole('button', { name: 'Guardar reserva' });
+ await expect(hora).toHaveValue('');
+ await nombre.fill('Familia Gómez42');
+ await expect(nombre).toHaveValue('Familia Gómez');
+ await telefono.fill('9876543210');
+ await expect(telefono).toHaveValue('');
+ await expect(page.getByRole('alert')).toContainText('hasta 9 dígitos');
+
+ await telefono.fill('987 654 321');
+ await guardar.click();
+ await expect(page.getByRole('alert')).toContainText('Ingresa una hora válida');
+ await hora.fill('14:00');
+ await guardar.click();
+ await expect(page.getByRole('alert')).toContainText('hora posterior a la actual');
+ await hora.evaluate(input => input.removeAttribute('max'));
+ await hora.fill('23:00');
+ await guardar.click();
+ await expect(page.getByRole('alert')).toContainText('horario de atención');
+ await expect(rpc(page, 'reservar', { mesa: 8, cliente: 'Familia Gómez', hora: '14:00', telefono: '987654321', comensales: 4 })).rejects.toThrow(/hora posterior/);
+ await hora.fill('20:00');
+
+ await comensales.evaluate(input => input.removeAttribute('max'));
+ await comensales.fill('5');
+ await page.getByRole('button', { name: 'Guardar reserva' }).click();
+ await expect(page.getByRole('alert')).toContainText('entre 1 y 4');
+
+ await expect(rpc(page, 'reservar', { mesa: 8, cliente: 'Familia Gómez', hora: '20:00', telefono: '9876543210', comensales: 4 })).rejects.toThrow(/9 dígitos/);
+ await comensales.fill('4');
+ await page.getByRole('button', { name: 'Guardar reserva' }).click();
+ await expect(page.getByRole('button', { name: /Mesa 08/ })).toContainText(/reservada/i);
+});
+
+test('confirmar comanda pide confirmar cuando las porciones suman más de diez pollos', async ({ page }) => {
+ await login(page, 'mesera');
+ const agregar = nombre => page.locator('.plato-card').filter({ has: page.getByText(nombre, { exact: true }) })
+   .getByTitle('Agregar a la comanda', { exact: true });
+ const confirmar = page.getByRole('button', { name: 'Confirmar comanda', exact: true });
+
+ await page.goto('/mesas/10/pedido');
+ for (let i = 0; i < 10; i++) await agregar('Pollo a la brasa entero').click();
+ await confirmar.click();
+ await expect(page).toHaveURL(/\/mesas$/);
+
+ await page.goto('/mesas/09/pedido');
+ for (let i = 0; i < 10; i++) await agregar('Pollo a la brasa entero').click();
+ await agregar('1/2 Pollo a la brasa').click();
+ await agregar('1/2 Pollo a la brasa').click();
+
+ const [mensaje] = await Promise.all([
+  page.waitForEvent('dialog').then(async dialog => {
+   const message = dialog.message();
+   await dialog.dismiss();
+   return message;
+  }),
+  confirmar.click(),
+ ]);
+ expect(mensaje).toContain('11 pollos');
+ await expect(page).toHaveURL(/\/mesas\/09\/pedido$/);
+ await expect(page.locator('.stepper-qty')).toHaveText(['10', '2']);
+ expect((await snapshot(page)).cuentas.some(cuenta => Number(cuenta.mesa_id) === 9)).toBe(false);
+
+ page.once('dialog', dialog => dialog.accept());
+ await confirmar.click();
+ await expect(page).toHaveURL(/\/mesas$/);
+ await expect(page.getByRole('button', { name: /Mesa 09/ })).toContainText(/ocupada/i);
+});
+
+
+test('la mesera envía una comanda adicional durante la preparación y caja emite un recibo', async ({ browser }) => {
+  const [m, k, c] = await Promise.all([browser.newPage(), browser.newPage(), browser.newPage()]);
+  try {
+    await Promise.all([login(m, 'mesera'), login(k, 'cocina'), login(c, 'caja')]);
+    await m.goto('/mesas/04/pedido');
+    await m.locator('.plato-card').filter({ has: m.getByText('Pollo a la brasa entero', { exact: true }) })
+      .getByTitle('Agregar a la comanda', { exact: true }).click();
+    await m.getByRole('button', { name: 'Confirmar comanda', exact: true }).click();
+    await expect(m).toHaveURL(/\/mesas$/);
+
+    await k.goto('/cocina');
+    const ticket = k.locator('.cocina-card').filter({ hasText: /Mesa 04/ });
+    await ticket.getByRole('button', { name: 'Comenzar', exact: true }).click();
+    await expect(ticket.getByRole('button', { name: 'Marcar listo', exact: true })).toBeVisible();
+    await m.reload();
+    await m.getByRole('button', { name: /Mesa 04/ }).click();
+    await expect(m.getByRole('button', { name: 'Editar comanda', exact: true })).toHaveCount(0);
+    await m.getByRole('button', { name: 'Nueva comanda para esta mesa', exact: true }).click();
+    await expect(m.locator('.comanda-item')).toHaveCount(0);
+    await m.locator('.plato-card').filter({ has: m.getByText('1/2 Pollo a la brasa', { exact: true }) })
+      .getByTitle('Agregar a la comanda', { exact: true }).click();
+    await m.getByRole('button', { name: 'Confirmar comanda adicional', exact: true }).click();
+    await expect(m).toHaveURL(/\/mesas$/);
+
+    await k.reload();
+    await expect(ticket).toHaveCount(2);
+    await expect(ticket.filter({ hasText: 'Pollo a la brasa entero' }).getByRole('button', { name: 'Marcar listo' })).toBeVisible();
+    await expect(ticket.filter({ hasText: '1/2 Pollo a la brasa' }).getByRole('button', { name: 'Comenzar' })).toBeVisible();
+
+    await m.getByRole('button', { name: /Mesa 04/ }).click();
+    await m.getByRole('button', { name: 'Solicitar cuenta para caja', exact: true }).click();
+    await c.goto('/caja');
+    await expect(c.getByRole('tab', { name: /Por cobrar\s*1/ })).toBeVisible();
+    await c.getByLabel('Monto recibido').fill('200');
+    await c.getByRole('button', { name: /^Cobrar S\// }).click();
+    const recibo = c.getByRole('dialog');
+    await expect(recibo).toContainText('Pollo a la brasa entero');
+    await expect(recibo).toContainText('1/2 Pollo a la brasa');
+    await c.getByRole('button', { name: 'Cerrar comprobante', exact: true }).click();
+    await expect(c.getByRole('tab', { name: /Por cobrar\s*0/ })).toBeVisible();
+  } finally {
+    await Promise.all([m.close(), k.close(), c.close()]);
+  }
 });

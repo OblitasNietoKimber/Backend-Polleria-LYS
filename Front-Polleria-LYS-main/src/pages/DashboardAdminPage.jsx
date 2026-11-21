@@ -1,4 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import useOrderResource from '../hooks/useOrderResource';
+import useFechaLima from '../hooks/useFechaLima';
+import { ORDER_EVENT, PAYMENT_EVENT } from '../services/orderUpdates';
 import { FLOW_PREVIEW } from '../services/atencionService';
 const FlowReturnsSummary = lazy(() => import('../components/flow/FlowReturnsSummary'));
 import { Link } from "react-router-dom";
@@ -14,68 +17,68 @@ import VentasMetodoPago from "../components/admin/VentasMetodoPago";
 import AdminNavTabs from "../components/admin/AdminNavTabs";
 import "../styles/dashboard.css";
 
+const eventosMetricas = [ORDER_EVENT, PAYMENT_EVENT];
+const eventosVentas = [PAYMENT_EVENT];
+
 export default function DashboardAdminPage() {
   const [filtros, setFiltros] = useState({ fechaInicio: "", fechaFin: "" });
-  const [datos, setDatos] = useState(null);
-  const [historial, setHistorial] = useState({ ventas: [], siguiente: null });
-  const [cargando, setCargando] = useState(true);
+  const [paginasExtra, setPaginasExtra] = useState(null);
   const [cargandoMas, setCargandoMas] = useState(false);
-  const [error, setError] = useState("");
+  const [errorPagina, setErrorPagina] = useState("");
   const [revision, setRevision] = useState(0);
   const filtrosActuales = useRef(filtros);
-  const actualizar = useCallback(() => setRevision(valor => valor + 1), []);
+  const loadDashboard = useCallback(() => dashboardService.getDashboard(filtros), [filtros]);
+  const loadHistorial = useCallback(() => dashboardService.getHistorialVentas(filtros), [filtros]);
+  const { data: datos, loading: cargando, error: errorMetricas, retry: recargarMetricas } =
+    useOrderResource(loadDashboard, { events: eventosMetricas });
+  const { data: primeraPagina, error: errorHistorial, retry: recargarHistorial } =
+    useOrderResource(loadHistorial, { events: eventosVentas });
+  const historial = paginasExtra?.base === primeraPagina ? paginasExtra : primeraPagina;
+  const error = errorPagina || errorMetricas || errorHistorial;
 
+  const fechaOperativa = useFechaLima();
+  const ultimaFecha = useRef(fechaOperativa);
   useEffect(() => {
-    let activo = true, consultando = false, clave = null;
-    filtrosActuales.current = filtros;
-    async function cargar() {
-      if (consultando || document.visibilityState === 'hidden') return;
-      consultando = true;
-      try {
-        // El cambio de fecha también renueva las ventas del día aunque no haya cobros nuevos.
-        const cambios = `${await dashboardService.getSelloCambios()}|${new Date().toDateString()}`;
-        if (cambios === clave) { if (activo) setError(""); return; }
-        const [dashboard, pagina] = await Promise.all([
-          dashboardService.getDashboard(filtros),
-          dashboardService.getHistorialVentas(filtros),
-        ]);
-        clave = cambios;
-        if (activo) { setDatos(dashboard); setHistorial(pagina); setError(""); }
-      } catch (err) {
-        if (activo) setError(err.message || "No se pudo consultar las ventas.");
-      } finally {
-        consultando = false;
-        if (activo) setCargando(false);
-      }
-    }
-    cargar();
-    const timer = setInterval(cargar, 10000);
-    document.addEventListener('visibilitychange', cargar);
-    return () => { activo = false; clearInterval(timer); document.removeEventListener('visibilitychange', cargar); };
-  }, [filtros, revision]);
+    if (ultimaFecha.current === fechaOperativa) return;
+    ultimaFecha.current = fechaOperativa;
+    void recargarMetricas();
+  }, [fechaOperativa, recargarMetricas]);
+
+  function actualizar() {
+    setErrorPagina("");
+    setRevision(valor => valor + 1);
+    void recargarMetricas();
+    void recargarHistorial();
+  }
 
   const cargarMas = async () => {
+    if (!historial?.siguiente || cargandoMas) return;
     const consulta = filtrosActuales.current;
     setCargandoMas(true);
+    setErrorPagina("");
     try {
       const pagina = await dashboardService.getHistorialVentas(consulta, { siguiente: historial.siguiente });
       if (filtrosActuales.current !== consulta) return;
-      setHistorial(actual => ({ ventas: [...actual.ventas, ...pagina.ventas], siguiente: pagina.siguiente }));
+      setPaginasExtra({ base: primeraPagina, ventas: [...historial.ventas, ...pagina.ventas], siguiente: pagina.siguiente });
     } catch (err) {
-      setError(err.message || "No se pudo consultar el historial de ventas.");
+      if (filtrosActuales.current === consulta) setErrorPagina(err.message || "No se pudo consultar el historial de ventas.");
     } finally {
       setCargandoMas(false);
     }
   };
 
-  const cambiarFiltros = (nuevos) => { setCargando(true); setFiltros(nuevos); };
+  const cambiarFiltros = nuevos => {
+    filtrosActuales.current = nuevos;
+    setErrorPagina("");
+    setFiltros(nuevos);
+  };
   const limpiarFiltros = () => cambiarFiltros({ fechaInicio: "", fechaFin: "" });
 
   return (
     <div className="lys-root admin-screen">
       <main className="admin-content">
         <AdminNavTabs />
-        {FLOW_PREVIEW && <Suspense fallback={null}><FlowReturnsSummary filters={filtros} revision={revision}/></Suspense>}
+        {FLOW_PREVIEW && <Suspense fallback={null}><FlowReturnsSummary key={revision} filters={filtros} /></Suspense>}
         <section className="admin-page-head">
           <div>
             <h1>DASHBOARD</h1>
@@ -115,7 +118,7 @@ export default function DashboardAdminPage() {
 
         <section className="admin-double-grid">
           <Ventas7Dias ventas={datos?.ventasPorDia} />
-          <HistorialVentas ventas={historial.ventas} siguiente={historial.siguiente} cargandoMas={cargandoMas} onCargarMas={cargarMas} />
+          <HistorialVentas ventas={historial?.ventas || []} siguiente={historial?.siguiente} cargandoMas={cargandoMas} onCargarMas={cargarMas} />
         </section>
       </main>
     </div>

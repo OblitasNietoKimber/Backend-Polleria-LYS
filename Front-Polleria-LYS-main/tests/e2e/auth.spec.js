@@ -87,6 +87,64 @@ test('registro conserva datos personales tras verificar el correo', async ({ pag
   await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue('Kimber');
   expect(calls.some(c => c.path.endsWith('/records/perfiles') && c.method === 'PATCH' && !('rol' in c.body))).toBeTruthy();
 });
+
+test('cambiar el HTML de nombre a number no permite registrarse ni solicitar el código', async ({ page }) => {
+  const calls = await backend(page);
+  await page.goto('/register');
+  const name = page.getByLabel('Nombre', { exact: true });
+  await name.evaluate(input => { input.type = 'number'; input.removeAttribute('maxlength'); });
+  await name.fill('123456');
+  await expect(name).toHaveValue('');
+  await page.getByLabel('Apellido', { exact: true }).fill('Pérez');
+  await page.getByLabel('Correo electrónico', { exact: true }).fill(user.email);
+  await page.getByLabel('Teléfono', { exact: true }).fill('987654321');
+  await page.getByLabel('Contraseña', { exact: true }).fill('Secure123');
+  await page.getByLabel('Confirmar contraseña', { exact: true }).fill('Secure123');
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
+  await expect(page.getByText('Ingresa tu nombre (mínimo 2 caracteres).', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/register$/);
+  expect(calls.filter(call => call.method === 'POST' && call.path.endsWith('/auth/users'))).toHaveLength(0);
+});
+
+test('un perfil con input manipulado a number no envía cambios al backend', async ({ page }) => {
+  const calls = await backend(page, { signedIn: true });
+  await page.goto('/profile');
+  const name = page.getByLabel('Nombre', { exact: true });
+  await name.evaluate(input => { input.type = 'number'; });
+  await name.fill('123456');
+  await expect(name).toHaveValue('');
+  await page.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
+  await expect(page.getByText('Ingresa tu nombre (mínimo 2 caracteres).', { exact: true })).toBeVisible();
+  expect(calls.filter(call => call.method === 'PATCH' && call.path.endsWith('/records/perfiles'))).toHaveLength(0);
+});
+
+for (const route of ['/register', '/profile']) {
+  test(`impide escribir y pegar números en nombre y apellido de ${route}`, async ({ page }) => {
+    await backend(page, { signedIn: route === '/profile' });
+    await page.goto(route);
+    for (const label of ['Nombre', 'Apellido']) {
+      const input = page.getByLabel(label, { exact: true });
+      await input.fill('');
+      await input.pressSequentially('María123');
+      await expect(input).toHaveValue('María');
+      await input.fill('');
+      await input.evaluate(element => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', '123١٢٣１２３');
+        element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+      });
+      await expect(input).toHaveValue('');
+      await input.evaluate(element => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', 'María2 José3');
+        element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+      });
+      await expect(input).toHaveValue('María José');
+      await input.fill('José99');
+      await expect(input).toHaveValue('José');
+    }
+  });
+}
 test('recuperacion nunca muestra codigo y usa el token de correo', async ({ page }) => {
   const calls = await backend(page);
   await page.goto('/forgot-password');

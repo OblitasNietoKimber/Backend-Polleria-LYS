@@ -1,6 +1,9 @@
 import "../styles/cocina.css";
 import { useCallback, useState } from 'react';
 import useOrderResource from '../hooks/useOrderResource';
+import { KITCHEN_HISTORY_EVENT } from '../services/orderUpdates';
+
+const eventosHistorial = [KITCHEN_HISTORY_EVENT];
 import cocinaService from "../services/cocinaService";
 import CocinaNavLateral from "../components/cocina/CocinaNavLateral";
 import PedidosFinalizados from "../components/cocina/PedidosFinalizados";
@@ -21,7 +24,7 @@ function dentroDeDias(fechaISO, dias) {
 export default function HistorialCocinaPage() {
   const [page, setPage] = useState(0);
   const load = useCallback(() => cocinaService.getPedidosFinalizados({ page }), [page]);
-  const { data, loading, error, retry } = useOrderResource(load);
+  const { data, loading, error, retry } = useOrderResource(load, { events: eventosHistorial });
   const finalizados = data || [];
   const sinFecha = finalizados.filter(p => !(p.entregadoEn || p.finalizadoAt));
   const deHoy = finalizados.filter((p) => esHoy(p.entregadoEn || p.finalizadoAt));

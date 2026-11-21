@@ -1,6 +1,6 @@
 import { requireInsforge } from '../lib/insforge';
 import { getCurrentUser } from './authService';
-import {FLOW_PREVIEW,getFlow,operateFlow,pendingKitchen} from './atencionService';
+import {FLOW_PREVIEW,operateFlow,pendingKitchen} from './atencionService';
 export const ESTADOS_COCINA = { NUEVO: 'nuevo', EN_PREPARACION: 'en_preparacion', LISTO: 'listo' };
 export const HISTORY_PAGE_SIZE = 50;
 const states = { pendiente: 'nuevo', en_preparacion: 'en_preparacion', listo: 'listo', entregado: 'entregado' };
@@ -46,28 +46,49 @@ export function mapPedido(row) {
     items: [...items.values()].map(item => ({ ...item,
       cantidad: item.cantidad - (entregados.get(String(item.productoId)) || 0) })).filter(item => item.cantidad > 0) };
 }
-async function getPedidosActivos() {
-  if(FLOW_PREVIEW){
-    database();const data=await getFlow();
-    return data.cuentas.filter(p=>['pendiente','en_preparacion','listo'].includes(p.estado)&&pendingKitchen(p).length).map(p=>({...mapPedido({...p,entregas_cocina:p.entregas,detalles_pedido:p.items,historial_estados_pedido:p.historial,mesas:p.mesa_id?{numero:data.mesas.find(m=>m.id===p.mesa_id)?.numero}:null}),cuenta:p,version:p.version_cuenta}));
-  }
+const activeStates = ['pendiente', 'en_preparacion', 'listo'];
+const flowFields = fields + ',total,version_cuenta,cuenta_principal_id,cocina_cancelada_en,incidencias_atencion(tipo,estado,motivo)';
+
+function mapActive(row, legacy) {
+  const pedido = mapPedido({ ...row, entregaDisponible: !legacy });
+  if (!FLOW_PREVIEW) return pedido;
+  const cuenta = { ...row, items: row.detalles_pedido, entregas: row.entregas_cocina, incidencias: row.incidencias_atencion };
+  return { ...pedido, items: pendingKitchen(cuenta).length ? pedido.items : [], cuenta, version: row.version_cuenta };
+}
+
+const ordenarPedidos = (a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || a.id.localeCompare(b.id);
+
+async function consultarActivos(ids) {
   const db = database(), result = [];
   let legacy = false;
   for (let offset = 0; ; offset += 100) {
     const read = () => {
-      let query = db.from('pedidos').select(legacy ? legacyFields : fields).in('estado',['pendiente','en_preparacion','listo']);
-      if (!legacy) query = query.is('cocina_entregado_en',null);
-      return query.order('creado_en',{ascending:true}).order('id',{ascending:true}).range(offset,offset+99);
+      const selection = FLOW_PREVIEW ? flowFields : legacy ? legacyFields : fields;
+      let query = db.from('pedidos').select(selection).in('estado', activeStates);
+      if (!legacy && !FLOW_PREVIEW) query = query.is('cocina_entregado_en', null);
+      if (ids) query = query.in('id', ids);
+      return query.order('creado_en', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 99);
     };
     let response = await read();
-    if (!legacy && missingDeliverySchema(response.error)) {
+    if (!FLOW_PREVIEW && !legacy && missingDeliverySchema(response.error)) {
       legacy = true;
       response = await read();
     }
     const rows = unwrap(response) || [];
-    result.push(...rows.map(row => mapPedido({ ...row, entregaDisponible: !legacy })).filter(pedido => pedido.items.length));
-    if (rows.length < 100) return result;
+    result.push(...rows.map(row => mapActive(row, legacy)).filter(pedido => pedido.items.length));
+    if (rows.length < 100 || (ids && rows.length >= ids.length)) return result;
   }
+}
+
+function getPedidosActivos() {
+  return consultarActivos();
+}
+
+async function actualizarPedidosActivos(actuales, cambios) {
+  const ids = [...new Set(cambios.map(cambio => cambio.pedidoId))];
+  if (ids.some(id => !id)) return getPedidosActivos();
+  const actualizados = await consultarActivos(ids);
+  return [...actuales.filter(pedido => !ids.includes(pedido.id)), ...actualizados].sort(ordenarPedidos);
 }
 async function getPedidosFinalizados({ page = 0 } = {}) {
   if (!Number.isSafeInteger(page) || page < 0) throw new Error('Página inválida.');
@@ -95,4 +116,4 @@ async function cambiarEstado(pedido, nuevoEstado) {
   return unwrap(await database().rpc('cambiar_estado_cocina', { p_pedido_id: pedido.id,
     p_estado_actual: backendStates[pedido.estadoCocina], p_nuevo_estado: backendStates[nuevoEstado] }));
 }
-export default { getPedidosActivos, getPedidosFinalizados, cambiarEstado };
+export default { getPedidosActivos, actualizarPedidosActivos, getPedidosFinalizados, cambiarEstado };

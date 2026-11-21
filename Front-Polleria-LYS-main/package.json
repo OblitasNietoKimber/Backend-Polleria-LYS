@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
+    "test:e2e:validaciones": "playwright test --config playwright.validaciones.config.js tests/e2e/auth.spec.js e2e/orders.spec.js --workers=1",
     "test:security": "node tests/integration/security.mjs",
     "test:catalog-read": "node tests/integration/catalog-read.mjs",
     "test:caja-read": "node tests/integration/caja-read.mjs",

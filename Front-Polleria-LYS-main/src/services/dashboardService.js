@@ -53,10 +53,4 @@ export async function getHistorialVentas(filtros, { limite = 10, siguiente = nul
   }), 'No se pudo consultar el historial de ventas.');
   return { ventas: (data?.ventas || []).map(normalizarVenta), siguiente: data?.siguiente || null };
 }
-export async function getSelloCambios() {
-  const { data, count, error } = await database().from('pedidos')
-    .select('actualizado_en', { count: 'exact' }).order('actualizado_en', { ascending: false }).limit(1);
-  if (error) throw new Error(error.message || 'No se pudo comprobar si cambiaron las ventas.');
-  return JSON.stringify([count, data?.[0]?.actualizado_en ?? null]);
-}
-export default { getDashboard, getHistorialVentas, getSelloCambios };
+export default { getDashboard, getHistorialVentas };

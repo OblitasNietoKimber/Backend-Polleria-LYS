@@ -5,19 +5,22 @@
  * autenticación (login, registro, recuperar/cambiar contraseña) y perfil.
  */
 
+import { asForm, EMAIL_MAX_LENGTH, getPersonNameError, normalizePersonName, PASSWORD_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from '../utils/identityValidation';
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^9\d{8}$/;
 
 export function isValidEmail(email) {
-  return EMAIL_REGEX.test((email || '').trim());
+  return typeof email === 'string' && email.trim().length <= EMAIL_MAX_LENGTH && EMAIL_REGEX.test(email.trim());
 }
 
 export function isValidPhone(phone) {
-  return PHONE_REGEX.test((phone || '').trim());
+  return typeof phone === 'string' && PHONE_REGEX.test(phone.trim());
 }
 
 export function getPasswordError(password) {
-  if (!password) return 'Ingresa una contraseña.';
+  if (typeof password !== 'string' || !password) return 'Ingresa una contraseña.';
+  if (password.length > PASSWORD_MAX_LENGTH) return `La contraseña no puede superar los ${PASSWORD_MAX_LENGTH} caracteres.`;
   if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
   if (!/[a-zA-Z]/.test(password)) return 'La contraseña debe incluir al menos una letra.';
   if (!/[0-9]/.test(password)) return 'La contraseña debe incluir al menos un número.';
@@ -25,6 +28,7 @@ export function getPasswordError(password) {
 }
 
 export function validateLoginForm(form) {
+  form = asForm(form);
   const errors = {};
 
   if (!form.email) {
@@ -33,7 +37,7 @@ export function validateLoginForm(form) {
     errors.email = 'Ingresa un correo electrónico válido.';
   }
 
-  if (!form.password) {
+  if (typeof form.password !== 'string' || !form.password) {
     errors.password = 'Ingresa tu contraseña.';
   }
 
@@ -41,25 +45,17 @@ export function validateLoginForm(form) {
 }
 
 export function validateRegisterForm(form) {
-  const errors = {};
-
-  if (!form.nombre || form.nombre.trim().length < 2) {
-    errors.nombre = 'Ingresa tu nombre (mínimo 2 caracteres).';
-  }
-  if (!form.apellido || form.apellido.trim().length < 2) {
-    errors.apellido = 'Ingresa tu apellido (mínimo 2 caracteres).';
+  form = asForm(form);
+  const errors = validatePersonalDataForm(form);
+  if (!errors.nombre && !errors.apellido &&
+      [...`${normalizePersonName(form.nombre)} ${normalizePersonName(form.apellido)}`].length > PERSON_NAME_MAX_LENGTH) {
+    errors.nombre = `El nombre y apellido juntos no pueden superar los ${PERSON_NAME_MAX_LENGTH} caracteres.`;
   }
   if (!form.email) {
     errors.email = 'Ingresa tu correo electrónico.';
   } else if (!isValidEmail(form.email)) {
     errors.email = 'Ingresa un correo electrónico válido.';
   }
-  if (!form.telefono) {
-  errors.telefono = 'Ingresa tu número de teléfono.';
-} else if (!isValidPhone(form.telefono)) {
-  errors.telefono = 'El celular debe comenzar con 9 y tener 9 dígitos.';
-}
-
   const passwordError = getPasswordError(form.password);
   if (passwordError) errors.password = passwordError;
 
@@ -71,6 +67,7 @@ export function validateRegisterForm(form) {
 }
 
 export function validateForgotPasswordForm(form) {
+  form = asForm(form);
   const errors = {};
   if (!form.email) {
     errors.email = 'Ingresa tu correo electrónico.';
@@ -81,9 +78,13 @@ export function validateForgotPasswordForm(form) {
 }
 
 export function validateResetPasswordForm(form) {
+  form = asForm(form);
   const errors = {};
 
-  if (!form.token && !/^[0-9]{6}$/.test(form.code || '')) {
+  if (form.token != null && (typeof form.token !== 'string' || !form.token || form.token.length > 8192)) {
+    errors.token = 'El enlace de recuperación no es válido.';
+  }
+  if (!form.token && (typeof form.code !== 'string' || !/^[0-9]{6}$/.test(form.code.trim()))) {
     errors.code = 'Ingresa el código de 6 dígitos enviado a tu correo.';
   }
 
@@ -98,6 +99,7 @@ export function validateResetPasswordForm(form) {
 }
 
 export function validateChangePasswordForm(form) {
+  form = asForm(form);
   const errors = {};
 
   if (!form.currentPassword) {
@@ -119,14 +121,13 @@ export function validateChangePasswordForm(form) {
 }
 
 export function validatePersonalDataForm(form) {
+  form = asForm(form);
   const errors = {};
 
-  if (!form.nombre || form.nombre.trim().length < 2) {
-    errors.nombre = 'Ingresa un nombre válido.';
-  }
-  if (!form.apellido || form.apellido.trim().length < 2) {
-    errors.apellido = 'Ingresa un apellido válido.';
-  }
+  const nombreError = getPersonNameError(form.nombre, { requiredMessage: 'Ingresa tu nombre (mínimo 2 caracteres).' });
+  const apellidoError = getPersonNameError(form.apellido, { label: 'apellido', requiredMessage: 'Ingresa tu apellido (mínimo 2 caracteres).' });
+  if (nombreError) errors.nombre = nombreError;
+  if (apellidoError) errors.apellido = apellidoError;
   if (!form.telefono) {
     errors.telefono = 'Ingresa tu número de teléfono.';
   } else if (!isValidPhone(form.telefono)) {

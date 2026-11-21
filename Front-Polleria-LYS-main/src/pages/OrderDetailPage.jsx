@@ -15,7 +15,7 @@ export default function OrderDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const load = useCallback(() => orderService.getOrderById(id), [id])
-  const { data: order, loading, error, retry } = useOrderResource(load)
+  const { data: order, loading, error, retry } = useOrderResource(load, { orderId: id })
   const [copied, setCopied] = useState(false)
 
   if (loading) return <p role="status">Cargando pedido...</p>;

@@ -17,7 +17,7 @@ function fixture() {
     if(value==='2')ws.send('3');
    });
   });
-  await page.route('https://b9zz47j5.us-east.insforge.app/**',async route=>{
+  await page.route('https://8bwzqx2s.us-east.insforge.app/**',async route=>{
    const request=route.request(),url=new URL(request.url());let response={},status=200;
    if(url.pathname==='/api/auth/refresh')response={user:{id:ids[role],email:`${role}@example.test`,emailVerified:true},accessToken:`${btoa('{"alg":"HS256"}')}.${btoa(JSON.stringify({sub:ids[role],exp:Math.floor(Date.now()/1000)+3600}))}.test`};
    else if(url.pathname.endsWith('/perfiles'))response={id:ids[role],rol:role,nombre:role};
@@ -40,7 +40,7 @@ function fixture() {
    } else if(url.pathname.endsWith('/pedidos')) {
     const mapped={...row,historial_estados_pedido:history};
     if(url.searchParams.get('select')==='estado')response={estado:row.estado};
-    else if(url.searchParams.has('id'))response=mapped;
+    else if(url.searchParams.get('id')?.startsWith('eq.'))response=mapped;
     else if(url.searchParams.get('estado')==='in.(listo,entregado)')response=['listo','entregado'].includes(row.estado)?[mapped]:[];
     else response=['entregado','en_camino'].includes(row.estado)||row.cocina_entregado_en?[]:[mapped];
    } else if(url.pathname.endsWith('/historial_estados_pedido'))response=history;
@@ -91,9 +91,18 @@ test('muestra entregados e historial del servidor en el panel móvil',async({pag
  const backend=fixture();backend.row.estado='listo';await backend.install(page);await backend.installHistory?.();await page.setViewportSize({width:390,height:844});await page.goto('/cocina/historial');
  await expect(page.locator('.cocina-finalizado-id').first()).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
-test('recupera cambios por consulta automática cuando WebSocket no está disponible',async({page})=>{
- const backend=fixture();await backend.install(page);await page.routeWebSocket('**/socket.io/**',ws=>ws.close());await page.goto('/cocina');
- await expect(page.getByRole('button',{name:'Comenzar'})).toBeVisible();backend.row.estado='en_preparacion';backend.row.actualizado_en='2026-10-16T22:00:00Z';await expect(page.getByRole('button',{name:'Marcar listo'})).toBeVisible({timeout:8000});
+test('sin WebSocket avisa y permite iniciar una recarga manual', async ({ page }) => {
+ const backend = fixture();
+ await page.clock.install();
+ await backend.install(page);
+ await page.routeWebSocket('**/socket.io/**', ws => ws.close());
+ await page.goto('/cocina');
+ await expect(page.getByRole('button', { name: 'Comenzar' })).toBeVisible();
+ await page.clock.fastForward(11000);
+ await expect(page.getByText(/Actualización en vivo no disponible/)).toBeVisible();
+ backend.row.estado = 'en_preparacion';
+ await page.reload();
+ await expect(page.getByRole('button', { name: 'Marcar listo' })).toBeVisible();
 });
 
 test('actualiza la lista del cliente al recibir un cambio desde cocina',async({page})=>{

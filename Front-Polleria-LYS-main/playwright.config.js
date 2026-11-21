@@ -12,7 +12,7 @@ export default defineConfig({
     command: 'npm run dev -- --host localhost', url: 'http://localhost:5173', reuseExistingServer: false,
     env: {
       VITE_FLUJO_ATENCIONES: 'false',
-      VITE_INSFORGE_BASE_URL: 'https://b9zz47j5.us-east.insforge.app',
+      VITE_INSFORGE_BASE_URL: 'https://8bwzqx2s.us-east.insforge.app',
       VITE_INSFORGE_ANON_KEY: 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.browser-test',
     },
   },

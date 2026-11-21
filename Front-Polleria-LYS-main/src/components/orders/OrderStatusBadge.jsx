@@ -1,8 +1,7 @@
-import { ORDER_STATUS_STEPS } from '../../services/orderService'
-import { useLiveOrderStatus } from '../../hooks/useLiveOrderStatus'
+import orderService, { ORDER_STATUS_STEPS } from '../../services/orderService'
 
 export default function OrderStatusBadge({ order }) {
-  const status = useLiveOrderStatus(order)
+  const status = orderService.getOrderStatus(order)
   const label = ORDER_STATUS_STEPS.find((s) => s.key === status)?.label || (status === 'cancelado' ? 'Cancelado' : 'Pendiente')
 
   return (

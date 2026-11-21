@@ -1,5 +1,6 @@
 import { AlertCircle, CreditCard, Lock } from 'lucide-react'
-import { BRAND_LABELS, detectCardBrand, formatCardNumber, formatCvv, formatExpiry } from '../utils/cardValidation'
+import { detectCardBrand, formatCardNumber, formatCvv, formatExpiry } from '../utils/cardValidation'
+import FixedLengthInput from './common/FixedLengthInput'
 
 export default function CardPaymentForm({
   card,
@@ -72,7 +73,7 @@ export default function CardPaymentForm({
           {/* Número de tarjeta (máximo 16 dígitos) */}
           <div className="stripe-field-group">
             <div className="stripe-input-wrapper">
-              <input
+              <FixedLengthInput
                 className={`stripe-input stripe-input-card-number ${errors.number ? 'err' : ''}`}
                 value={card?.number || ''}
                 onChange={handleNumberChange}
@@ -114,7 +115,7 @@ export default function CardPaymentForm({
           {/* Fila Fecha de caducidad y Código de seguridad */}
           <div className="stripe-card-row">
             <div className="stripe-field-group">
-              <input
+              <FixedLengthInput
                 className={`stripe-input ${errors.expiry ? 'err' : ''}`}
                 value={card?.expiry || ''}
                 onChange={handleExpiryChange}
@@ -136,7 +137,7 @@ export default function CardPaymentForm({
 
             <div className="stripe-field-group">
               <div className="stripe-input-wrapper">
-                <input
+                <FixedLengthInput
                   className={`stripe-input ${errors.cvv ? 'err' : ''}`}
                   value={card?.cvv || ''}
                   onChange={handleCvvChange}

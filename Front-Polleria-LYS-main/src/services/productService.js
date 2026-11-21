@@ -36,17 +36,36 @@ export async function getCategories() {
   }
 }
 
-export async function getProducts({ search = '', category = 'todos' } = {}) {
+export async function getProducts({ search = '', category = 'todos', inventoryIds, productIds } = {}) {
   const term = search.trim()
   const products = []
   for (let from = 0; ; from += 100) {
     let query = database().from('productos_catalogo').select(CATALOG_COLUMNS)
+    if (productIds) query = query.in('id', productIds)
+    if (inventoryIds) query = query.in('inventario_id', inventoryIds)
     if (category !== 'todos') query = query.eq('categoria_id', category)
     if (term) query = query.ilike('nombre', `%${term.replace(/[\\%_]/g, '\\$&')}%`)
     const rows = unwrap(await query.order('id').range(from, from + 99)) || []
     products.push(...rows.map(productFromRow))
     if (rows.length < 100) return products
   }
+}
+
+export async function updateCatalogProducts(previous, changes, filters = {}) {
+  const inventoryIds = new Set()
+  const productIds = new Set()
+  for (const change of changes) {
+    if (change.recurso === 'stock' && change.inventarioId) inventoryIds.add(change.inventarioId)
+    else if (change.recurso === 'productos' && change.productoId) productIds.add(change.productoId)
+    else return getProducts(filters)
+  }
+  const [stockRows, productRows] = await Promise.all([
+    inventoryIds.size ? getProducts({ ...filters, inventoryIds: [...inventoryIds] }) : [],
+    productIds.size ? getProducts({ ...filters, productIds: [...productIds] }) : [],
+  ])
+  const unchanged = previous.filter(product => !inventoryIds.has(product.inventoryId) && !productIds.has(product.id))
+  const products = new Map([...unchanged, ...stockRows, ...productRows].map(product => [product.id, product]))
+  return [...products.values()].sort((a, b) => a.id - b.id)
 }
 
 function productId(value) {
@@ -62,6 +81,21 @@ export async function getProduct(value) {
   const row = unwrap(await database().from('productos_catalogo').select(CATALOG_COLUMNS)
     .eq('id', id).maybeSingle())
   return row ? productFromRow(row) : null
+}
+
+export async function getCartProducts(values) {
+  const ids = [...new Set(values.map(productId))]
+  if (ids.length === 1) {
+    const product = await getProduct(ids[0])
+    return product ? [product] : []
+  }
+  const products = []
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const rows = unwrap(await database().from('productos_catalogo').select(CATALOG_COLUMNS)
+      .in('id', ids.slice(offset, offset + 100))) || []
+    products.push(...rows.map(productFromRow))
+  }
+  return products
 }
 
 async function requireAdministrator() {

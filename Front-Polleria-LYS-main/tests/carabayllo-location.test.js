@@ -47,3 +47,10 @@ describe('Utilidades de ubicación para el distrito de Carabayllo', () => {
     expect(await searchCarabaylloAddresses('av')).toEqual([])
   })
 })
+
+
+test('rechaza puntos del antiguo rectángulo que no pertenecen al distrito y tipos falsificados', () => {
+  expect(isWithinCarabayllo({ lat: -11.94, lng: -77.08 })).toBe(false)
+  expect(isWithinCarabayllo({ lat: '-11.88', lng: '-77.03' })).toBe(false)
+  expect(isValidPoint({ lat: null, lng: '' })).toBe(false)
+})

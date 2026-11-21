@@ -23,7 +23,7 @@ ALTER TABLE public.inventario_asignaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventario_movimientos ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.inventario_recursos,public.inventario_recetas,public.inventario_asignaciones,public.inventario_movimientos FROM PUBLIC,anon,authenticated;
 
-INSERT INTO public.inventario_recursos VALUES('pollo-brasa','Pollo a la brasa compartido',1600,8,now());
+INSERT INTO public.inventario_recursos VALUES('pollo-brasa','Pollo a la brasa compartido',560,8,now());
 -- Existencias iniciales estimadas del catálogo anterior; administración debe contarlas.
 INSERT INTO public.inventario_recursos(id,nombre,unidades,escala)
  SELECT 'producto-'||id,nombre,CASE id WHEN 5 THEN 40 WHEN 6 THEN 40 WHEN 7 THEN 35
