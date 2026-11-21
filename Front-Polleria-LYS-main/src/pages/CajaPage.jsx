@@ -52,6 +52,7 @@ export default function CajaPage() {
   const [filtroTipo,setFiltroTipo]=useState('todos'),[filtroCocina,setFiltroCocina]=useState('todos'),[fechaCobro,setFechaCobro]=useState(''),[soloReparto,setSoloReparto]=useState(false),[anticipado,setAnticipado]=useState(false);
   const intento = useRef(null);
   const bloqueo = useRef(false);
+  const detalle = useRef(null);
   const montado = useRef(false);
   useEffect(() => {
     montado.current = true;
@@ -253,7 +254,10 @@ export default function CajaPage() {
           {reintentoPendiente ? "Actualizar y revisar el resultado" : "Actualizar pedidos"}
         </button>
         <div className="caja-layout" aria-busy={cargando || cobrando || entregando}>
-          <section className="caja-orders-panel" aria-labelledby="pedidos-title">
+          <section
+            className={vista === "cobrados" ? "caja-orders-panel caja-orders-panel--history" : "caja-orders-panel"}
+            aria-labelledby="pedidos-title"
+          >
             <div className="caja-section-title">
               <div>
                 <span className="caja-eyebrow">Salón, delivery y recojo</span>
@@ -298,23 +302,56 @@ export default function CajaPage() {
                 setSeleccionadoId(id);
                 setBorradorPago(null);
                 setAnticipado(false);
+                if (window.matchMedia("(max-width: 980px)").matches) {
+                  detalle.current?.focus({ preventScroll: true });
+                  detalle.current?.scrollIntoView({ block: "start" });
+                }
               }}
             />
           </section>
 
-          <section className="caja-payment-panel" aria-label="Cobro del pedido">
+          <section ref={detalle} tabIndex={-1} className="caja-payment-panel" aria-label="Cobro del pedido">
             <DetalleVenta pedido={pedidoActivo} />
             {FLOW_PREVIEW&&pedidoActivo&&<p className="attention-status">Cocina: {pedidoActivo.estadoCocina} · Cuenta: {pedidoActivo.estado==='pagado'?'Pagada':pedidoActivo.cuentaSolicitada?'Solicitada':'Abierta'} · Pago: {pedidoActivo.estado==='pagado'?'Confirmado':'Pendiente'}</p>}
             {FLOW_PREVIEW&&pedidoActivo?.estado==='pendiente'&&pedidoActivo.tipo==='salon'&&!pedidoActivo.cuentaSolicitada&&<div className="attention-caja-notice"><label className="attention-confirm"><input type="checkbox" checked={anticipado} disabled={cobrando||reintentoPendiente} onChange={e=>setAnticipado(e.target.checked)}/>Confirmo el cobro anticipado.</label><p>La mesa seguirá ocupada y los platos pendientes continuarán en cocina. Los consumos posteriores irán a una cuenta adicional.</p></div>}
-            {FLOW_PREVIEW&&pedidoActivo?.cuenta&&<IncidentActions cuenta={pedidoActivo.cuenta} flow={{busy:entregando||cobrando||reintentoPendiente,act:gestionarIncidencia}}/>}
-            {pedidoActivo?.tipo === 'delivery' && pedidoActivo.estadoPedido === 'en_camino' && (
-              <p role="status">En camino. {pedidoActivo.estado === 'pagado' ? 'Confirma cuando el repartidor entregue al cliente.' : 'Registra el cobro recibido antes de confirmar la entrega al cliente.'}</p>
-            )}
-            {pedidoActivo?.tipo === 'delivery' && pedidoActivo.estadoPedido === 'en_camino' && pedidoActivo.estado === 'pagado' && (
-              <button type="button" className="btn-ember caja-confirm-button" disabled={entregando || cobrando || reintentoPendiente}
-                onClick={confirmarEntregaDelivery}>
-                {entregando ? 'Confirmando entrega…' : 'Confirmar entrega al cliente'}
-              </button>
+            {pedidoActivo && (
+              <div className="caja-order-actions">
+                {FLOW_PREVIEW && pedidoActivo.cuenta && (
+                  <IncidentActions
+                    cuenta={pedidoActivo.cuenta}
+                    flow={{ busy: entregando || cobrando || reintentoPendiente, act: gestionarIncidencia }}
+                  />
+                )}
+                {pedidoActivo.tipo === "delivery" && pedidoActivo.estadoPedido === "en_camino" && (
+                  <>
+                    <p role="status" className="caja-delivery-note">
+                      En camino. {pedidoActivo.estado === "pagado"
+                        ? "Confirma cuando el repartidor entregue al cliente."
+                        : "Registra el cobro recibido antes de confirmar la entrega al cliente."}
+                    </p>
+                    {pedidoActivo.estado === "pagado" && (
+                      <button
+                        type="button"
+                        className="caja-order-action caja-order-action--delivery"
+                        disabled={entregando || cobrando || reintentoPendiente}
+                        onClick={confirmarEntregaDelivery}
+                      >
+                        {entregando ? "Confirmando entrega…" : "Confirmar entrega al cliente"}
+                      </button>
+                    )}
+                  </>
+                )}
+                {pedidoActivo.estado === "pagado" && pedidoActivo.pago && (
+                  <button
+                    type="button"
+                    className="caja-order-action caja-order-action--receipt"
+                    onClick={abrirComprobante}
+                    disabled={abriendoComprobante}
+                  >
+                    Ver comprobante
+                  </button>
+                )}
+              </div>
             )}
 
             {pedidoActivo?.estado === "pendiente" && (
@@ -350,9 +387,6 @@ export default function CajaPage() {
                   {cobrando ? "Confirmando cobro…" : reintentoPendiente ? "Reintentar el mismo cobro" : `Cobrar S/ ${total.toFixed(2)}`}
                 </button>
               </>
-            )}
-            {pedidoActivo?.estado === "pagado" && pedidoActivo.pago && (
-              <button type="button" className="btn-ember" onClick={abrirComprobante} disabled={abriendoComprobante}>Ver comprobante</button>
             )}
           </section>
         </div>
