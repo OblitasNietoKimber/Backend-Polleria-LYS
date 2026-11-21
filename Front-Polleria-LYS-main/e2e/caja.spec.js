@@ -1,0 +1,191 @@
+import { test, expect } from './fixtures';
+const identity = { id: '00000000-0000-0000-0000-000000000031', email: 'caja@example.test', emailVerified: true, profile: { name: 'Caja' } };
+const order = { id: '00000000-0000-0000-0000-000000000041', tipo: 'salon', estado: 'preparacion', estado_pago: 'pendiente', cuenta_solicitada: true, subtotal: '42.90', envio: '0', total: '42.90', creado_en: '2026-10-09T18:00:00Z', mesas: { numero: '01' }, destinatario: {}, detalles_pedido: [{ producto_id: 1, cantidad: 1, precio_unitario: '42.90', nombre_producto: 'Pollo a la brasa entero' }], pagos: [] };
+async function backend(page, { failFirst = false, reject = '', role = 'caja', readError = false, empty = false } = {}) {
+  const calls = []; let paid = null, table = 'ocupada';
+  calls.reads = [];
+  await page.addInitScript(() => localStorage.setItem('lys_pedidos', JSON.stringify([{ id: 'LOCAL-IGNORADO', estado: 'pendiente', total: 1 }])));
+  await page.route('https://8bwzqx2s.us-east.insforge.app/**', async route => {
+    const req = route.request(), url = new URL(req.url()), path = url.pathname;
+    let response = {}, status = 200;
+    if (path === '/api/auth/refresh') {
+      const token = `${btoa(JSON.stringify({ alg: 'HS256' }))}.${btoa(JSON.stringify({ sub: identity.id, exp: Math.floor(Date.now()/1000)+3600 }))}.signature`;
+      response = { user: identity, accessToken: token };
+    } else if (path === '/api/auth/public-config') response = { oAuthProviders: [] };
+    else if (path === '/api/database/records/perfiles') response = { id: identity.id, nombre: 'Caja', apellido: 'Prueba', rol: role, preferencias: {} };
+    else if (path === '/api/database/records/pedidos') {
+      calls.reads.push(url.searchParams.get('select'));
+      if (readError) { status = 503; response = { message: 'No se puede consultar caja' }; }
+      else {
+        const estadoPago = paid ? 'pagado' : 'pendiente';
+        const filtro = url.searchParams.get('estado_pago');
+        const row = { ...order, estado_pago: estadoPago, estado: paid ? 'entregado' : order.estado,
+          pagos: paid ? [{ id: paid.pago.id, metodo: paid.pago.metodo, monto: paid.total, recibido: paid.pago.monto,
+            vuelto: paid.pago.vuelto, creado_en: paid.pagadoAt, comprobante: paid }] : [] };
+        response = empty || (filtro && filtro !== `eq.${estadoPago}`) ? [] : [row];
+        if (url.searchParams.get('id')?.startsWith('eq.')) response = response[0] || null;
+      }
+    } else if (path.includes('/rpc/registrar_cobro')) {
+      const body = req.postDataJSON(); calls.push(body);
+      if (reject) { status = 400; response = { message: reject }; }
+      else {
+        paid ??= { id: order.id, codigo: order.id, mesa: '01', tipo: 'salon', cliente: 'Mesa 01', subtotal: 42.9, envio: 0, total: 42.9, estado: 'pagado', estadoPedido: 'entregado', createdAt: order.creado_en, pagadoAt: '2026-10-09T19:00:00Z', items: [{ id: 1, cantidad: 1, precio: 42.9, nombre: 'Pollo a la brasa entero' }], pago: { id: '00000000-0000-0000-0000-000000000051', metodo: body.p_metodo, monto: body.p_recibido, importe: 42.9, vuelto: body.p_metodo === 'efectivo' ? 7.1 : 0 } };
+        table = 'libre';
+        if (failFirst && calls.length === 1) { status = 503; response = { message: 'Respuesta interrumpida' }; }
+        else { await new Promise(resolve => setTimeout(resolve, 250)); response = paid; }
+      }
+    } else if (path.includes('/rpc/obtener_dashboard_admin')) {
+      const total = paid ? 42.9 : 0, cantidad = paid ? 1 : 0;
+      response = { hoy: '2026-10-09', resumen: Object.fromEntries(['dia', 'semana', 'mes', 'total'].map(k => [k, { cantidadPedidos: cantidad, totalVentas: total }])),
+        productos: paid ? [{ productoId: 1, nombre: 'Pollo a la brasa entero', cantidad: 1, total }] : [],
+        metodosPago: paid ? [{ metodo: paid.pago.metodo, cantidad, total }] : [], ventasPorDia: [], tendencias: {}, operativas: {}, pedidosPendientes: paid ? 0 : 1 };
+    } else if (path.includes('/rpc/obtener_historial_ventas')) {
+      response = { ventas: paid ? [{ id: paid.id, codigo: paid.codigo, pagoId: paid.pago.id, tipo: 'salon', mesa: '01', cliente: 'Mesa 01', total: 42.9, pagadoAt: paid.pagadoAt, pago: { metodo: paid.pago.metodo } }] : [], siguiente: null };
+    } else if (path === '/api/database/records/mesas') response = [{ id: 1, numero: '01', capacidad: 4, forma: 'cuadrada', zona: 'salon_principal', estado: table }];
+    await route.fulfill({ status, headers: { 'content-range': empty ? '*/0' : '0-0/1' }, contentType: 'application/json', body: JSON.stringify(response) });
+  });
+  return calls;
+}
+test('cobra efectivo con vuelto confirmado, persiste comprobante y omite pedidos locales', async ({ page }) => {
+  const calls = await backend(page);
+  await page.goto('/caja');
+  await expect(page.getByText('LOCAL-IGNORADO')).toHaveCount(0);
+  await expect(page.getByText('Cuenta solicitada', { exact: false })).toBeVisible();
+  const button = page.getByRole('button', { name: 'Cobrar S/ 42.90' });
+  await page.getByLabel('Monto recibido').fill('40'); await expect(button).toBeDisabled();
+  await page.getByLabel('Monto recibido').fill('50'); await button.click();
+  await expect(page.getByRole('button', { name: 'Confirmando cobro…' })).toBeDisabled();
+  const ticket = page.getByRole('dialog');
+  await expect(ticket).toContainText('¡Venta registrada!');
+  await expect(ticket).toContainText('S/ 7.10');
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toMatchObject({ p_metodo: 'efectivo', p_recibido: 50, p_total_esperado: 42.9 });
+  expect(calls[0]).not.toHaveProperty('vuelto');
+  await page.getByRole('button', { name: 'Nueva venta' }).click();
+  await page.reload();
+  await page.getByRole('tab', { name: 'Cobrados 1' }).click();
+  await page.getByRole('button', { name: 'Ver comprobante' }).click();
+  await expect(page.getByRole('dialog')).toContainText('S/ 7.10');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lys_pedidos'))[0].id)).toBe('LOCAL-IGNORADO');
+});
+test('reintenta con la misma clave después de perder la respuesta', async ({ page }) => {
+  const calls = await backend(page, { failFirst: true });
+  await page.goto('/caja');
+  await page.getByLabel('Monto recibido').fill('50');
+  await page.getByRole('button', { name: 'Cobrar S/ 42.90' }).click();
+  await expect(page.getByRole('alert')).toContainText('Respuesta interrumpida');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByLabel('Monto recibido')).toBeDisabled();
+  await page.getByRole('button', { name: 'Reintentar el mismo cobro' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(calls).toHaveLength(2); expect(calls[1]).toEqual(calls[0]);
+});
+for (const method of ['Yape', 'Plin', 'Tarjeta']) {
+  test(`registra ${method} separado con importe exacto`, async ({ page }) => {
+    const calls = await backend(page); await page.goto('/caja');
+    await page.getByRole('button', { name: method, exact: true }).click();
+    await page.getByRole('button', { name: 'Cobrar S/ 42.90' }).click();
+    await expect(page.getByRole('dialog')).toContainText(method);
+    expect(calls[0]).toMatchObject({ p_metodo: method.toLowerCase(), p_recibido: 42.9 });
+  });
+}
+test('muestra errores del servidor sin confirmar la venta', async ({ page }) => {
+  await backend(page, { reject: 'El total cambió; actualiza el pedido antes de cobrar' });
+  await page.goto('/caja'); await page.getByLabel('Monto recibido').fill('50');
+  await page.getByRole('button', { name: 'Cobrar S/ 42.90' }).click();
+  await expect(page.getByRole('alert')).toContainText('El total cambió');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Actualizar y revisar el resultado' }).click();
+  await expect(page.getByLabel('Monto recibido')).toBeEnabled();
+});
+test('muestra fallos de consulta sin habilitar cobros', async ({ page }) => {
+  await backend(page, { readError: true }); await page.goto('/caja');
+  await expect(page.getByRole('alert')).toContainText('No se puede consultar caja');
+  await expect(page.getByRole('button', { name: /Cobrar S/ })).toHaveCount(0);
+});
+test('muestra caja vacía en móvil', async ({ page }) => {
+  await backend(page, { empty: true }); await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/caja'); await expect(page.getByText('No encontramos pedidos')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('Caja inactiva no consulta periódicamente ni descarga comprobantes', async ({ page }) => {
+  await page.clock.install();
+  const calls = await backend(page);
+  await page.goto('/caja');
+  await expect(page.getByText('Cuenta solicitada', { exact: false })).toBeVisible();
+  expect(calls.reads).toHaveLength(2);
+  expect(calls.reads.every(select => !select.includes('comprobante'))).toBe(true);
+  await page.clock.fastForward(120000);
+  expect(calls.reads).toHaveLength(2);
+});
+
+for (const width of [320, 390]) {
+  test(`muestra pedido y comprobante con UUID sin desbordar a ${width}px`, async ({ page }) => {
+    await backend(page); await page.setViewportSize({ width, height: 844 }); await page.goto('/caja');
+    await expect(page.getByText('Cuenta solicitada', { exact: false })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByLabel('Monto recibido').fill('50'); await page.getByRole('button', { name: 'Cobrar S/ 42.90' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width === 390) await page.screenshot({ path: '../.insforge/caja-movil.png', fullPage: true });
+  });
+}
+test('el administrador ve el cobro persistido en el resumen de ventas', async ({ page }) => {
+  await backend(page, { role: 'admin' }); await page.goto('/caja');
+  await page.getByLabel('Monto recibido').fill('50');
+  await page.getByRole('button', { name: 'Cobrar S/ 42.90' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.goto('/dashboard');
+  await expect(page.locator('.admin-summary-card').filter({ hasText: 'Ingresos totales' })).toContainText('42.90');
+  await expect(page.locator('.admin-history-table')).toContainText('Pedido #00000000');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lys_pedidos'))[0].id)).toBe('LOCAL-IGNORADO');
+});
+
+test('separa efectivo y ventas del día en Perú e incluye delivery solo cuando está cobrado',async({page})=>{
+ await page.clock.install({time:new Date('2026-11-15T04:59:45Z')});
+ await backend(page);
+ const paid=(id,tipo,metodo,fecha='2026-11-15T01:00:00Z')=>({...order,id,tipo,estado_pago:'pagado',total:'70',pagos:[{id:`pago-${id}`,metodo,monto:'70',recibido:metodo==='efectivo'?'100':'70',vuelto:metodo==='efectivo'?'30':'0',creado_en:fecha}]});
+ const rows=[paid('efectivo','delivery','efectivo'),paid('digital','delivery','yape'),paid('ayer','salon','efectivo','2026-11-13T18:00:00Z'),{...order,id:'pendiente',tipo:'delivery',total:'70'}];
+ await page.route('**/api/database/records/pedidos?*',route=>{
+  const estado = new URL(route.request().url()).searchParams.get('estado_pago')?.slice(3);
+  return route.fulfill({ json: rows.filter(row => row.estado_pago === estado) });
+ });
+ await page.route('**/rpc/obtener_resumen_caja', route => {
+  const { p_dia } = route.request().postDataJSON();
+  return route.fulfill({ json: p_dia === '2026-11-14' ? { ventas: 140, efectivo: 70, cobrados: 2 } : { ventas: 0, efectivo: 0, cobrados: 0 } });
+ });
+ await page.goto('/caja');
+ const card=label=>page.locator('.caja-summary-card').filter({has:page.getByText(label,{exact:true})});
+ await expect(card('Ventas del día')).toContainText('S/ 140.00');
+ await expect(card('Efectivo cobrado del día')).toContainText('S/ 70.00');
+ await expect(card('Pedidos cobrados')).toContainText('2');
+ await expect(card('Por cobrar')).toContainText('S/ 70.00');
+ await page.clock.fastForward(16000);
+ await expect(card('Ventas del día')).toContainText('S/ 0.00');
+ for(const width of [1280,768,390]) {
+  await page.setViewportSize({width,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+});
+
+test('confirma la entrega de delivery usando el estado actual y conserva el comprobante original',async({page})=>{
+ await backend(page);
+ let estado='en_camino',confirmaciones=0;
+ const comprobante={id:order.id,codigo:order.id,tipo:'delivery',cliente:'Cliente reparto',subtotal:42.9,envio:0,total:42.9,estado:'pagado',estadoPedido:'pendiente',createdAt:order.creado_en,pagadoAt:new Date().toISOString(),items:[{id:1,nombre:'Pollo a la brasa entero',cantidad:1,precio:42.9}],pago:{id:'pago-test',metodo:'efectivo',monto:50,importe:42.9,vuelto:7.1}};
+ await page.route('**/api/database/records/pedidos?**',route=>{
+  const params = new URL(route.request().url()).searchParams;
+  const row = {...order,tipo:'delivery',estado,estado_pago:'pagado',pagos:[{comprobante}]};
+  return route.fulfill({json: params.get('id')?.startsWith('eq.') ? row : params.get('estado_pago') === 'eq.pendiente' ? [] : [row]});
+ });
+ await page.route('**/api/database/rpc/confirmar_entrega_delivery',async route=>{
+  confirmaciones++;expect(route.request().postDataJSON()).toEqual({p_pedido_id:order.id});
+  await new Promise(resolve=>setTimeout(resolve,200));estado='entregado';await route.fulfill({json:order.id});
+ });
+ await page.goto('/caja');await page.getByRole('tab',{name:'Cobrados 1'}).click();
+ await page.getByRole('button',{name:'Confirmar entrega al cliente',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Confirmando entrega…'})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Confirmar entrega al cliente',exact:true})).toHaveCount(0);
+ expect(confirmaciones).toBe(1);
+ await page.getByRole('button',{name:'Ver comprobante'}).click();await expect(page.getByRole('dialog')).toContainText('S/ 7.10');
+});
